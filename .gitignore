@@ -37,10 +37,13 @@ Thumbs.db
 
 # sandbox / QA artifacts (not product source)
 .grok/
-artifacts/
 attachments/
 screenshots/
 .project_id
 .node_modules.lock
 tmp/
 /tmp/
+
+# artifacts: commit product specs / engineer handoffs; ignore caches
+artifacts/*
+!artifacts/Kanji-Densha-*.md
