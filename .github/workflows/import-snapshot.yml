@@ -1,0 +1,43 @@
+name: Import snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      archive_url:
+        description: Direct URL of git-archive tar.gz
+        required: true
+        type: string
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replace tree with snapshot
+        env:
+          ARCHIVE_URL: ${{ inputs.archive_url }}
+        run: |
+          set -euo pipefail
+          curl -fL --retry 8 --retry-all-errors --retry-delay 2 "$ARCHIVE_URL" -o /tmp/snapshot.tar.gz
+          python3 - <<'PY'
+          import tarfile, os, hashlib
+          p='/tmp/snapshot.tar.gz'
+          print('bytes', os.path.getsize(p))
+          print('sha256', hashlib.sha256(open(p,'rb').read()).hexdigest())
+          with tarfile.open(p, 'r:gz') as tf:
+              print('entries', len(tf.getnames()))
+          PY
+          # Keep .git, replace everything else
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          tar -xzf /tmp/snapshot.tar.gz
+          git add -A
+          git config user.name "DynamicVision2026"
+          git config user.email "302155737+DynamicVision2026@users.noreply.github.com"
+          git status --short | head -20
+          git add -A
+          git commit -m "Release snapshot: thick teaching S1-S3, learning route P0-P2, full-grade announcements 1026, QA fixes"
+          git push origin HEAD:main
