@@ -1,0 +1,46 @@
+# dependencies & caches
+node_modules/
+dist/
+build/
+.output/
+.nitro/
+.next/
+.turbo/
+.vercel/
+.tanstack/
+.cache/
+coverage/
+playwright-report/
+test-results/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# logs & local
+*.log
+*.local
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+
+# editor / OS
+.idea/
+.vscode/
+*.swp
+*~
+
+# sandbox / QA artifacts (not product source)
+.grok/
+artifacts/
+attachments/
+screenshots/
+.project_id
+.node_modules.lock
+tmp/
+/tmp/
