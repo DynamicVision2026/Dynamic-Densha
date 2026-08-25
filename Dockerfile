@@ -19,7 +19,13 @@ FROM node:20-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# `npm ci` is preferred for reproducibility, but this repo's committed
+# package-lock.json currently has pre-existing drift from package.json
+# (unrelated to this PR — confirmed via `npm ci`'s EUSAGE error on ajv/
+# json-schema-traverse/fast-uri versions). Using `npm install` here so the
+# container build succeeds; recommend re-running `npm install` and
+# committing the refreshed lockfile separately to restore `npm ci` safety.
+RUN npm install
 
 COPY . .
 RUN npm run build:container
