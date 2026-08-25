@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** Child surface: 100dvh, outer never scrolls, 900px center on desktop. */
+/** Child surface: 100dvh app shell, outer never scrolls, 900px center on desktop. */
 export function ChildShell({
   children,
   className,
@@ -13,7 +13,8 @@ export function ChildShell({
     <div
       data-child-shell
       className={cn(
-        "paper-wash flex h-dvh max-h-dvh flex-col overflow-hidden",
+        "paper-wash relative flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none",
+        "fixed inset-0",
         className,
       )}
     >

@@ -1,32 +1,28 @@
 import { ReadingLine } from "@/components/speaker-button";
-import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/i18n";
-import { useDwell } from "@/lib/use-dwell";
 
+/** Echo re-teach content only. Primary ためす lives in RideShell action. */
 export function EchoTeachStrip({
   char,
   word,
   kana,
   meaningJa,
   reading,
-  skip,
-  dwellMs = 1000,
-  onContinue,
 }: {
   char: string;
   word: string;
   kana?: string;
   meaningJa: string;
   reading: string;
-  skip?: boolean;
-  dwellMs?: number;
-  onContinue: () => void;
 }) {
   const { t } = useI18n();
-  const dwell = useDwell(dwellMs, `${char}|echo-teach`, Boolean(skip));
 
   return (
-    <section className="mt-8 space-y-5" data-echo-teach data-tour="echo-teach">
+    <section
+      className="flex min-h-0 flex-1 flex-col justify-center gap-5 overflow-hidden"
+      data-echo-teach
+      data-tour="echo-teach"
+    >
       <p className="text-center text-xs tracking-[0.2em] text-fg-subtle">{t("echoTeachLead")}</p>
       <h1 className="text-center font-display text-7xl leading-none">{char}</h1>
       <div className="rounded-lg border border-border bg-surface p-4">
@@ -41,16 +37,6 @@ export function EchoTeachStrip({
           </div>
         </div>
       </div>
-      <Button
-        type="button"
-        className="h-12 w-full"
-        data-tour="echo-teach-go"
-        data-dwell-ready={dwell.ready ? "1" : "0"}
-        disabled={!dwell.ready}
-        onClick={onContinue}
-      >
-        {dwell.ready ? t("echoTeachGo") : `${t("echoTeachGo")} ${dwell.remainSec}`}
-      </Button>
     </section>
   );
 }

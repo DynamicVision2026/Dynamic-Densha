@@ -93,15 +93,25 @@ test("ride shell is 100dvh with a stable action zone; parent door holds 1.5s", (
   const door = readFileSync("src/components/parent-door.tsx", "utf8");
   const session = readFileSync("src/components/kanji-session.tsx", "utf8");
   assert.match(child, /h-dvh/);
+  assert.match(child, /fixed inset-0/);
   assert.match(ride, /data-ride-action/);
+  assert.match(ride, /flex-\[0_0_42%\]/);
   assert.match(session, /RideShell/);
   assert.match(door, /HOLD_MS = 1500/);
   assert.match(door, /aria-label/);
-  assert.equal(/overflow-y-auto/.test(ride), false);
+  const stageChunk = ride.split("data-ride-stage")[1]?.split("data-ride-action")[0] ?? "";
+  assert.equal(/overflow-y-auto/.test(stageChunk), false);
 });
 
 test("index launches child 発車標, not a marketing wall", () => {
   const index = readFileSync("src/routes/index.tsx", "utf8");
   assert.match(index, /Navigate to="\/demo"/);
   assert.equal(/ctaRide/.test(index), false);
+});
+
+test("home landscape keeps しゅっぱつ bottom-center, not a side rail", () => {
+  const home = readFileSync("src/components/child-home.tsx", "utf8");
+  assert.match(home, /landscape:w-\[40%\]/);
+  assert.match(home, /data-child-action/);
+  assert.equal(/side-rail|landscape:flex-row/.test(home), false);
 });

@@ -65,7 +65,7 @@ export function ChildHome({
       ) : null}
       <header
         data-child-top
-        className="flex h-[88px] shrink-0 items-center gap-2 px-3 pt-[env(safe-area-inset-top)] landscape:h-16"
+        className="flex h-[88px] shrink-0 items-center gap-2 px-3 pt-[env(safe-area-inset-top)]"
       >
         <HomeLineStrip
           cars={cars}

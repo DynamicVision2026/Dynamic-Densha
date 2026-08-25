@@ -158,6 +158,7 @@ export function KanjiSession({
     `${char}|understand|${progress.repairRequiredKinds.join(",")}`,
     skipTeach || (localBeat !== "understand" && !lookMode),
   );
+  const echoTeachDwell = useDwell(1000, `${char}|echo-teach`, skipTeach || localBeat !== "echo");
 
   useEffect(() => {
     if (shouldAnnounce(char, { lookMode, echoOn: Boolean(echoOn), echoDue, demoActive: tour.active })) {
@@ -483,12 +484,22 @@ export function KanjiSession({
         kana={teachSurface.kana}
         meaningJa={teachSurface.meaningJa || kanji.meaningJa}
         reading={teachSurface.reading}
-        skip={skipTeach}
-        onContinue={() => {
+      />
+    );
+    action = (
+      <Button
+        type="button"
+        className="h-[88px] w-full text-lg"
+        data-tour="echo-teach-go"
+        data-dwell-ready={echoTeachDwell.ready ? "1" : "0"}
+        disabled={!echoTeachDwell.ready}
+        onClick={() => {
           markEchoTaughtToday(kanji.char, now);
           setEchoTeachDismissed(true);
         }}
-      />
+      >
+        {echoTeachDwell.ready ? t("echoTeachGo") : `${t("echoTeachGo")} ${echoTeachDwell.remainSec}`}
+      </Button>
     );
   } else if (
     (localBeat === "practice" || localBeat === "echo") &&

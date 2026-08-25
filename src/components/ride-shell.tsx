@@ -70,13 +70,13 @@ export function RideShell({
       >
         <section
           data-ride-stage
-          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 pt-2 landscape:basis-[55%] landscape:flex-none"
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 pt-2 landscape:flex-none landscape:basis-[55%]"
         >
           {children}
         </section>
         <section
           data-ride-action
-          className="flex shrink-0 flex-col justify-end gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 landscape:h-full landscape:basis-[45%] landscape:flex-none landscape:justify-center landscape:overflow-hidden"
+          className="flex min-h-0 shrink-0 flex-[0_0_42%] flex-col justify-end gap-3 overflow-y-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 landscape:h-full landscape:flex-[0_0_45%] landscape:justify-center"
         >
           {action}
         </section>
