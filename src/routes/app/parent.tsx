@@ -78,7 +78,7 @@ function ParentPage() {
   if (!childId || overviewQ.isLoading) {
     return (
       <AppShell>
-        <div className="mx-auto max-w-3xl px-5 py-12">
+        <div className="mx-auto max-w-[900px] px-5 py-12">
           <Skeleton className="h-64 w-full rounded-xl" />
         </div>
       </AppShell>
@@ -90,7 +90,7 @@ function ParentPage() {
 
   return (
     <AppShell childName={data.child.name} grade={data.child.grade}>
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main data-parent-doc className="mx-auto max-w-[900px] px-5 py-8">
         <p className="text-xs tracking-[0.2em] text-fg-subtle">{t("parentPage")}</p>
         <h1 className="mt-1 font-display text-3xl">{t("parentTitle")}</h1>
 
@@ -112,22 +112,7 @@ function ParentPage() {
           ))}
         </div>
 
-        <GradeRolloverCard
-          grade={data.child.grade}
-          canRollover={Boolean(data.canRollover)}
-          aprilPrompt={Boolean(data.aprilPrompt)}
-          pending={rolloverMut.isPending}
-          onConfirm={() => rolloverMut.mutate()}
-          onDismiss={() => dismissMut.mutate()}
-        />
-
-        <section className="mt-4 rounded-xl border border-border bg-surface p-5">
-          <StartBandPicker
-            value={(data.child as { startBand?: StartBand }).startBand ?? "beginning"}
-            onChange={(band) => bandMut.mutate(band)}
-            disabled={bandMut.isPending}
-          />
-        </section>
+        {data.report ? <ParentReportView report={data.report} /> : null}
 
         {data.forward && data.route && data.plan && data.progress ? (
           <ParentForwardView
@@ -140,7 +125,22 @@ function ParentPage() {
           />
         ) : null}
 
-        {data.report ? <ParentReportView report={data.report} homeTo="/app" /> : null}
+        <section className="mt-4 rounded-xl border border-border bg-surface p-5" data-parent-settings>
+          <StartBandPicker
+            value={(data.child as { startBand?: StartBand }).startBand ?? "beginning"}
+            onChange={(band) => bandMut.mutate(band)}
+            disabled={bandMut.isPending}
+          />
+        </section>
+
+        <GradeRolloverCard
+          grade={data.child.grade}
+          canRollover={Boolean(data.canRollover)}
+          aprilPrompt={Boolean(data.aprilPrompt)}
+          pending={rolloverMut.isPending}
+          onConfirm={() => rolloverMut.mutate()}
+          onDismiss={() => dismissMut.mutate()}
+        />
 
         <section className="mt-4 rounded-xl border border-border bg-surface p-5">
           <div className="flex items-center justify-between gap-3">
@@ -193,7 +193,7 @@ function ParentPage() {
           </ul>
         </section>
 
-        <p className="mt-10 text-center text-[11px] leading-relaxed text-fg-subtle">
+        <p className="mt-10 text-center text-[11px] leading-relaxed text-fg-subtle" data-parent-licenses>
           {t("shapeLicense")}
           <br />
           {t("audioLicense")}

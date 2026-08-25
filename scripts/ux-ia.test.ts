@@ -115,3 +115,56 @@ test("home landscape keeps しゅっぱつ bottom-center, not a side rail", () =
   assert.match(home, /data-child-action/);
   assert.equal(/side-rail|landscape:flex-row/.test(home), false);
 });
+
+test("map is overlay state, not a child tab; old map routes replace to home", () => {
+  const overlay = readFileSync("src/components/map-overlay.tsx", "utf8");
+  const home = readFileSync("src/components/child-home.tsx", "utf8");
+  const demoMap = readFileSync("src/routes/demo/map.tsx", "utf8");
+  const appMap = readFileSync("src/routes/app/map.tsx", "utf8");
+  assert.match(home, /MapOverlay/);
+  assert.match(overlay, /data-map-overlay/);
+  assert.match(overlay, /fixed inset-0/);
+  assert.match(overlay, /aria-modal/);
+  assert.equal(/createFileRoute/.test(overlay), false);
+  assert.match(demoMap, /to="\/demo"/);
+  assert.match(demoMap, /replace/);
+  assert.match(appMap, /to="\/app"/);
+  assert.match(appMap, /replace/);
+  assert.equal(/workshopTry/.test(overlay), false);
+});
+
+test("parent door holds 1.5s for pointer and exposes immediate a11y control", () => {
+  const door = readFileSync("src/components/parent-door.tsx", "utf8");
+  assert.match(door, /HOLD_MS = 1500/);
+  assert.match(door, /data-parent-a11y/);
+  assert.match(door, /parentAria/);
+  assert.match(door, /aria-hidden/);
+});
+
+test("empty board copy stays live as じゆうに のる", () => {
+  const home = readFileSync("src/components/child-home.tsx", "utf8");
+  assert.match(home, /emptyBoard/);
+  assert.match(home, /freeRide/);
+  assert.match(home, /echoArrival/);
+  assert.match(home, /data-empty-board/);
+  assert.match(home, /data-free-ride/);
+  assert.equal(/disabled/.test(home), false);
+});
+
+test("parent document is sticky + 900px; sitemap order progress → week → attention → paper", () => {
+  const shell = readFileSync("src/components/app-shell.tsx", "utf8");
+  const report = readFileSync("src/components/parent-report.tsx", "utf8");
+  const demo = readFileSync("src/routes/demo/parent.tsx", "utf8");
+  const app = readFileSync("src/routes/app/parent.tsx", "utf8");
+  assert.match(shell, /sticky/);
+  assert.match(shell, /backChild/);
+  assert.match(demo, /max-w-\[900px\]/);
+  assert.match(app, /max-w-\[900px\]/);
+  assert.match(demo, /WatchDemoButton/);
+  assert.equal(/WatchDemoButton/.test(readFileSync("src/components/child-home.tsx", "utf8")), false);
+  const progressAt = report.indexOf("data-parent-progress");
+  const weekAt = report.indexOf("data-parent-week");
+  const attentionAt = report.indexOf("data-parent-attention");
+  const paperAt = report.indexOf("data-parent-paper");
+  assert.ok(progressAt >= 0 && weekAt > progressAt && attentionAt > weekAt && paperAt > attentionAt);
+});

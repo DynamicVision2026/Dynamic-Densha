@@ -1,8 +1,6 @@
-import { Link } from "@tanstack/react-router";
 import { StatusLegend } from "@/components/status-legend";
 import { STATUS_META, type MasteryStatus } from "@/lib/mastery";
 import { STATUS_KEYS } from "@/lib/i18n/messages";
-import { readStoredActiveGrade } from "@/lib/active-grade";
 import { echoArrivalWhen } from "@/lib/echo-arrival";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { ParentReport } from "@/lib/parent-report";
@@ -11,10 +9,9 @@ const STATUS_BAR: MasteryStatus[] = ["new", "lost", "fix", "almost", "perfect"];
 
 export function ParentReportView({
   report,
-  homeTo,
 }: {
   report: ParentReport;
-  homeTo: "/demo" | "/app";
+  homeTo?: "/demo" | "/app";
 }) {
   const { t } = useI18n();
   const total = Math.max(1, report.timetableTotal);
@@ -25,27 +22,7 @@ export function ParentReportView({
       <p className="mt-2 text-sm leading-7 text-fg">{t("parentRolesApp")}</p>
       <p className="text-sm leading-7 text-fg-muted">{t("parentRolesPaper")}</p>
 
-      <section className="mt-6 rounded-xl border border-border bg-surface p-5">
-        <h2 className="font-display text-lg">{t("parentPaper")}</h2>
-        <p className="mt-2 text-sm text-fg-muted">{t("parentPaperLead")}</p>
-        {report.paper.length === 0 ? (
-          <p className="mt-3 text-sm text-fg-subtle">{t("parentAttentionEmpty")}</p>
-        ) : (
-          <ol className="mt-4 flex flex-wrap gap-3">
-            {report.paper.map((ch) => (
-              <li
-                key={ch}
-                className="grid size-14 place-items-center rounded-md border border-border bg-bg font-display text-2xl"
-              >
-                {ch}
-              </li>
-            ))}
-          </ol>
-        )}
-        <p className="mt-4 text-xs leading-relaxed text-fg-subtle">{t("parentPaperDisclaimer")}</p>
-      </section>
-
-      <section className="mt-4 rounded-xl border border-border bg-surface p-5">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-5" data-parent-progress>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-display text-lg">{t("grade")}</h2>
           <p className="text-xs text-fg-subtle">
@@ -80,7 +57,7 @@ export function ParentReportView({
         </div>
       </section>
 
-      <section className="mt-4 rounded-xl border border-border bg-surface p-5">
+      <section className="mt-4 rounded-xl border border-border bg-surface p-5" data-parent-week>
         <h2 className="font-display text-lg">{t("parentWeek")}</h2>
         <p className="mt-2 text-sm leading-7 text-fg">
           {t("parentSummary", { echo: report.summary.echo, fix: report.summary.fix })}
@@ -135,7 +112,7 @@ export function ParentReportView({
         )}
       </section>
 
-      <section className="mt-4 rounded-xl border border-border bg-surface p-5">
+      <section className="mt-4 rounded-xl border border-border bg-surface p-5" data-parent-attention>
         <h2 className="font-display text-lg">{t("parentAttention")}</h2>
         {report.attention.length === 0 ? (
           <p className="mt-3 text-sm text-fg-muted">{t("parentAttentionEmpty")}</p>
@@ -170,6 +147,26 @@ export function ParentReportView({
         )}
       </section>
 
+      <section className="mt-4 rounded-xl border border-border bg-surface p-5" data-parent-paper>
+        <h2 className="font-display text-lg">{t("parentPaper")}</h2>
+        <p className="mt-2 text-sm text-fg-muted">{t("parentPaperLead")}</p>
+        {report.paper.length === 0 ? (
+          <p className="mt-3 text-sm text-fg-subtle">{t("parentAttentionEmpty")}</p>
+        ) : (
+          <ol className="mt-4 flex flex-wrap gap-3">
+            {report.paper.map((ch) => (
+              <li
+                key={ch}
+                className="grid size-14 place-items-center rounded-md border border-border bg-bg font-display text-2xl"
+              >
+                {ch}
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="mt-4 text-xs leading-relaxed text-fg-subtle">{t("parentPaperDisclaimer")}</p>
+      </section>
+
       <section className="mt-4 rounded-xl border border-border bg-surface p-5">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-lg">{t("parentStamps")}</h2>
@@ -188,16 +185,6 @@ export function ParentReportView({
           ))}
         </ul>
       </section>
-
-      <p className="mt-8 text-center">
-        <Link
-          to={homeTo}
-          search={readStoredActiveGrade() ? { grade: readStoredActiveGrade() } : undefined}
-          className="text-sm text-fg-muted underline-offset-4 hover:underline"
-        >
-          {t("childTimetable")}
-        </Link>
-      </p>
     </>
   );
 }

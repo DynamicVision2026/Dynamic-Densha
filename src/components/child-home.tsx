@@ -63,69 +63,85 @@ export function ChildHome({
           {t("tourLiveBanner")}
         </p>
       ) : null}
-      <header
-        data-child-top
-        className="flex h-[88px] shrink-0 items-center gap-2 px-3 pt-[env(safe-area-inset-top)]"
-      >
-        <HomeLineStrip
-          cars={cars}
-          currentChar={depart.kanji}
-          hrefBase={hrefBase}
-          childId={childId}
-          grade={grade}
-          onOpenMap={() => setMapOpen(true)}
-        />
-        <ParentDoor to={parentTo} />
-      </header>
-
-      <section
-        data-child-stage
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3"
-      >
-        {depart.empty ? (
-          <p className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm leading-7 text-fg-muted">
-            {t("emptyBoard")}
-          </p>
-        ) : null}
-        <div className="grid grid-cols-1 gap-4 landscape:grid-cols-2">
-          {cards.map((card) => (
-            <Link
-              key={`${card.kind}-${card.kanji}`}
-              to={rideTo}
-              params={{ char: card.kanji }}
-              search={search}
-              data-board-car={card.kanji}
-              data-tour={card.kind === "return" ? `echo-${card.kanji}` : undefined}
-              className="flex min-h-[88px] items-center gap-4 rounded-xl border border-border bg-surface px-4 py-3"
-            >
-              <span
-                className={cn(
-                  "grid size-14 place-items-center rounded-md font-display text-3xl",
-                  STATUS_META[card.status].className,
-                )}
-              >
-                {card.kanji}
-              </span>
-              <span className="text-sm text-fg-muted">{kindLabel(card.kind)}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <footer
-        data-child-action
-        className="flex h-[160px] shrink-0 items-center justify-center px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] landscape:h-[120px] max-sm:h-[132px]"
-      >
-        <Link
-          to={rideTo}
-          params={{ char: depart.kanji }}
-          search={search}
-          data-depart
-          className="inline-flex h-[88px] min-w-[88px] w-full max-w-md items-center justify-center rounded-xl bg-primary px-8 font-display text-2xl tracking-wide text-primary-fg landscape:w-[40%]"
+      <div className="flex min-h-0 flex-1 flex-col" {...(mapOpen ? { inert: true } : {})}>
+        <header
+          data-child-top
+          className="flex h-[88px] shrink-0 items-center gap-2 px-3 pt-[env(safe-area-inset-top)]"
         >
-          {depart.empty ? t("freeRide") : t("depart")}
-        </Link>
-      </footer>
+          <HomeLineStrip
+            cars={cars}
+            currentChar={depart.kanji}
+            hrefBase={hrefBase}
+            childId={childId}
+            grade={grade}
+            onOpenMap={() => setMapOpen(true)}
+          />
+          <ParentDoor to={parentTo} />
+        </header>
+
+        <section
+          data-child-stage
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3"
+        >
+          {depart.empty ? (
+            <div
+              className="rounded-lg border border-border bg-surface px-4 py-6 text-center"
+              data-empty-board
+            >
+              <p className="text-sm leading-7 text-fg-muted">{t("emptyBoard")}</p>
+              {board?.tomorrow[0] ? (
+                <p className="mt-2 text-xs text-fg-subtle">
+                  {t("echoArrival", {
+                    when:
+                      board.tomorrow[0].when === "dayAfter"
+                        ? t("echoArrivalDayAfter")
+                        : t("echoArrivalTomorrow"),
+                  })}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="grid grid-cols-1 gap-4 landscape:grid-cols-2">
+            {cards.map((card) => (
+              <Link
+                key={`${card.kind}-${card.kanji}`}
+                to={rideTo}
+                params={{ char: card.kanji }}
+                search={search}
+                data-board-car={card.kanji}
+                data-tour={card.kind === "return" ? `echo-${card.kanji}` : undefined}
+                className="flex min-h-[88px] items-center gap-4 rounded-xl border border-border bg-surface px-4 py-3"
+              >
+                <span
+                  className={cn(
+                    "grid size-14 place-items-center rounded-md font-display text-3xl",
+                    STATUS_META[card.status].className,
+                  )}
+                >
+                  {card.kanji}
+                </span>
+                <span className="text-sm text-fg-muted">{kindLabel(card.kind)}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <footer
+          data-child-action
+          className="flex h-[160px] shrink-0 items-center justify-center px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] landscape:h-[120px] max-sm:h-[132px]"
+        >
+          <Link
+            to={rideTo}
+            params={{ char: depart.kanji }}
+            search={search}
+            data-depart
+            data-free-ride={depart.empty || undefined}
+            className="inline-flex h-[88px] min-w-[88px] w-full max-w-md items-center justify-center rounded-xl bg-primary px-8 font-display text-2xl tracking-wide text-primary-fg landscape:w-[40%]"
+          >
+            {depart.empty ? t("freeRide") : t("depart")}
+          </Link>
+        </footer>
+      </div>
 
       <MapOverlay
         open={mapOpen}

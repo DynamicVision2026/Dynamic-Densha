@@ -8,6 +8,7 @@ import { StartBandPicker } from "@/components/start-band-picker";
 import { WatchDemoButton } from "@/components/auto-demo";
 import { Button } from "@/components/ui/button";
 import { resetActiveGradeToProfile } from "@/lib/active-grade";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
   DEMO_CHILD,
   getDemoOverview,
@@ -26,10 +27,12 @@ export const Route = createFileRoute("/demo/parent")({
 
 function DemoParent() {
   const { t } = useI18n();
+  const { user } = useCurrentUserState();
   const [band, setBand] = useState<StartBand>(demoStartBand);
   const [, setTick] = useState(0);
   const data = getDemoOverview();
   const [insight, setInsight] = useState<string | null>(null);
+  const promoteSave = !user && data.perfect > 0;
 
   const sample = t("demoInsight", {
     name: t("demoName"),
@@ -42,14 +45,43 @@ function DemoParent() {
 
   return (
     <AppShell childName={t("demoName")} grade={DEMO_CHILD.grade}>
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main data-parent-doc className="mx-auto max-w-[900px] px-5 py-8">
         <p className="text-xs tracking-[0.2em] text-fg-subtle">{t("parentPage")}</p>
         <h1 className="mt-1 font-display text-3xl">{t("parentTitle")}</h1>
         <p className="mt-2 text-sm text-fg-muted">{t("demoBanner")}</p>
         <p className="mt-1 text-xs text-fg-subtle">{t("guestSaveHint")}</p>
-        <div className="mt-4">
-          <WatchDemoButton variant="outline" />
-        </div>
+        {promoteSave ? (
+          <p className="mt-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-7">
+            {t("guestSavePromote")}{" "}
+            <Link to="/login" className="underline underline-offset-4">
+              {t("loginParent")}
+            </Link>
+          </p>
+        ) : null}
+
+        <ParentReportView report={data.report} />
+
+        {data.forward && data.route && data.plan && data.progress ? (
+          <ParentForwardView
+            forward={data.forward}
+            route={data.route}
+            plan={data.plan}
+            progress={data.progress}
+            arrival={data.arrival}
+            history={data.history}
+          />
+        ) : null}
+
+        <section className="mt-4 rounded-xl border border-border bg-surface p-5" data-parent-settings>
+          <h2 className="font-display text-lg">{t("startBand")}</h2>
+          <StartBandPicker
+            value={band}
+            onChange={(next) => {
+              setDemoStartBand(next);
+              setBand(next);
+            }}
+          />
+        </section>
 
         <GradeRolloverCard
           grade={DEMO_CHILD.grade}
@@ -67,28 +99,9 @@ function DemoParent() {
           }}
         />
 
-        <section className="mt-4 rounded-xl border border-border bg-surface p-5">
-          <StartBandPicker
-            value={band}
-            onChange={(next) => {
-              setDemoStartBand(next);
-              setBand(next);
-            }}
-          />
-        </section>
-
-        {data.forward && data.route && data.plan && data.progress ? (
-          <ParentForwardView
-            forward={data.forward}
-            route={data.route}
-            plan={data.plan}
-            progress={data.progress}
-            arrival={data.arrival}
-            history={data.history}
-          />
-        ) : null}
-
-        <ParentReportView report={data.report} homeTo="/demo" />
+        <div className="mt-4">
+          <WatchDemoButton variant="outline" />
+        </div>
 
         <section className="mt-4 rounded-xl border border-border bg-surface p-5">
           <div className="flex items-center justify-between gap-3">
@@ -129,7 +142,7 @@ function DemoParent() {
           </ul>
         </section>
 
-        <p className="mt-10 text-center text-[11px] leading-relaxed text-fg-subtle">
+        <p className="mt-10 text-center text-[11px] leading-relaxed text-fg-subtle" data-parent-licenses>
           {t("shapeLicense")}
           <br />
           {t("audioLicense")}

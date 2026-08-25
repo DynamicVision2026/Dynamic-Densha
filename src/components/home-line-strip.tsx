@@ -6,6 +6,13 @@ import type { StripCar } from "@/lib/pick-departure";
 import type { Grade } from "@/data/kyoiku";
 import { cn } from "@/lib/utils";
 
+function pinchDistance(touches: React.TouchList) {
+  if (touches.length < 2) return 0;
+  const a = touches[0]!;
+  const b = touches[1]!;
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
 export function HomeLineStrip({
   cars,
   currentChar,
@@ -23,7 +30,7 @@ export function HomeLineStrip({
 }) {
   const { t } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
-  const pinch = useRef(0);
+  const pinchStart = useRef(0);
   const rideTo = hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/kanji/$char";
   const search = { ...(childId ? { child: childId } : {}), grade };
 
@@ -56,14 +63,17 @@ export function HomeLineStrip({
           onOpenMap();
         }}
         onTouchStart={(e) => {
-          if (e.touches.length === 2) pinch.current = 1;
+          if (e.touches.length === 2) pinchStart.current = pinchDistance(e.touches);
         }}
         onTouchMove={(e) => {
-          if (e.touches.length === 2 && pinch.current === 1) pinch.current = 2;
+          if (e.touches.length !== 2 || !pinchStart.current) return;
+          if (pinchDistance(e.touches) > pinchStart.current * 1.18) {
+            pinchStart.current = 0;
+            onOpenMap();
+          }
         }}
         onTouchEnd={() => {
-          if (pinch.current === 2) onOpenMap();
-          pinch.current = 0;
+          pinchStart.current = 0;
         }}
       >
         {cars.map((car) => (

@@ -11,7 +11,8 @@ function prefersReducedMotion() {
 }
 
 /**
- * Child-home 保護者 door: hold ~1.5s. Keyboard / SR / Switch: immediate.
+ * Child-home 保護者 door: pointer hold ~1.5s.
+ * Keyboard / screen reader / Switch: immediate (separate a11y control).
  */
 export function ParentDoor({
   to,
@@ -41,11 +42,6 @@ export function ParentDoor({
   function stopHold() {
     if (raf.current) cancelAnimationFrame(raf.current);
     raf.current = 0;
-  }
-
-  function reset() {
-    stopHold();
-    setProgress(0);
   }
 
   function tick() {
@@ -102,51 +98,58 @@ export function ParentDoor({
   const offset = c * (1 - fill);
 
   return (
-    <button
-      type="button"
-      aria-label={t("parentAria")}
-      data-parent-door
-      data-hold-ms={HOLD_MS}
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerEnd}
-      onPointerCancel={onPointerEnd}
-      onLostPointerCapture={onPointerEnd}
-      onKeyDown={onKeyDown}
-      onClick={onClick}
-      className={cn(
-        "relative grid size-[88px] shrink-0 place-items-center rounded-full border border-border bg-surface text-center font-medium leading-tight text-fg-muted",
-        className,
-      )}
-    >
-      <svg
-        className="pointer-events-none absolute inset-1"
-        viewBox="0 0 40 40"
-        aria-hidden
+    <div className={cn("relative size-[88px] shrink-0 rounded-full has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring", className)}>
+      <button
+        type="button"
+        aria-label={t("parentAria")}
+        data-parent-a11y
+        onClick={go}
+        onKeyDown={onKeyDown}
+        className="absolute inset-0 z-0 rounded-full"
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-hidden="true"
+        data-parent-door
+        data-hold-ms={HOLD_MS}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onLostPointerCapture={onPointerEnd}
+        onClick={onClick}
+        className="relative z-10 grid size-[88px] place-items-center rounded-full border border-border bg-surface text-center font-medium leading-tight text-fg-muted"
       >
-        <circle
-          cx="20"
-          cy="20"
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className="text-border"
-        />
-        <circle
-          cx="20"
-          cy="20"
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          className="text-engine"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          transform="rotate(-90 20 20)"
-        />
-      </svg>
-      <span className="relative z-[1] px-1 text-xs tracking-wide">{t("parentDoor")}</span>
-    </button>
+        <svg
+          className="pointer-events-none absolute inset-1"
+          viewBox="0 0 40 40"
+          aria-hidden
+        >
+          <circle
+            cx="20"
+            cy="20"
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="text-border"
+          />
+          <circle
+            cx="20"
+            cy="20"
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            className="text-engine"
+            strokeDasharray={c}
+            strokeDashoffset={offset}
+            transform="rotate(-90 20 20)"
+          />
+        </svg>
+        <span className="relative z-[1] px-1 text-xs tracking-wide">{t("parentDoor")}</span>
+      </button>
+    </div>
   );
 }
