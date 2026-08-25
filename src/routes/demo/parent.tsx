@@ -5,6 +5,7 @@ import { ParentReportView } from "@/components/parent-report";
 import { ParentForwardView } from "@/components/parent-forward";
 import { GradeRolloverCard } from "@/components/grade-rollover";
 import { StartBandPicker } from "@/components/start-band-picker";
+import { WatchDemoButton } from "@/components/auto-demo";
 import { Button } from "@/components/ui/button";
 import { resetActiveGradeToProfile } from "@/lib/active-grade";
 import {
@@ -45,6 +46,10 @@ function DemoParent() {
         <p className="text-xs tracking-[0.2em] text-fg-subtle">{t("parentPage")}</p>
         <h1 className="mt-1 font-display text-3xl">{t("parentTitle")}</h1>
         <p className="mt-2 text-sm text-fg-muted">{t("demoBanner")}</p>
+        <p className="mt-1 text-xs text-fg-subtle">{t("guestSaveHint")}</p>
+        <div className="mt-4">
+          <WatchDemoButton variant="outline" />
+        </div>
 
         <GradeRolloverCard
           grade={DEMO_CHILD.grade}

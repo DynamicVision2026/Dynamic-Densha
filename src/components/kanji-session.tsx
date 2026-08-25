@@ -1,14 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { AppShell } from "@/components/app-shell";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAutoDemo } from "@/components/auto-demo";
+import { ChildShell } from "@/components/child-shell";
 import { EchoTeachStrip } from "@/components/echo-teach-strip";
 import { EncounterCard } from "@/components/encounter-card";
-import { LineStrip } from "@/components/line-strip";
 import { MasteryLights } from "@/components/mastery-lights";
 import { PuzzleFrame } from "@/components/puzzle-frame";
 import { QuizPanel } from "@/components/quiz-panel";
 import { ReadingLine } from "@/components/speaker-button";
+import { RideShell } from "@/components/ride-shell";
 import { TrainAnnounce } from "@/components/train-announce";
 import { Button } from "@/components/ui/button";
 import { getKanji } from "@/data/kyoiku";
@@ -26,10 +26,8 @@ import { getEncounter } from "@/lib/encounters";
 import { stopFixedAudio } from "@/lib/fixed-audio";
 import { getGradeParams } from "@/lib/grade-params";
 import { useI18n } from "@/lib/i18n/i18n";
-import { STATUS_KEYS } from "@/lib/i18n/messages";
 import { buildPracticeQueue, shapeSurfaceAvailable, type BankItem } from "@/lib/items";
-import { lineStripFor } from "@/lib/lines";
-import { STATUS_META, type PracticeKind } from "@/lib/mastery";
+import { type PracticeKind } from "@/lib/mastery";
 import {
   echoIsDue,
   echoIsStale,
@@ -39,7 +37,6 @@ import {
   type ProgressState,
 } from "@/lib/progress-eval";
 import { useDwell } from "@/lib/use-dwell";
-import { cn } from "@/lib/utils";
 
 function openingBeat(input: {
   lookMode: boolean;
@@ -71,7 +68,7 @@ export function KanjiSession({
   lookMode,
   echoOn,
   childId = "demo",
-  childName,
+  childName: _childName,
   hrefHome,
   busy,
   onEncounter,
@@ -151,7 +148,6 @@ export function KanjiSession({
         ? announcementFor(char)
         : null,
   );
-  const lineView = lineStripFor(char, grade);
   const encounterDwell = useDwell(
     params.encounter_min_ms,
     `${char}|encounter`,
@@ -261,14 +257,14 @@ export function KanjiSession({
 
   if (!kanji) {
     return (
-      <AppShell>
-        <main className="mx-auto max-w-lg px-5 py-16 text-center">
+      <ChildShell>
+        <main className="grid flex-1 place-items-center px-5 text-center">
           <p>{t("notInList")}</p>
           <Link to={hrefHome} className="mt-4 inline-block underline">
-            {t("backTimetable")}
+            {t("quitRide")}
           </Link>
         </main>
-      </AppShell>
+      </ChildShell>
     );
   }
 
@@ -290,8 +286,355 @@ export function KanjiSession({
     ? echoArrivalWhen(progress.echoDueAt, now, t)
     : "";
 
+  const kicker = (
+    <p
+      className="text-center text-xs tracking-[0.28em] text-fg-subtle"
+      data-tour={localBeat === "echo" ? "echo-banner" : undefined}
+      data-echo-teach={showEchoTeach ? "1" : "0"}
+    >
+      {t(
+        localBeat === "echo"
+          ? progress.echoSuccessCount >= 1
+            ? "echoBannerRound"
+            : "echoBanner"
+          : localBeat === "encounter"
+            ? "beatEncounter"
+            : localBeat === "understand"
+              ? "beatUnderstand"
+              : localBeat === "practice"
+                ? "beatPractice"
+                : "beatFeedback",
+        localBeat === "echo" && progress.echoSuccessCount >= 1
+          ? { n: progress.echoSuccessCount + 1 }
+          : undefined,
+      )}
+    </p>
+  );
+
+  let stage: ReactNode = kicker;
+  let action: ReactNode = <div className="h-[88px]" aria-hidden />;
+
+  if (localBeat === "encounter" && !lookMode) {
+    stage = (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {kicker}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <EncounterCard
+            char={kanji.char}
+            encounter={getEncounter(kanji.char)}
+            strokesLabel={t("strokes", { grade: kanji.grade, n: kanji.strokes })}
+          />
+        </div>
+      </div>
+    );
+    action = (
+      <Button
+        type="button"
+        className="h-[88px] w-full text-lg"
+        data-tour="ride-on"
+        data-dwell-ready={encounterDwell.ready ? "1" : "0"}
+        disabled={!rideReady}
+        onClick={() => {
+          void Promise.resolve(onEncounter()).then(() => setLocalBeat("understand"));
+        }}
+      >
+        {encounterDwell.ready ? t("rideOn") : `${t("rideOn")} ${encounterDwell.remainSec}`}
+      </Button>
+    );
+  } else if (
+    (localBeat === "understand" || lookMode) &&
+    localBeat !== "practice" &&
+    localBeat !== "echo"
+  ) {
+    stage = (
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+        {kicker}
+        {progress.repairRequiredKinds.length > 0 ? (
+          <p className="text-center text-sm text-fg-muted">{t("reteachLead")}</p>
+        ) : null}
+        <div className="text-center">
+          <h1 className="font-display text-6xl leading-none landscape:text-7xl">{kanji.char}</h1>
+          <p className="mt-2 text-sm text-fg-muted">{kanji.imagery}</p>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <p className="text-xs text-fg-subtle">{t("meaning")}</p>
+            <p className="mt-1 text-base">{kanji.meaningJa}</p>
+            {exampleWord ? (
+              <p className="mt-2 text-sm text-fg-muted">
+                <span className="font-display text-lg text-fg">{exampleWord.text}</span>
+                {exampleWord.kana ? <span className="ml-2">{exampleWord.kana}</span> : null}
+              </p>
+            ) : null}
+          </div>
+          {params.reading_enabled ? (
+            readingsOpen ? (
+              <div className="grid gap-3 rounded-lg border border-border bg-surface p-3 sm:grid-cols-2">
+                <div data-tour="tap-readings">
+                  <p className="text-xs text-fg-subtle">{t("onYomi")}</p>
+                  <div className="mt-1 space-y-1">
+                    {onYomi.length ? (
+                      onYomi.map((r) => (
+                        <ReadingLine key={`on-${r}`} text={r} onHeard={() => setHeard(true)} />
+                      ))
+                    ) : (
+                      <p className="font-display text-xl text-fg-muted">—</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-fg-subtle">{t("kunYomi")}</p>
+                  <div className="mt-1 space-y-1">
+                    {kunYomi.length ? (
+                      kunYomi.map((r) => (
+                        <ReadingLine key={`kun-${r}`} text={r} onHeard={() => setHeard(true)} />
+                      ))
+                    ) : (
+                      <p className="font-display text-xl text-fg-muted">—</p>
+                    )}
+                  </div>
+                </div>
+                {needsListen && !audioAvailable && !readingsAcked ? (
+                  <div className="sm:col-span-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 w-full"
+                      data-tour="readings-ack"
+                      onClick={() => setReadingsAcked(true)}
+                    >
+                      {t("readingsAck")}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-tour="tap-readings"
+                className="grid w-full grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-3 text-left"
+                onClick={() => setReadingsOpen(true)}
+              >
+                <span>
+                  <span className="block text-xs text-fg-subtle">{t("onYomi")}</span>
+                  <span className="mt-1 block font-display text-xl">{t("readingsHidden")}</span>
+                </span>
+                <span>
+                  <span className="block text-xs text-fg-subtle">{t("kunYomi")}</span>
+                  <span className="mt-1 block font-display text-xl">{t("tapReadings")}</span>
+                </span>
+              </button>
+            )
+          ) : null}
+          {params.shape_enabled && shape ? (
+            <div className="space-y-2">
+              <PuzzleFrame imagery={kanji.imagery} filled={placed ? kanji.char : undefined} />
+              {!placed ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full"
+                  data-tour="place-scroll"
+                  onClick={() => setPlaced(true)}
+                >
+                  {t("placeOnScroll")}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+    action = lookMode ? (
+      <p className="text-center text-sm text-fg-subtle">{t("lookModeHint")}</p>
+    ) : (
+      <div className="space-y-2">
+        {needsListen && audioAvailable && !heard ? (
+          <p className="text-center text-xs text-fg-subtle">{t("listenOnce")}</p>
+        ) : null}
+        <Button
+          type="button"
+          className="h-[88px] w-full text-lg"
+          data-tour="understood"
+          data-dwell-ready={understandReady ? "1" : "0"}
+          disabled={!understandReady}
+          onClick={() => {
+            const nextBeat = afterReteach.current;
+            if (progress.understandCompleted) {
+              setLocalBeat(nextBeat);
+              return;
+            }
+            void Promise.resolve(onUnderstand()).then(() => {
+              setLocalBeat("practice");
+            });
+          }}
+        >
+          {understandDwell.ready
+            ? t("understood")
+            : `${t("understood")} ${understandDwell.remainSec}`}
+        </Button>
+      </div>
+    );
+  } else if (showEchoTeach && teachSurface) {
+    stage = (
+      <EchoTeachStrip
+        char={kanji.char}
+        word={teachSurface.text}
+        kana={teachSurface.kana}
+        meaningJa={teachSurface.meaningJa || kanji.meaningJa}
+        reading={teachSurface.reading}
+        skip={skipTeach}
+        onContinue={() => {
+          markEchoTaughtToday(kanji.char, now);
+          setEchoTeachDismissed(true);
+        }}
+      />
+    );
+  } else if (
+    (localBeat === "practice" || localBeat === "echo") &&
+    item &&
+    !lookMode &&
+    !showEchoTeach
+  ) {
+    stage = (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {kicker}
+        <p className="mt-2 text-center font-display text-6xl leading-none">{kanji.char}</p>
+        <div className="mt-2 flex justify-center">
+          <MasteryLights lights={progress.lights} ui={params.lights_ui} />
+        </div>
+      </div>
+    );
+    action = (
+      <div className="max-h-full min-h-0 overflow-hidden">
+        <QuizPanel
+          quiz={item.payload}
+          selected={selected}
+          result={result}
+          busy={Boolean(busy)}
+          childGrade={grade}
+          onSelect={setSelected}
+          onSubmit={() => {
+            if (!selected) return;
+            const last = index === items.length - 1;
+            const echoBatchDone = echoNow && last;
+            void onAnswer({
+              itemId: item.id,
+              choiceId: selected,
+              isEcho: echoNow,
+              echoBatchDone,
+              sessionId,
+            }).then((out) => {
+              setResult({ correct: out.correct, label: out.label });
+              if (!out.correct) {
+                setLastWrongByKind((prev) => ({ ...prev, [item.kind]: item.id }));
+                setRepairCount((c) => c + 1);
+              }
+            });
+          }}
+          onCommit={(choiceId) => {
+            if (result || busy || answering.current) return;
+            answering.current = true;
+            setSelected(choiceId);
+            const last = index === items.length - 1;
+            const echoBatchDone = echoNow && last;
+            void onAnswer({
+              itemId: item.id,
+              choiceId,
+              isEcho: echoNow,
+              echoBatchDone,
+              sessionId,
+            })
+              .then((out) => {
+                setResult({ correct: out.correct, label: out.label });
+                if (!out.correct) {
+                  setLastWrongByKind((prev) => ({ ...prev, [item.kind]: item.id }));
+                  setRepairCount((c) => c + 1);
+                }
+              })
+              .finally(() => {
+                answering.current = false;
+              });
+          }}
+          onNext={() => {
+            const more = index + 1 < items.length;
+            const wrong = Boolean(result && !result.correct);
+            afterReteach.current = more
+              ? echoNow
+                ? "echo"
+                : "practice"
+              : "feedback";
+            if (more) {
+              setIndex(index + 1);
+              setSelected(null);
+              setResult(null);
+            }
+            if (wrong && params.force_reteach_on_wrong) {
+              setLocalBeat("understand");
+              return;
+            }
+            if (!more) setLocalBeat("feedback");
+          }}
+        />
+      </div>
+    );
+  } else if (localBeat === "feedback" && !lookMode) {
+    stage = (
+      <section className="flex min-h-0 flex-1 flex-col items-center justify-center space-y-4 text-center" data-tour="feedback">
+        <h1 className="font-display text-7xl leading-none">{kanji.char}</h1>
+        <MasteryLights lights={progress.lights} ui={params.lights_ui} />
+        <p className="text-sm leading-7 text-fg-muted">
+          {status === "perfect"
+            ? t("feedbackPerfect")
+            : status === "almost" && progress.echoSuccessCount >= 1
+              ? t("feedbackAlmostEcho")
+              : status === "almost"
+                ? t("feedbackAlmost")
+                : status === "lost"
+                  ? t("feedbackLost")
+                  : t("feedbackFix")}
+        </p>
+        {status === "almost" && progress.echoDueAt ? (
+          <p className="text-xs text-fg-subtle" data-echo-arrival={kanji.char}>
+            {t("echoArrival", { when: arrivalWhen })}
+          </p>
+        ) : null}
+      </section>
+    );
+    action = (
+      <div className="space-y-3">
+        {status !== "perfect" && status !== "almost" ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-[88px] w-full"
+            onClick={() => {
+              itemsArmed.current = false;
+              afterReteach.current = "practice";
+              setLocalBeat(
+                progress.repairRequiredKinds.length && params.force_reteach_on_wrong
+                  ? "understand"
+                  : "practice",
+              );
+            }}
+          >
+            {t("continuePractice")}
+          </Button>
+        ) : (
+          <Link
+            to={hrefHome}
+            search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
+            className="inline-flex h-[88px] w-full items-center justify-center rounded-xl bg-primary font-display text-xl text-primary-fg"
+          >
+            {t("next")}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <AppShell childName={childName} grade={grade}>
+    <>
       {announce && localBeat !== "echo" ? (
         <TrainAnnounce
           announcement={announce}
@@ -301,349 +644,15 @@ export function KanjiSession({
           }}
         />
       ) : null}
-      <main className="mx-auto max-w-lg px-5 py-8">
-        <div className="flex items-center justify-between text-sm">
-          <Link
-            to={hrefHome}
-            search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
-            data-tour="back-timetable"
-            className="text-fg-muted hover:text-fg"
-          >
-            ← {t("backTimetable")}
-          </Link>
-          <span className={cn("rounded-full px-2.5 py-1 text-xs", STATUS_META[status].className)}>
-            {t(STATUS_KEYS[status])}
-          </span>
-        </div>
-
-        {lineView ? (
-          <div className="mt-5">
-            <LineStrip view={lineView} />
-          </div>
-        ) : null}
-
-        <p
-          className="mt-6 text-center text-xs tracking-[0.28em] text-fg-subtle"
-          data-tour={localBeat === "echo" ? "echo-banner" : undefined}
-          data-echo-teach={showEchoTeach ? "1" : "0"}
-        >
-          {t(
-            localBeat === "echo"
-              ? progress.echoSuccessCount >= 1
-                ? "echoBannerRound"
-                : "echoBanner"
-              : localBeat === "encounter"
-                ? "beatEncounter"
-                : localBeat === "understand"
-                  ? "beatUnderstand"
-                  : localBeat === "practice"
-                    ? "beatPractice"
-                    : "beatFeedback",
-            localBeat === "echo" && progress.echoSuccessCount >= 1
-              ? { n: progress.echoSuccessCount + 1 }
-              : undefined,
-          )}
-        </p>
-
-        {localBeat === "encounter" && !lookMode ? (
-          <section>
-            <EncounterCard
-              char={kanji.char}
-              encounter={getEncounter(kanji.char)}
-              strokesLabel={t("strokes", { grade: kanji.grade, n: kanji.strokes })}
-            />
-            <div className="mt-10 text-center">
-              <Button
-                type="button"
-                className="h-12 min-w-40"
-                data-tour="ride-on"
-                data-dwell-ready={encounterDwell.ready ? "1" : "0"}
-                disabled={!rideReady}
-                onClick={() => {
-                  void Promise.resolve(onEncounter()).then(() => setLocalBeat("understand"));
-                }}
-              >
-                {encounterDwell.ready
-                  ? t("rideOn")
-                  : `${t("rideOn")} ${encounterDwell.remainSec}`}
-              </Button>
-            </div>
-          </section>
-        ) : null}
-
-        {(localBeat === "understand" || lookMode) &&
-        localBeat !== "practice" &&
-        localBeat !== "echo" ? (
-          <section className="mt-8 space-y-5">
-            {progress.repairRequiredKinds.length > 0 ? (
-              <p className="text-center text-sm text-fg-muted">{t("reteachLead")}</p>
-            ) : null}
-            <div className="text-center">
-              <h1 className="font-display text-7xl leading-none">{kanji.char}</h1>
-              <p className="mt-4 text-sm text-fg-muted">{kanji.imagery}</p>
-            </div>
-            <div className="rounded-lg border border-border bg-surface p-4">
-              <p className="text-xs text-fg-subtle">{t("meaning")}</p>
-              <p className="mt-1 text-base">{kanji.meaningJa}</p>
-              {exampleWord ? (
-                <p className="mt-3 text-sm text-fg-muted">
-                  <span className="font-display text-lg text-fg">{exampleWord.text}</span>
-                  {exampleWord.kana ? <span className="ml-2">{exampleWord.kana}</span> : null}
-                </p>
-              ) : null}
-            </div>
-            {params.reading_enabled ? (
-              readingsOpen ? (
-                <div className="grid gap-3 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2">
-                  <div data-tour="tap-readings">
-                    <p className="text-xs text-fg-subtle">{t("onYomi")}</p>
-                    <div className="mt-2 space-y-1">
-                      {onYomi.length ? (
-                        onYomi.map((r) => (
-                          <ReadingLine key={`on-${r}`} text={r} onHeard={() => setHeard(true)} />
-                        ))
-                      ) : (
-                        <p className="font-display text-xl text-fg-muted">—</p>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-fg-subtle">{t("kunYomi")}</p>
-                    <div className="mt-2 space-y-1">
-                      {kunYomi.length ? (
-                        kunYomi.map((r) => (
-                          <ReadingLine key={`kun-${r}`} text={r} onHeard={() => setHeard(true)} />
-                        ))
-                      ) : (
-                        <p className="font-display text-xl text-fg-muted">—</p>
-                      )}
-                    </div>
-                  </div>
-                  {needsListen && !audioAvailable && !readingsAcked ? (
-                    <div className="sm:col-span-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        data-tour="readings-ack"
-                        onClick={() => setReadingsAcked(true)}
-                      >
-                        {t("readingsAck")}
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  data-tour="tap-readings"
-                  className="grid w-full grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 text-left"
-                  onClick={() => setReadingsOpen(true)}
-                >
-                  <span>
-                    <span className="block text-xs text-fg-subtle">{t("onYomi")}</span>
-                    <span className="mt-1 block font-display text-xl">{t("readingsHidden")}</span>
-                  </span>
-                  <span>
-                    <span className="block text-xs text-fg-subtle">{t("kunYomi")}</span>
-                    <span className="mt-1 block font-display text-xl">{t("tapReadings")}</span>
-                  </span>
-                </button>
-              )
-            ) : null}
-            {params.shape_enabled && shape ? (
-              <div className="space-y-3">
-                <PuzzleFrame imagery={kanji.imagery} filled={placed ? kanji.char : undefined} />
-                {!placed ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    data-tour="place-scroll"
-                    onClick={() => setPlaced(true)}
-                  >
-                    {t("placeOnScroll")}
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-            {lookMode ? (
-              <p className="text-center text-sm text-fg-subtle">{t("lookModeHint")}</p>
-            ) : (
-              <>
-                <p className="text-center text-xs text-fg-subtle">{t("understandWriteHint")}</p>
-                {needsListen && audioAvailable && !heard ? (
-                  <p className="text-center text-xs text-fg-subtle">{t("listenOnce")}</p>
-                ) : null}
-                <Button
-                  type="button"
-                  className="h-12 w-full"
-                  data-tour="understood"
-                  data-dwell-ready={understandReady ? "1" : "0"}
-                  disabled={!understandReady}
-                  onClick={() => {
-                    const nextBeat = afterReteach.current;
-                    if (progress.understandCompleted) {
-                      setLocalBeat(nextBeat);
-                      return;
-                    }
-                    void Promise.resolve(onUnderstand()).then(() => {
-                      setLocalBeat("practice");
-                    });
-                  }}
-                >
-                  {understandDwell.ready
-                    ? t("understood")
-                    : `${t("understood")} ${understandDwell.remainSec}`}
-                </Button>
-              </>
-            )}
-          </section>
-        ) : null}
-
-        {showEchoTeach && teachSurface ? (
-          <EchoTeachStrip
-            char={kanji.char}
-            word={teachSurface.text}
-            kana={teachSurface.kana}
-            meaningJa={teachSurface.meaningJa || kanji.meaningJa}
-            reading={teachSurface.reading}
-            skip={skipTeach}
-            onContinue={() => {
-              markEchoTaughtToday(kanji.char, now);
-              setEchoTeachDismissed(true);
-            }}
-          />
-        ) : null}
-
-        {(localBeat === "practice" || localBeat === "echo") &&
-        item &&
-        !lookMode &&
-        !showEchoTeach ? (
-          <section className="mt-8">
-            <QuizPanel
-              quiz={item.payload}
-              selected={selected}
-              result={result}
-              busy={Boolean(busy)}
-              childGrade={grade}
-              onSelect={setSelected}
-              onSubmit={() => {
-                if (!selected) return;
-                const last = index === items.length - 1;
-                const echoBatchDone = echoNow && last;
-                void onAnswer({
-                  itemId: item.id,
-                  choiceId: selected,
-                  isEcho: echoNow,
-                  echoBatchDone,
-                  sessionId,
-                }).then((out) => {
-                  setResult({ correct: out.correct, label: out.label });
-                  if (!out.correct) {
-                    setLastWrongByKind((prev) => ({ ...prev, [item.kind]: item.id }));
-                    setRepairCount((c) => c + 1);
-                  }
-                });
-              }}
-              onCommit={(choiceId) => {
-                if (result || busy || answering.current) return;
-                answering.current = true;
-                setSelected(choiceId);
-                const last = index === items.length - 1;
-                const echoBatchDone = echoNow && last;
-                void onAnswer({
-                  itemId: item.id,
-                  choiceId,
-                  isEcho: echoNow,
-                  echoBatchDone,
-                  sessionId,
-                })
-                  .then((out) => {
-                    setResult({ correct: out.correct, label: out.label });
-                    if (!out.correct) {
-                      setLastWrongByKind((prev) => ({ ...prev, [item.kind]: item.id }));
-                      setRepairCount((c) => c + 1);
-                    }
-                  })
-                  .finally(() => {
-                    answering.current = false;
-                  });
-              }}
-              onNext={() => {
-                const more = index + 1 < items.length;
-                const wrong = Boolean(result && !result.correct);
-                afterReteach.current = more
-                  ? echoNow
-                    ? "echo"
-                    : "practice"
-                  : "feedback";
-                if (more) {
-                  setIndex(index + 1);
-                  setSelected(null);
-                  setResult(null);
-                }
-                if (wrong && params.force_reteach_on_wrong) {
-                  setLocalBeat("understand");
-                  return;
-                }
-                if (!more) setLocalBeat("feedback");
-              }}
-            />
-          </section>
-        ) : null}
-
-        {localBeat === "feedback" && !lookMode ? (
-          <section className="mt-10 space-y-6 text-center" data-tour="feedback">
-            <h1 className="font-display text-7xl leading-none">{kanji.char}</h1>
-            <MasteryLights lights={progress.lights} ui={params.lights_ui} />
-            <p className="text-sm leading-7 text-fg-muted">
-              {status === "perfect"
-                ? t("feedbackPerfect")
-                : status === "almost" && progress.echoSuccessCount >= 1
-                  ? t("feedbackAlmostEcho")
-                  : status === "almost"
-                    ? t("feedbackAlmost")
-                    : status === "lost"
-                      ? t("feedbackLost")
-                      : t("feedbackFix")}
-            </p>
-            {status === "almost" && progress.echoDueAt ? (
-              <p className="text-xs text-fg-subtle" data-echo-arrival={kanji.char}>
-                {t("echoArrival", { when: arrivalWhen })}
-              </p>
-            ) : null}
-            {status !== "perfect" && status !== "almost" ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  itemsArmed.current = false;
-                  afterReteach.current = "practice";
-                  setLocalBeat(
-                    progress.repairRequiredKinds.length && params.force_reteach_on_wrong
-                      ? "understand"
-                      : "practice",
-                  );
-                }}
-              >
-                {t("continuePractice")}
-              </Button>
-            ) : null}
-            <p>
-              <Link to={hrefHome} className="text-sm text-fg-muted underline-offset-4 hover:underline">
-                {t("backTimetable")}
-              </Link>
-            </p>
-          </section>
-        ) : null}
-
-        {localBeat !== "encounter" && localBeat !== "feedback" ? (
-          <div className="mt-10">
-            <MasteryLights lights={progress.lights} ui={params.lights_ui} />
-          </div>
-        ) : null}
-      </main>
-    </AppShell>
+      <RideShell
+        home={hrefHome}
+        char={char}
+        beat={localBeat}
+        grade={readStoredActiveGrade() ?? kanji.grade}
+        action={action}
+      >
+        {stage}
+      </RideShell>
+    </>
   );
 }

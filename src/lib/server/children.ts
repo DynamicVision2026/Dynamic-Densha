@@ -24,7 +24,7 @@ export const listChildren = createServerFn({ method: "GET" })
       id: string;
       name: string;
       grade: number;
-      created_at: string;
+      created_at: string | Date;
       start_band: string | null;
     }>`
       select id, name, grade, created_at, start_band
