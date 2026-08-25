@@ -62,13 +62,6 @@ jobs:
               --allow-unauthenticated
           fi
 
-      - name: Show latest Cloud Build log on failure
-        if: failure()
-        run: |
-          BUILD_ID=$(gcloud builds list --project "$PROJECT_ID" --region "$REGION" --limit=1 --sort-by=~createTime --format='value(id)')
-          echo "Latest build: $BUILD_ID"
-          gcloud builds log "$BUILD_ID" --project "$PROJECT_ID" --region "$REGION" || true
-
       - name: Deploy welcome-polish tagged revision at 0% traffic
         env:
           SERVICE: ${{ inputs.service_name }}
@@ -81,12 +74,19 @@ jobs:
             --tag "$TAG" \
             --allow-unauthenticated
 
+      - name: Show latest Cloud Build log
+        if: always()
+        run: |
+          BUILD_ID=$(gcloud builds list --project "$PROJECT_ID" --region "$REGION" --limit=1 --sort-by=~createTime --format='value(id)')
+          echo "Latest build: $BUILD_ID"
+          gcloud builds log "$BUILD_ID" --project "$PROJECT_ID" --region "$REGION" || true
+
       - name: Print preview URL
         env:
           SERVICE: ${{ inputs.service_name }}
         run: |
           URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" \
-            --format="value(status.traffic[?tag='$TAG'].url)")
+            --format="json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((t.get('url') for t in d['status']['traffic'] if t.get('tag')=='$TAG'), ''))")
           echo "### Cloud Run preview URL" >> "$GITHUB_STEP_SUMMARY"
           echo "$URL" >> "$GITHUB_STEP_SUMMARY"
           echo "PREVIEW_URL=$URL"

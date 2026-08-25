@@ -29,6 +29,8 @@ RUN npm install
 
 COPY . .
 RUN npm run build:container
+RUN echo "=== generated css assets ===" && find .output/public/assets -name '*.css' -exec basename {} \; \
+ && echo "=== css referenced by server bundle ===" && grep -o 'assets/styles-[A-Za-z0-9_-]*\.css' .output/server/_ssr/*.mjs .output/server/index.mjs 2>/dev/null | sort -u || true
 
 FROM node:20-slim AS runtime
 WORKDIR /app
