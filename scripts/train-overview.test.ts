@@ -78,6 +78,7 @@ test("overview is UI state on child home, not a peer route", () => {
   const overview = readFileSync("src/components/welcome-overview.tsx", "utf8");
   const css = readFileSync("src/styles.css", "utf8");
   const demo = readFileSync("src/lib/demo-progress.ts", "utf8");
+  const ja = readFileSync("src/lib/i18n/messages.ts", "utf8");
   assert.match(home, /WelcomeOverview/);
   assert.match(home, /HubPlate/);
   assert.match(hub, /data-open-overview/);
@@ -90,11 +91,18 @@ test("overview is UI state on child home, not a peer route", () => {
   assert.match(session, /localBeat !== "feedback"/);
   assert.match(couple, /coupleTitle/);
   assert.equal(/confetti|mascot/.test(couple), false);
+  assert.match(overview, /data-welcome-hero/);
+  assert.match(overview, /data-terrace/);
   assert.match(overview, /data-orbit/);
-  assert.match(css, /transform-box: view-box/);
+  assert.match(overview, /offsetPath/);
+  assert.equal(/RING_R|concentric/.test(overview), false);
+  assert.match(css, /offset-distance/);
   assert.match(css, /\.couple-done \.couple-puff/);
+  assert.match(ja, /はっしゃひょうへ/);
+  assert.match(ja, /みどりの くるま/);
   assert.match(demo, /DEMO_COUPLE_CHAR = "花"/);
   assert.match(demo, /echoSuccessCount: 1/);
+  assert.match(demo, /\["音", "下", "火"\]/);
   assert.equal(/opts\?\.char \?\? hubLast/.test(home), false);
 });
 

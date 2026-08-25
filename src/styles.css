@@ -203,41 +203,46 @@
 }
 
 .welcome-glow {
-  filter: drop-shadow(0 0 4px rgb(61 122 90 / 0.85));
+  filter: drop-shadow(0 0 5px rgb(61 122 90 / 0.7));
 }
 
-@keyframes welcome-orbit {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@keyframes welcome-counter {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(-360deg); }
+@keyframes welcome-run {
+  from { offset-distance: 0%; }
+  to { offset-distance: 100%; }
 }
 
-.welcome-orbit {
-  animation: welcome-orbit 72s linear infinite;
-  transform-origin: 100px 100px;
-  transform-box: view-box;
+.welcome-run {
+  offset-rotate: 0deg;
+  animation: welcome-run 32s linear infinite;
+  animation-delay: -18s;
 }
 
-.welcome-orbit.is-paused {
+.welcome-run.is-paused {
   animation-play-state: paused;
 }
 
-.welcome-orbit.welcome-lap {
-  animation: welcome-orbit 1.8s ease-in-out 1;
+.welcome-run.is-idle {
+  animation: none;
+  offset-distance: 48%;
+  offset-rotate: 0deg;
 }
 
-.welcome-kanji {
-  animation: welcome-counter 72s linear infinite;
-  transform-origin: 0px 0px;
+.welcome-steam-puff {
   transform-box: fill-box;
+  transform-origin: 50% 80%;
+  animation: welcome-steam 2.8s ease-out infinite;
+  opacity: 0.28;
+}
+.welcome-steam-puff.puff-2 {
+  animation-delay: 0.9s;
+}
+.welcome-steam-puff.puff-3 {
+  animation-delay: 1.6s;
 }
 
-.welcome-orbit.is-paused .welcome-kanji,
-.welcome-orbit.welcome-lap .welcome-kanji {
-  animation-play-state: paused;
+@keyframes welcome-steam {
+  from { opacity: 0.32; transform: translate(0, 0) scale(0.55); }
+  to { opacity: 0; transform: translate(8px, -22px) scale(1.45); }
 }
 
 .couple-bloom {

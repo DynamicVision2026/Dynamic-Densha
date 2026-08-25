@@ -39,7 +39,7 @@ import {
 } from "@/lib/demo-route";
 import type { StartBand } from "@/lib/grade-route";
 
-const KEY = "densha.demo.progress.v2";
+const KEY = "densha.demo.progress.v3";
 const EVENT_KEY = "densha.demo.events.v2";
 const ECHO_KEY = "densha.demo.echo-starts.v2";
 const STAMP_KEY = "densha.demo.stamps.v1";
@@ -55,8 +55,8 @@ export const DEMO_CHILD = {
 /** Preview-only: second-echo-due so 到着 can show the green couple beat. Not 王/右 (auto-demo). */
 export const DEMO_COUPLE_CHAR = "花";
 
-/** Extra greens so the overview consist is a short train, not a single tick. */
-const DEMO_CONSIST_CHARS = ["音", "下", "火", "貝"] as const;
+/** Extra greens so Welcome shows a short moving train (一 + these = 4). */
+const DEMO_CONSIST_CHARS = ["音", "下", "火"] as const;
 
 export type DemoEvent = {
   kanji: string;

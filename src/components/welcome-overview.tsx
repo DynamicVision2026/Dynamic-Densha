@@ -1,34 +1,140 @@
 import { useEffect, useMemo, useState } from "react";
-import { familyRadials, type GradeRingView } from "@/lib/train-overview";
+import { familyRadials, hubCounts, type GradeRingView } from "@/lib/train-overview";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { Grade } from "@/data/kyoiku";
 import { cn } from "@/lib/utils";
 
-const CX = 100;
-const CY = 100;
-const RING_R = [30, 42, 54, 66, 78, 90];
-const CAR_CAP = 16;
-const TICKS = 12;
+const CAR_CAP = 8;
 
-function polar(r: number, t: number) {
-  return { x: CX + r * Math.cos(t), y: CY + r * Math.sin(t) };
+/** Far → near visual rows. Grade 6 recedes; grade 1 is the working field. */
+const TERRACES: { grade: Grade; top: number; h: number }[] = [
+  { grade: 6, top: 232, h: 38 },
+  { grade: 5, top: 262, h: 42 },
+  { grade: 4, top: 296, h: 46 },
+  { grade: 3, top: 334, h: 50 },
+  { grade: 2, top: 376, h: 56 },
+  { grade: 1, top: 422, h: 96 },
+];
+
+function terraceFill(y: number, h: number, bulge: number) {
+  const yb = y + h;
+  return [
+    `M -24 ${yb + 12}`,
+    `L -24 ${y + 10}`,
+    `C 48 ${y - bulge} 120 ${y + bulge + 8} 188 ${y - 2}`,
+    `C 256 ${y - bulge - 6} 318 ${y + 12} 392 ${y + 6}`,
+    `L 392 ${yb + 16}`,
+    "Z",
+  ].join(" ");
 }
 
-function arcPath(r: number, frac: number) {
-  const start = -Math.PI / 2;
-  const span = Math.max(0.001, Math.min(0.999, frac)) * Math.PI * 2;
-  const a = polar(r, start);
-  const b = polar(r, start + span);
-  const large = frac > 0.5 ? 1 : 0;
-  return `M ${a.x} ${a.y} A ${r} ${r} 0 ${large} 1 ${b.x} ${b.y}`;
+function furrow(y: number, i: number) {
+  const yy = y + i * 7;
+  return `M 8 ${yy} C 86 ${yy - 5} 168 ${yy + 7} 248 ${yy - 2} S 348 ${yy + 4} 368 ${yy}`;
 }
 
-function consistAngles(n: number, r: number, frac: number) {
-  const angEach = (8.4 + 1.6) / Math.max(r, 24);
-  const packed = Math.max(n, 1) * angEach;
-  const filled = Math.max(0.08, frac) * Math.PI * 2;
-  const head = -Math.PI / 2 + Math.min(Math.PI * 1.85, Math.max(packed, filled));
-  return Array.from({ length: n }, (_, i) => head - (n - 1 - i) * angEach);
+function runLoop(top: number, h: number) {
+  const y = top + h * 0.5;
+  return [
+    `M -70 ${y + 6}`,
+    `C 40 ${y - 22} 130 ${y + 24} 220 ${y - 10}`,
+    `C 290 ${y - 28} 350 ${y + 8} 430 ${y - 4}`,
+  ].join(" ");
+}
+
+function Engine({ steam }: { steam?: boolean }) {
+  return (
+    <g data-engine>
+      <rect x="-28" y="-18" width="54" height="30" rx="4" fill="var(--color-primary)" />
+      <rect x="12" y="-30" width="10" height="14" rx="1.6" fill="var(--color-primary)" />
+      <rect x="-22" y="-8" width="16" height="10" rx="1.4" fill="var(--color-primary-fg)" opacity="0.38" />
+      <circle cx="-14" cy="14" r="5" fill="var(--color-fg)" />
+      <circle cx="14" cy="14" r="5" fill="var(--color-fg)" />
+      <circle cx="-14" cy="14" r="1.8" fill="var(--color-bg)" />
+      <circle cx="14" cy="14" r="1.8" fill="var(--color-bg)" />
+      {steam ? (
+        <g className="welcome-steam" aria-hidden>
+          <circle className="welcome-steam-puff" cx="20" cy="-34" r="6" fill="var(--color-fg)" />
+          <circle className="welcome-steam-puff puff-2" cx="30" cy="-42" r="4.5" fill="var(--color-fg)" />
+          <circle className="welcome-steam-puff puff-3" cx="14" cy="-46" r="3.6" fill="var(--color-fg)" />
+        </g>
+      ) : null}
+    </g>
+  );
+}
+
+function WoodCar({
+  char,
+  glow,
+  focus,
+}: {
+  char: string;
+  glow?: boolean;
+  focus?: boolean;
+}) {
+  return (
+    <g data-overview-car={char} className={cn(glow && "welcome-glow")}>
+      <rect
+        x="-22"
+        y="-20"
+        width="44"
+        height="38"
+        rx="3.2"
+        fill="var(--color-bg-warm)"
+        stroke="var(--color-fg)"
+        strokeWidth={focus ? 1.6 : 0.9}
+        opacity="0.98"
+      />
+      <rect x="-18" y="-16" width="36" height="7" rx="1.2" fill="var(--color-border)" opacity="0.75" />
+      <text
+        textAnchor="middle"
+        y="12"
+        fontSize="22"
+        fontFamily="var(--font-display)"
+        fill="var(--color-fg)"
+      >
+        {char}
+      </text>
+    </g>
+  );
+}
+
+function Consist({
+  grade,
+  cars,
+  idle,
+  paused,
+  path,
+  glow,
+  focusChar,
+}: {
+  grade: Grade;
+  cars: string[];
+  idle: boolean;
+  paused: boolean;
+  path: string;
+  glow?: string[];
+  focusChar?: string;
+}) {
+  const shown = cars.slice(Math.max(0, cars.length - CAR_CAP));
+  return (
+    <g
+      className={cn("welcome-run", idle && "is-idle", paused && "is-paused")}
+      style={{ offsetPath: `path("${path}")` }}
+      data-orbit
+      data-consist={grade}
+      data-idle={idle || undefined}
+      data-overview-cars={cars.length}
+    >
+      <Engine steam />
+      {shown.map((char, i) => (
+        <g key={char} transform={`translate(${-46 - i * 46} 0)`}>
+          <rect x="18" y="-2" width="8" height="3" fill="var(--color-fg)" opacity="0.4" />
+          <WoodCar char={char} glow={Boolean(glow?.includes(char))} focus={char === focusChar} />
+        </g>
+      ))}
+    </g>
+  );
 }
 
 export function WelcomeOverview({
@@ -57,6 +163,8 @@ export function WelcomeOverview({
   const radials = useMemo(() => (linesOn ? familyRadials(rings) : []), [linesOn, rings]);
   const complete = Boolean(focused?.complete);
   const paused = glowOn || complete;
+  const hub = hubCounts(rings, focusGrade);
+  const nearRow = TERRACES.find((row) => row.grade === (focused?.grade ?? profileGrade)) ?? TERRACES[5]!;
 
   useEffect(() => {
     if (!glow?.length) return;
@@ -65,202 +173,157 @@ export function WelcomeOverview({
     return () => window.clearTimeout(id);
   }, [glow]);
 
-  const consist = focused?.consist ?? [];
-  const shown = consist.slice(Math.max(0, consist.length - CAR_CAP));
-  const angles = consistAngles(
-    shown.length,
-    RING_R[(focused?.grade ?? 1) - 1] ?? 54,
-    focused?.total ? focused.perfect / focused.total : 0,
-  );
-
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
       data-welcome-overview
+      data-welcome-hero
       data-focus-grade={focusGrade}
       data-complete={complete || undefined}
       data-href-base={hrefBase}
+      data-green-count={hub.green}
     >
-      <header className="flex h-[88px] shrink-0 items-center gap-2 px-3 pt-[env(safe-area-inset-top)]">
-        <button
-          type="button"
-          data-overview-back
-          onClick={onBack}
-          className="inline-flex h-11 min-w-11 items-center rounded-md px-2 text-sm text-fg-muted"
-        >
-          {t("overviewBack")}
-        </button>
-        <p className="min-w-0 flex-1 font-display text-lg tracking-wide">{t("overviewTitle")}</p>
-        <button
-          type="button"
-          data-toggle-lines
-          onClick={() => setLinesOn((v) => !v)}
-          className="inline-flex h-11 items-center rounded-md px-2 text-xs text-fg-subtle"
-        >
-          {linesOn ? t("hideLines") : t("seeLines")}
-        </button>
-      </header>
+      <button
+        type="button"
+        data-green-sign
+        onClick={() => onFocusGrade(focusGrade)}
+        className="absolute left-3 top-[max(0.6rem,env(safe-area-inset-top))] z-[2] min-h-11 rounded-md border border-border bg-surface/90 px-3 py-2 text-left shadow-soft"
+        aria-label={`${t("greenCars")} ${t("greenCarsCount", { n: hub.green })}`}
+      >
+        <span className="block text-[11px] tracking-wide text-fg-subtle">{t("greenCars")}</span>
+        <span className="font-display text-2xl tabular-nums leading-none">{t("greenCarsCount", { n: hub.green })}</span>
+      </button>
 
-      <section className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2">
+      <section className="relative min-h-0 flex-1 overflow-hidden">
         <svg
-          viewBox="0 0 200 200"
-          className="h-full max-h-full w-full max-w-[900px]"
+          viewBox="0 0 360 640"
+          preserveAspectRatio="xMidYMax slice"
+          className="h-full w-full"
           role="img"
-          aria-label={t("overviewTitle")}
+          aria-label={t("greenCars")}
+          data-hero-plate
         >
-          <defs>
-            <radialGradient id="welcome-ink" cx="50%" cy="48%" r="55%">
-              <stop offset="0%" stopColor="var(--color-status-perfect)" stopOpacity="0.16" />
-              <stop offset="55%" stopColor="var(--color-primary)" stopOpacity="0.05" />
-              <stop offset="100%" stopColor="var(--color-bg)" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          <circle cx={CX} cy={CY} r="96" fill="url(#welcome-ink)" />
+          <rect width="360" height="640" fill="var(--color-bg)" />
+          <path d="M -10 210 C 70 150 120 188 180 120 C 230 70 280 96 380 40 L 380 260 L -10 280 Z" fill="var(--color-fg)" opacity="0.07" />
+          <path d="M -20 188 C 40 140 90 168 150 108 C 210 52 270 88 400 36 L 400 230 L -20 250 Z" fill="var(--color-fg)" opacity="0.11" />
+          <path d="M 40 200 C 110 120 160 156 220 96 C 270 50 320 78 390 44 L 390 220 L 20 236 Z" fill="var(--color-fg)" opacity="0.16" />
+          <ellipse cx="120" cy="168" rx="90" ry="18" fill="var(--color-bg)" opacity="0.45" />
+          <ellipse cx="240" cy="132" rx="110" ry="22" fill="var(--color-bg)" opacity="0.35" />
 
-          {rings.map((ring) => {
-            const r = RING_R[ring.grade - 1] ?? 30;
-            const frac = ring.open && ring.total ? ring.perfect / ring.total : 0;
-            const active = ring.grade === focusGrade;
+          {TERRACES.map((row, idx) => {
+            const ring = rings.find((r) => r.grade === row.grade);
+            const open = Boolean(ring?.open);
+            const active = row.grade === focusGrade;
+            const bulge = 6 + idx;
             return (
               <g
-                key={ring.grade}
-                data-ring={ring.grade}
-                data-ring-open={ring.open || undefined}
+                key={row.grade}
+                data-terrace={row.grade}
+                data-terrace-open={open || undefined}
                 className="cursor-pointer"
                 onClick={() => {
-                  if (ring.open) onFocusGrade(ring.grade);
+                  if (open) onFocusGrade(row.grade);
                 }}
               >
-                <circle
-                  cx={CX}
-                  cy={CY}
-                  r={r}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={active ? 2.4 : ring.open ? 1.3 : 1}
-                  className={ring.open ? "text-border-strong" : "text-border"}
-                  strokeDasharray={ring.open ? undefined : "2 3.2"}
-                  opacity={ring.open ? 1 : 0.42}
+                <path
+                  d={terraceFill(row.top, row.h, bulge)}
+                  fill={open ? "var(--color-bg-warm)" : "var(--color-bg)"}
+                  stroke="var(--color-fg)"
+                  strokeWidth={active ? 1.1 : 0.55}
+                  opacity={open ? (active ? 0.95 : 0.72) : 0.38}
                 />
-                {ring.open
-                  ? Array.from({ length: TICKS }, (_, i) => {
-                      const t = -Math.PI / 2 + (i / TICKS) * Math.PI * 2;
-                      const p = polar(r, t);
-                      return (
-                        <circle
-                          key={i}
-                          cx={p.x}
-                          cy={p.y}
-                          r={active ? 0.7 : 0.45}
-                          className="fill-border-strong"
-                          opacity={active ? 0.55 : 0.28}
-                        />
-                      );
-                    })
+                {open
+                  ? [0, 1, 2, 3].map((i) => (
+                      <path
+                        key={i}
+                        d={furrow(row.top + 14, i)}
+                        fill="none"
+                        stroke="var(--color-fg)"
+                        strokeWidth="0.45"
+                        opacity={active ? 0.18 : 0.08}
+                      />
+                    ))
                   : null}
-                {ring.open && frac > 0 ? (
-                  <path
-                    d={arcPath(r, Math.min(1, frac))}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={active ? 4.2 : 2.4}
-                    strokeLinecap="round"
-                    className="text-status-perfect"
-                    opacity={active ? 1 : 0.7}
-                  />
-                ) : null}
-                <text
-                  x={CX}
-                  y={CY - r}
-                  textAnchor="middle"
-                  dy="-2.4"
-                  className={active ? "fill-fg" : "fill-fg-subtle"}
-                  fontSize={active ? 6 : 4.5}
-                >
-                  {ring.grade}
-                </text>
               </g>
             );
           })}
+
+          <g opacity="0.92" aria-hidden>
+            <path d="M 292 430 L 318 352 L 344 430 Z" fill="var(--color-status-perfect)" />
+            <path d="M 300 400 L 318 368 L 336 400 Z" fill="var(--color-status-perfect)" opacity="0.85" />
+            <rect x="315" y="428" width="6" height="22" fill="var(--color-fg)" opacity="0.7" />
+          </g>
+          <rect x="328" y="72" width="18" height="18" fill="var(--color-primary)" opacity="0.92" />
+          <path
+            d={runLoop(nearRow.top, nearRow.h)}
+            fill="none"
+            stroke="var(--color-fg)"
+            strokeWidth="1.4"
+            opacity="0.22"
+            data-run-rail
+          />
 
           {radials.map((line) => (
             <polyline
               key={line.id}
               fill="none"
-              stroke="currentColor"
-              strokeWidth="0.7"
-              className="text-fg-subtle"
-              opacity="0.4"
+              stroke="var(--color-fg)"
+              strokeWidth="0.8"
+              opacity="0.28"
               points={line.points
                 .map((p) => {
-                  const r = RING_R[p.grade - 1] ?? 30;
-                  const t = -Math.PI / 2 + (p.index / p.total) * Math.PI * 2;
-                  const { x, y } = polar(r, t);
+                  const row = TERRACES.find((t) => t.grade === p.grade);
+                  if (!row) return null;
+                  const x = 36 + (p.index / Math.max(p.total, 1)) * 280;
+                  const y = row.top + row.h * 0.45;
                   return `${x},${y}`;
                 })
+                .filter(Boolean)
                 .join(" ")}
             />
           ))}
 
-          {focused ? (
-            <g
-              className={cn("welcome-orbit", paused && "is-paused", complete && "welcome-lap")}
-              data-orbit
-              data-orbit-paused={paused || undefined}
-              data-overview-cars={shown.length}
-            >
-              {shown.map((char, i) => {
-                const r = RING_R[focused.grade - 1] ?? 54;
-                const t = angles[i] ?? -Math.PI / 2;
-                const { x, y } = polar(r, t);
-                const isFocus = char === focusChar;
-                const isGlow = glowOn && Boolean(glow?.includes(char));
-                const isHead = i === shown.length - 1;
-                const showGlyph = paused && (isFocus || isGlow || isHead || shown.length <= 8);
-                const w = isHead ? 9.4 : 7.2;
-                const h = isHead ? 6.4 : 5;
-                return (
-                  <g
-                    key={char}
-                    transform={`translate(${x} ${y}) rotate(${(t * 180) / Math.PI + 90})`}
-                    data-overview-car={char}
-                    data-overview-head={isHead || undefined}
-                  >
-                    <rect
-                      x={-w / 2}
-                      y={-h / 2}
-                      width={w}
-                      height={h}
-                      rx="1.3"
-                      className={cn("fill-status-perfect", isGlow && "welcome-glow")}
-                      stroke={isFocus || isHead ? "currentColor" : "none"}
-                      strokeWidth={isFocus || isHead ? 0.55 : 0}
-                    />
-                    {isHead ? (
-                      <path
-                        d={`M ${w / 2} 0 L ${w / 2 + 2.4} -1.7 L ${w / 2 + 2.4} 1.7 Z`}
-                        className="fill-status-perfect"
-                      />
-                    ) : null}
-                    {showGlyph ? (
-                      <g transform={`rotate(${-((t * 180) / Math.PI + 90)})`}>
-                        <text
-                          className="welcome-kanji fill-status-perfect-fg"
-                          textAnchor="middle"
-                          dy="1.4"
-                          fontSize={isFocus || isHead ? 4.8 : 3.4}
-                        >
-                          {char}
-                        </text>
-                      </g>
-                    ) : null}
-                  </g>
-                );
-              })}
-            </g>
-          ) : null}
+          {rings
+            .filter((ring) => ring.open)
+            .map((ring) => {
+              const row = TERRACES.find((t) => t.grade === ring.grade);
+              if (!row) return null;
+              const isNear = ring.grade === (focused?.grade ?? profileGrade);
+              const cars = ring.consist;
+              if (!isNear && cars.length === 0) return null;
+              const idle = isNear && cars.length === 0;
+              return (
+                <Consist
+                  key={ring.grade}
+                  grade={ring.grade}
+                  cars={cars}
+                  idle={idle}
+                  paused={paused && isNear}
+                  path={runLoop(row.top, row.h)}
+                  glow={isNear ? glow : undefined}
+                  focusChar={isNear ? focusChar : undefined}
+                />
+              );
+            })}
         </svg>
       </section>
+
+      <button
+        type="button"
+        data-overview-back
+        onClick={onBack}
+        className="absolute bottom-[max(0.9rem,env(safe-area-inset-bottom))] left-3 z-[2] inline-flex h-11 min-w-11 items-center rounded-md border border-border bg-surface/90 px-3 text-sm text-fg-muted shadow-soft"
+      >
+        {t("overviewBack")}
+      </button>
+      <button
+        type="button"
+        data-toggle-lines
+        onClick={() => setLinesOn((v) => !v)}
+        className="absolute bottom-[max(0.9rem,env(safe-area-inset-bottom))] right-3 z-[2] inline-flex h-11 items-center rounded-md border border-border bg-surface/90 px-3 text-xs text-fg-subtle shadow-soft"
+      >
+        {linesOn ? t("hideLines") : t("seeLines")}
+      </button>
     </div>
   );
 }
