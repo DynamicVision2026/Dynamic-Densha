@@ -83,6 +83,7 @@ export function ChildHome({
       setGlow(intent.glow);
       window.setTimeout(() => {
         setGlow([]);
+        setFocusChar(undefined);
         clearOverviewGlow();
       }, 1200);
     }
@@ -91,7 +92,7 @@ export function ChildHome({
   function openOverview(opts?: { char?: string }) {
     setMapOpen(false);
     setFocusGrade(grade);
-    setFocusChar(opts?.char ?? hubLast(rings, grade));
+    setFocusChar(opts?.char);
     setOverview(true);
   }
 
@@ -120,7 +121,7 @@ export function ChildHome({
           }}
           onFocusGrade={(g) => {
             setFocusGrade(g);
-            setFocusChar(hubLast(rings, g));
+            setFocusChar(undefined);
           }}
         />
       ) : (
@@ -223,7 +224,3 @@ export function ChildHome({
   );
 }
 
-function hubLast(rings: GradeRingView[], grade: Grade): string | undefined {
-  const consist = rings.find((r) => r.grade === grade)?.consist;
-  return consist?.[consist.length - 1];
-}

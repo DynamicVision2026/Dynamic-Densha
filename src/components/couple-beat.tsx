@@ -23,6 +23,8 @@ export function CoupleBeat({
 }) {
   const { t } = useI18n();
   const [done, setDone] = useState(prefersReducedMotion());
+  const ghosts = Math.min(5, Math.max(0, count - 1));
+  const from = Math.max(0, count - Math.max(added, 1));
 
   useEffect(() => {
     if (done) return;
@@ -49,18 +51,28 @@ export function CoupleBeat({
         data-tour="feedback"
       >
         <p className="couple-bloom font-display text-2xl tracking-wide">{t("coupleTitle")}</p>
-        <div className="couple-car relative mt-4">
-          <p className="grid size-24 place-items-center rounded-md bg-status-perfect font-display text-6xl leading-none text-status-perfect-fg">
-            {char}
-          </p>
-          <span className="couple-puff" aria-hidden />
+        <div className="couple-consist mt-5 flex items-end justify-center gap-1" aria-hidden>
+          {Array.from({ length: ghosts }).map((_, i) => (
+            <span
+              key={i}
+              className="couple-ghost mb-2 inline-block h-8 w-10 rounded-md bg-status-perfect/70"
+            />
+          ))}
+          {ghosts > 0 ? <span className="couple-hitch mb-5 h-1 w-3 rounded-full bg-status-perfect" /> : null}
+          <div className="couple-car relative">
+            <p className="grid size-24 place-items-center rounded-md bg-status-perfect font-display text-6xl leading-none text-status-perfect-fg">
+              {char}
+            </p>
+            <span className="couple-puff" aria-hidden />
+          </div>
         </div>
-        <p className="couple-rail mt-4 h-1 w-40 rounded-full bg-border-strong" />
+        <p className="couple-rail mt-3 h-1.5 w-52 rounded-full bg-border-strong" />
         {gradeComplete ? (
           <p className="couple-count mt-4 font-display text-lg">{t("gradeCompleteLap")}</p>
         ) : (
           <p className="couple-count mt-4 font-display text-3xl tabular-nums" data-split-flap>
-            {t("coupleCars", { n: count })}
+            <span className="couple-flap-from">{t("coupleCars", { n: from })}</span>
+            <span className="couple-flap-to">{t("coupleCars", { n: count })}</span>
           </p>
         )}
       </section>

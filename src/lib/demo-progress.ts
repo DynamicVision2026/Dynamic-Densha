@@ -52,6 +52,12 @@ export const DEMO_CHILD = {
   },
 };
 
+/** Preview-only: second-echo-due so 到着 can show the green couple beat. Not 王/右 (auto-demo). */
+export const DEMO_COUPLE_CHAR = "花";
+
+/** Extra greens so the overview consist is a short train, not a single tick. */
+const DEMO_CONSIST_CHARS = ["音", "下", "火", "貝"] as const;
+
 export type DemoEvent = {
   kanji: string;
   kind: PracticeKind;
@@ -118,7 +124,50 @@ function seedMap(): Record<string, ProgressState> {
     repairRequiredKinds: ["meaning"],
     wrongCountByKind: { reading: 0, meaning: 1, shape: 0 },
   });
+  for (const char of DEMO_CONSIST_CHARS) {
+    out[char] = base(char, {
+      status: "perfect",
+      lights: { reading: true, meaning: true, shape: true },
+      perfectAt: isoHoursFromNow(-36),
+      almostAt: isoHoursFromNow(-60),
+      echoSuccessCount: 2,
+    });
+  }
+  out[DEMO_COUPLE_CHAR] = base(DEMO_COUPLE_CHAR, {
+    status: "almost",
+    lights: { reading: true, meaning: true, shape: true },
+    almostAt: isoHoursFromNow(-200),
+    echoDueAt: isoHoursFromNow(-1),
+    echoSuccessCount: 1,
+    surfacesSeenSuccess: [`${DEMO_COUPLE_CHAR}:solo`],
+    lastSuccessByKind: {
+      reading: `${DEMO_COUPLE_CHAR}:solo`,
+      meaning: `${DEMO_COUPLE_CHAR}:solo`,
+      shape: `${DEMO_COUPLE_CHAR}:solo`,
+    },
+  });
   return out;
+}
+
+function migrateDemo(all: Record<string, ProgressState>): {
+  all: Record<string, ProgressState>;
+  changed: boolean;
+} {
+  let changed = false;
+  const next = { ...all };
+  const seeded = seedMap();
+  for (const char of DEMO_CONSIST_CHARS) {
+    if (!next[char]) {
+      next[char] = seeded[char]!;
+      changed = true;
+    }
+  }
+  const couple = next[DEMO_COUPLE_CHAR];
+  if (!couple) {
+    next[DEMO_COUPLE_CHAR] = seeded[DEMO_COUPLE_CHAR]!;
+    changed = true;
+  }
+  return { all: next, changed };
 }
 
 function readAll(): Record<string, ProgressState> {
@@ -130,7 +179,10 @@ function readAll(): Record<string, ProgressState> {
       window.localStorage.setItem(KEY, JSON.stringify(seeded));
       return seeded;
     }
-    return JSON.parse(raw) as Record<string, ProgressState>;
+    const parsed = JSON.parse(raw) as Record<string, ProgressState>;
+    const { all, changed } = migrateDemo(parsed);
+    if (changed) writeAll(all);
+    return all;
   } catch {
     return seedMap();
   }

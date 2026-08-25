@@ -175,7 +175,9 @@ export function KanjiSession({
     } else {
       setAnnounce(null);
     }
-  }, [char, lookMode, echoOn, echoDue, tour.active]);
+    // Station-entry only. A 残響 ride that becomes かんぺき must not resurrect the 車内アナウンス over 到着.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- echoOn/echoDue captured at char entry
+  }, [char, lookMode, tour.active]);
 
   useEffect(() => {
     return () => stopFixedAudio();
@@ -719,7 +721,7 @@ export function KanjiSession({
 
   return (
     <>
-      {announce && localBeat !== "echo" ? (
+      {announce && localBeat !== "echo" && localBeat !== "feedback" ? (
         <TrainAnnounce
           announcement={announce}
           onPass={() => {

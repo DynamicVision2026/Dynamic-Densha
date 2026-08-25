@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { GRADE_COUNTS, trainsForGrade } from "../src/data/kyoiku.ts";
-import { emptyProgress, type ProgressState } from "../src/lib/progress-eval.ts";
+import { getGradeParams } from "../src/lib/grade-params.ts";
+import { emptyProgress, evaluateProgress, type ProgressState } from "../src/lib/progress-eval.ts";
+import { justReachedPerfect } from "../src/lib/stamps.ts";
 import { buildGradeRings, hubCounts } from "../src/lib/train-overview.ts";
 
 function mapOf(rows: ProgressState[]) {
@@ -73,15 +75,54 @@ test("overview is UI state on child home, not a peer route", () => {
   const hub = readFileSync("src/components/hub-plate.tsx", "utf8");
   const session = readFileSync("src/components/kanji-session.tsx", "utf8");
   const couple = readFileSync("src/components/couple-beat.tsx", "utf8");
+  const overview = readFileSync("src/components/welcome-overview.tsx", "utf8");
+  const css = readFileSync("src/styles.css", "utf8");
+  const demo = readFileSync("src/lib/demo-progress.ts", "utf8");
   assert.match(home, /WelcomeOverview/);
   assert.match(home, /HubPlate/);
   assert.match(hub, /data-open-overview/);
   assert.match(home, /landscape:w-\[40%\]/);
-  assert.equal(/createFileRoute/.test(readFileSync("src/components/welcome-overview.tsx", "utf8")), false);
+  assert.equal(/createFileRoute/.test(overview), false);
   assert.equal(/WatchDemoButton|loginParent|workshopTry/.test(home), false);
   assert.match(session, /CoupleBeat/);
   assert.match(session, /justReachedPerfect/);
   assert.match(session, /seeTrain/);
+  assert.match(session, /localBeat !== "feedback"/);
   assert.match(couple, /coupleTitle/);
   assert.equal(/confetti|mascot/.test(couple), false);
+  assert.match(overview, /data-orbit/);
+  assert.match(css, /transform-box: view-box/);
+  assert.match(css, /\.couple-done \.couple-puff/);
+  assert.match(demo, /DEMO_COUPLE_CHAR = "花"/);
+  assert.match(demo, /echoSuccessCount: 1/);
+  assert.equal(/opts\?\.char \?\? hubLast/.test(home), false);
+});
+
+test("second due echo still becomes perfect (couple trigger; rules unchanged)", () => {
+  const now = "2026-08-25T06:00:00.000Z";
+  const prev: ProgressState = {
+    ...emptyProgress("花"),
+    encounterCompleted: true,
+    understandCompleted: true,
+    status: "almost",
+    lights: { reading: true, meaning: true, shape: true },
+    echoSuccessCount: 1,
+    echoDueAt: "2026-08-25T05:00:00.000Z",
+  };
+  const next = evaluateProgress(
+    prev,
+    {
+      type: "answer",
+      kind: "reading",
+      correct: true,
+      isEcho: true,
+      echoBatchDone: true,
+      nowIso: now,
+      shapeAvailable: true,
+      surfaceId: "花:花火",
+    },
+    getGradeParams(1),
+  );
+  assert.equal(next.status, "perfect");
+  assert.equal(justReachedPerfect(prev, next), true);
 });

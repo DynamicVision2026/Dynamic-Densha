@@ -210,10 +210,15 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+@keyframes welcome-counter {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
 
 .welcome-orbit {
-  animation: welcome-orbit 96s linear infinite;
-  transform-origin: 50% 50%;
+  animation: welcome-orbit 72s linear infinite;
+  transform-origin: 100px 100px;
+  transform-box: view-box;
 }
 
 .welcome-orbit.is-paused {
@@ -222,6 +227,17 @@
 
 .welcome-orbit.welcome-lap {
   animation: welcome-orbit 1.8s ease-in-out 1;
+}
+
+.welcome-kanji {
+  animation: welcome-counter 72s linear infinite;
+  transform-origin: 0px 0px;
+  transform-box: fill-box;
+}
+
+.welcome-orbit.is-paused .welcome-kanji,
+.welcome-orbit.welcome-lap .welcome-kanji {
+  animation-play-state: paused;
 }
 
 .couple-bloom {
@@ -261,6 +277,31 @@
   opacity: 1;
   pointer-events: auto;
 }
+.couple-consist {
+  animation: couple-consist 500ms 700ms ease-out both;
+}
+.couple-ghost {
+  animation: couple-in 400ms 700ms ease-out both;
+}
+.couple-flap-from,
+.couple-flap-to {
+  display: block;
+}
+.couple-flap-to {
+  display: none;
+}
+.couple-done .couple-flap-from {
+  display: none;
+}
+.couple-done .couple-flap-to {
+  display: block;
+}
+.couple-done .couple-consist,
+.couple-done .couple-ghost {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
 .couple-done .couple-puff {
   animation: none;
   opacity: 0;
@@ -277,6 +318,10 @@
 @keyframes couple-puff {
   from { opacity: 0.8; transform: scale(0.7); }
   to { opacity: 0; transform: scale(1.4); }
+}
+@keyframes couple-consist {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: none; }
 }
 
 
