@@ -62,6 +62,13 @@ jobs:
               --allow-unauthenticated
           fi
 
+      - name: Show latest Cloud Build log on failure
+        if: failure()
+        run: |
+          BUILD_ID=$(gcloud builds list --project "$PROJECT_ID" --region "$REGION" --limit=1 --sort-by=~createTime --format='value(id)')
+          echo "Latest build: $BUILD_ID"
+          gcloud builds log "$BUILD_ID" --project "$PROJECT_ID" --region "$REGION" || true
+
       - name: Deploy welcome-polish tagged revision at 0% traffic
         env:
           SERVICE: ${{ inputs.service_name }}
