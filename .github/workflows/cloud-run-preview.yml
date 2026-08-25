@@ -1,0 +1,85 @@
+name: Cloud Run Preview Deploy
+
+# Manual-only: trigger from the Actions tab (or `gh workflow run`) against
+# whichever branch/ref you want previewed. Deploys a --no-traffic revision
+# tagged "welcome-polish" so it never affects live traffic.
+#
+# Requires a repository secret named GCP_SA_KEY containing a GCP service
+# account JSON key with these roles on the dynamic-densha project:
+#   - Cloud Run Admin
+#   - Artifact Registry Administrator
+#   - Cloud Build Editor
+#   - Service Account User
+#   - Storage Admin
+# Add it under: Settings > Secrets and variables > Actions > New repository
+# secret. The key is only ever read by GitHub's runner; it is never sent
+# to, or visible to, any AI agent working in this repo.
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: "Cloud Run service name"
+        required: false
+        default: "dynamic-densha-web"
+
+env:
+  PROJECT_ID: dynamic-densha
+  REGION: asia-northeast1
+  TAG: welcome-polish
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enable required APIs
+        run: |
+          gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com --project "$PROJECT_ID"
+
+      - name: Create service if it doesn't exist yet
+        # Cloud Run rejects --no-traffic on a brand-new service's very first
+        # revision (nothing prior to keep serving), so create it normally
+        # first if needed; that first revision gets 100% traffic since it's
+        # the only one.
+        env:
+          SERVICE: ${{ inputs.service_name }}
+        run: |
+          if ! gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" >/dev/null 2>&1; then
+            gcloud run deploy "$SERVICE" \
+              --source . \
+              --region "$REGION" \
+              --project "$PROJECT_ID" \
+              --allow-unauthenticated
+          fi
+
+      - name: Deploy welcome-polish tagged revision at 0% traffic
+        env:
+          SERVICE: ${{ inputs.service_name }}
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --no-traffic \
+            --tag "$TAG" \
+            --allow-unauthenticated
+
+      - name: Print preview URL
+        env:
+          SERVICE: ${{ inputs.service_name }}
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" \
+            --format="value(status.traffic[?tag='$TAG'].url)")
+          echo "### Cloud Run preview URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "$URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "PREVIEW_URL=$URL"
