@@ -6,6 +6,7 @@ import { getGradeParams } from "../src/lib/grade-params.ts";
 import { emptyProgress, evaluateProgress, type ProgressState } from "../src/lib/progress-eval.ts";
 import { justReachedPerfect } from "../src/lib/stamps.ts";
 import { buildGradeRings, hubCounts } from "../src/lib/train-overview.ts";
+import { openingHead, scaleAt, wrapHead, SWITCHBACK_PATH } from "../src/lib/welcome-switchback.ts";
 
 function mapOf(rows: ProgressState[]) {
   return new Map(rows.map((r) => [r.kanji, r]));
@@ -94,9 +95,10 @@ test("overview is UI state on child home, not a peer route", () => {
   assert.match(overview, /data-welcome-hero/);
   assert.match(overview, /data-terrace/);
   assert.match(overview, /data-orbit/);
-  assert.match(overview, /offsetPath/);
-  assert.equal(/RING_R|concentric/.test(overview), false);
-  assert.match(css, /offset-distance/);
+  assert.match(overview, /data-switchback/);
+  assert.match(overview, /SWITCHBACK_PATH/);
+  assert.match(overview, /requestAnimationFrame/);
+  assert.equal(/RING_R|concentric|offsetPath/.test(overview), false);
   assert.match(css, /\.couple-done \.couple-puff/);
   assert.match(ja, /はっしゃひょうへ/);
   assert.match(ja, /みどりの くるま/);
@@ -104,6 +106,17 @@ test("overview is UI state on child home, not a peer route", () => {
   assert.match(demo, /echoSuccessCount: 1/);
   assert.match(demo, /\["音", "下", "火"\]/);
   assert.equal(/opts\?\.char \?\? hubLast/.test(home), false);
+});
+
+test("switchback: nearer (lower) cars are larger; wrap resets after the tail clears", () => {
+  assert.match(SWITCHBACK_PATH, /M -80 412/);
+  assert.ok(scaleAt(412) > scaleAt(196));
+  assert.ok(scaleAt(412) > 0.85);
+  assert.ok(scaleAt(174) < 0.45);
+  assert.equal(wrapHead(2000, 5, 100), 0);
+  assert.equal(wrapHead(80, 5, 1000), 80);
+  assert.ok(openingHead(4, 1200) < 1200 * 0.42);
+  assert.equal(openingHead(4, 2000), 100 + 4 * 54);
 });
 
 test("second due echo still becomes perfect (couple trigger; rules unchanged)", () => {

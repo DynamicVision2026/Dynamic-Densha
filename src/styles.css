@@ -206,27 +206,6 @@
   filter: drop-shadow(0 0 5px rgb(61 122 90 / 0.7));
 }
 
-@keyframes welcome-run {
-  from { offset-distance: 0%; }
-  to { offset-distance: 100%; }
-}
-
-.welcome-run {
-  offset-rotate: 0deg;
-  animation: welcome-run 32s linear infinite;
-  animation-delay: -18s;
-}
-
-.welcome-run.is-paused {
-  animation-play-state: paused;
-}
-
-.welcome-run.is-idle {
-  animation: none;
-  offset-distance: 48%;
-  offset-rotate: 0deg;
-}
-
 .welcome-steam-puff {
   transform-box: fill-box;
   transform-origin: 50% 80%;

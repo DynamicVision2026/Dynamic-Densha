@@ -1,62 +1,37 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { familyRadials, hubCounts, type GradeRingView } from "@/lib/train-overview";
+import {
+  CAR_CAP,
+  CAR_GAP,
+  SWITCHBACK_PATH,
+  TRAIN_SPEED,
+  openingHead,
+  poseAt,
+  sampleLut,
+  wrapHead,
+  type CarPose,
+} from "@/lib/welcome-switchback";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { Grade } from "@/data/kyoiku";
 import { cn } from "@/lib/utils";
 
-const CAR_CAP = 8;
-
-/** Far → near visual rows. Grade 6 recedes; grade 1 is the working field. */
-const TERRACES: { grade: Grade; top: number; h: number }[] = [
-  { grade: 6, top: 232, h: 38 },
-  { grade: 5, top: 262, h: 42 },
-  { grade: 4, top: 296, h: 46 },
-  { grade: 3, top: 334, h: 50 },
-  { grade: 2, top: 376, h: 56 },
-  { grade: 1, top: 422, h: 96 },
-];
-
-function terraceFill(y: number, h: number, bulge: number) {
-  const yb = y + h;
-  return [
-    `M -24 ${yb + 12}`,
-    `L -24 ${y + 10}`,
-    `C 48 ${y - bulge} 120 ${y + bulge + 8} 188 ${y - 2}`,
-    `C 256 ${y - bulge - 6} 318 ${y + 12} 392 ${y + 6}`,
-    `L 392 ${yb + 16}`,
-    "Z",
-  ].join(" ");
-}
-
-function furrow(y: number, i: number) {
-  const yy = y + i * 7;
-  return `M 8 ${yy} C 86 ${yy - 5} 168 ${yy + 7} 248 ${yy - 2} S 348 ${yy + 4} 368 ${yy}`;
-}
-
-function runLoop(top: number, h: number) {
-  const y = top + h * 0.5;
-  return [
-    `M -70 ${y + 6}`,
-    `C 40 ${y - 22} 130 ${y + 24} 220 ${y - 10}`,
-    `C 290 ${y - 28} 350 ${y + 8} 430 ${y - 4}`,
-  ].join(" ");
+function prefersReducedMotion() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function Engine({ steam }: { steam?: boolean }) {
   return (
     <g data-engine>
-      <rect x="-28" y="-18" width="54" height="30" rx="4" fill="var(--color-primary)" />
-      <rect x="12" y="-30" width="10" height="14" rx="1.6" fill="var(--color-primary)" />
-      <rect x="-22" y="-8" width="16" height="10" rx="1.4" fill="var(--color-primary-fg)" opacity="0.38" />
-      <circle cx="-14" cy="14" r="5" fill="var(--color-fg)" />
-      <circle cx="14" cy="14" r="5" fill="var(--color-fg)" />
-      <circle cx="-14" cy="14" r="1.8" fill="var(--color-bg)" />
-      <circle cx="14" cy="14" r="1.8" fill="var(--color-bg)" />
+      <rect x="-26" y="-45" width="52" height="45" rx="8" fill="var(--color-primary)" stroke="var(--color-primary)" strokeWidth="1.2" />
+      <rect x="4" y="-59" width="12" height="14" rx="2" fill="var(--color-primary)" />
+      <circle cx="-14" cy="-22" r="6" fill="var(--color-bg-warm)" />
+      <circle cx="-12" cy="1" r="4" fill="var(--color-fg)" opacity="0.78" />
+      <circle cx="12" cy="1" r="4" fill="var(--color-fg)" opacity="0.78" />
       {steam ? (
         <g className="welcome-steam" aria-hidden>
-          <circle className="welcome-steam-puff" cx="20" cy="-34" r="6" fill="var(--color-fg)" />
-          <circle className="welcome-steam-puff puff-2" cx="30" cy="-42" r="4.5" fill="var(--color-fg)" />
-          <circle className="welcome-steam-puff puff-3" cx="14" cy="-46" r="3.6" fill="var(--color-fg)" />
+          <circle className="welcome-steam-puff" cx="14" cy="-64" r="5" fill="var(--color-fg)" />
+          <circle className="welcome-steam-puff puff-2" cx="22" cy="-72" r="3.6" fill="var(--color-fg)" />
         </g>
       ) : null}
     </g>
@@ -75,21 +50,22 @@ function WoodCar({
   return (
     <g data-overview-car={char} className={cn(glow && "welcome-glow")}>
       <rect
-        x="-22"
-        y="-20"
-        width="44"
-        height="38"
-        rx="3.2"
+        x="-26"
+        y="-45"
+        width="52"
+        height="45"
+        rx="8"
         fill="var(--color-bg-warm)"
         stroke="var(--color-fg)"
-        strokeWidth={focus ? 1.6 : 0.9}
-        opacity="0.98"
+        strokeWidth={focus ? 1.6 : 1.1}
       />
-      <rect x="-18" y="-16" width="36" height="7" rx="1.2" fill="var(--color-border)" opacity="0.75" />
+      <rect x="-20" y="-40" width="40" height="7" rx="1.4" fill="var(--color-border)" opacity="0.8" />
+      <circle cx="-12" cy="1" r="4" fill="var(--color-fg)" opacity="0.72" />
+      <circle cx="12" cy="1" r="4" fill="var(--color-fg)" opacity="0.72" />
       <text
         textAnchor="middle"
-        y="12"
-        fontSize="22"
+        y="-18"
+        fontSize="28"
         fontFamily="var(--font-display)"
         fill="var(--color-fg)"
       >
@@ -99,42 +75,12 @@ function WoodCar({
   );
 }
 
-function Consist({
-  grade,
-  cars,
-  idle,
-  paused,
-  path,
-  glow,
-  focusChar,
-}: {
-  grade: Grade;
-  cars: string[];
-  idle: boolean;
-  paused: boolean;
-  path: string;
-  glow?: string[];
-  focusChar?: string;
-}) {
-  const shown = cars.slice(Math.max(0, cars.length - CAR_CAP));
-  return (
-    <g
-      className={cn("welcome-run", idle && "is-idle", paused && "is-paused")}
-      style={{ offsetPath: `path("${path}")` }}
-      data-orbit
-      data-consist={grade}
-      data-idle={idle || undefined}
-      data-overview-cars={cars.length}
-    >
-      <Engine steam />
-      {shown.map((char, i) => (
-        <g key={char} transform={`translate(${-46 - i * 46} 0)`}>
-          <rect x="18" y="-2" width="8" height="3" fill="var(--color-fg)" opacity="0.4" />
-          <WoodCar char={char} glow={Boolean(glow?.includes(char))} focus={char === focusChar} />
-        </g>
-      ))}
-    </g>
-  );
+function posed(pose: CarPose) {
+  if (pose.hidden) return { opacity: "0", transform: `translate(${pose.x} ${pose.y})` };
+  return {
+    opacity: String(pose.opacity),
+    transform: `translate(${pose.x.toFixed(1)} ${pose.y.toFixed(1)}) scale(${pose.scale.toFixed(3)})`,
+  };
 }
 
 export function WelcomeOverview({
@@ -159,12 +105,39 @@ export function WelcomeOverview({
   const { t } = useI18n();
   const [linesOn, setLinesOn] = useState(false);
   const [glowOn, setGlowOn] = useState(Boolean(glow?.length));
+  const [reduced, setReduced] = useState(prefersReducedMotion);
   const focused = rings.find((r) => r.grade === focusGrade) ?? rings.find((r) => r.grade === profileGrade);
   const radials = useMemo(() => (linesOn ? familyRadials(rings) : []), [linesOn, rings]);
   const complete = Boolean(focused?.complete);
-  const paused = glowOn || complete;
   const hub = hubCounts(rings, focusGrade);
-  const nearRow = TERRACES.find((row) => row.grade === (focused?.grade ?? profileGrade)) ?? TERRACES[5]!;
+  const consist = (focused?.consist ?? []).slice(Math.max(0, (focused?.consist.length ?? 0) - CAR_CAP));
+  const idle = consist.length === 0;
+  const paused = glowOn || complete || reduced || idle;
+
+  const pathRef = useRef<SVGPathElement>(null);
+  const [lut, setLut] = useState<[number, number][]>([]);
+  const [length, setLength] = useState(0);
+  const [head, setHead] = useState(0);
+  const headRef = useRef(0);
+
+  useLayoutEffect(() => {
+    const node = pathRef.current;
+    if (!node) return;
+    const L = node.getTotalLength();
+    setLut(sampleLut((d) => node.getPointAtLength(d), L));
+    setLength(L);
+    const start = openingHead(consist.length, L);
+    headRef.current = start;
+    setHead(start);
+  }, [consist.length]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduced(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (!glow?.length) return;
@@ -173,15 +146,37 @@ export function WelcomeOverview({
     return () => window.clearTimeout(id);
   }, [glow]);
 
+  useEffect(() => {
+    if (paused || length <= 0) return;
+    let last = performance.now();
+    let raf = 0;
+    const units = consist.length + 1;
+    const tick = (ts: number) => {
+      const dt = Math.min(0.05, (ts - last) / 1000 || 0);
+      last = ts;
+      const next = wrapHead(headRef.current + TRAIN_SPEED * dt, units, length);
+      headRef.current = next;
+      setHead(next);
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [paused, length, consist.length]);
+
+  const enginePose = poseAt(head, lut, length);
+  const carPoses = consist.map((_, i) => poseAt(head - (i + 1) * CAR_GAP, lut, length));
+
   return (
     <div
       className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
       data-welcome-overview
       data-welcome-hero
+      data-switchback
       data-focus-grade={focusGrade}
       data-complete={complete || undefined}
       data-href-base={hrefBase}
       data-green-count={hub.green}
+      data-idle={idle || undefined}
     >
       <button
         type="button"
@@ -196,70 +191,82 @@ export function WelcomeOverview({
 
       <section className="relative min-h-0 flex-1 overflow-hidden">
         <svg
-          viewBox="0 0 360 640"
-          preserveAspectRatio="xMidYMax slice"
+          viewBox="0 0 360 530"
+          preserveAspectRatio="xMidYMax meet"
           className="h-full w-full"
           role="img"
           aria-label={t("greenCars")}
           data-hero-plate
         >
-          <rect width="360" height="640" fill="var(--color-bg)" />
-          <path d="M -10 210 C 70 150 120 188 180 120 C 230 70 280 96 380 40 L 380 260 L -10 280 Z" fill="var(--color-fg)" opacity="0.07" />
-          <path d="M -20 188 C 40 140 90 168 150 108 C 210 52 270 88 400 36 L 400 230 L -20 250 Z" fill="var(--color-fg)" opacity="0.11" />
-          <path d="M 40 200 C 110 120 160 156 220 96 C 270 50 320 78 390 44 L 390 220 L 20 236 Z" fill="var(--color-fg)" opacity="0.16" />
-          <ellipse cx="120" cy="168" rx="90" ry="18" fill="var(--color-bg)" opacity="0.45" />
-          <ellipse cx="240" cy="132" rx="110" ry="22" fill="var(--color-bg)" opacity="0.35" />
+          <rect width="360" height="530" fill="var(--color-bg)" />
+          <path d="M0 150 L62 84 L108 122 L158 62 L214 118 L268 76 L330 128 L360 108 L360 200 L0 200 Z" fill="var(--color-fg)" opacity="0.14" />
+          <path d="M0 172 L54 128 L120 166 L190 120 L252 164 L318 132 L360 158 L360 220 L0 220 Z" fill="var(--color-fg)" opacity="0.08" />
+          <rect x="-20" y="168" width="400" height="14" rx="7" fill="var(--color-bg)" opacity="0.8" />
 
-          {TERRACES.map((row, idx) => {
-            const ring = rings.find((r) => r.grade === row.grade);
-            const open = Boolean(ring?.open);
-            const active = row.grade === focusGrade;
-            const bulge = 6 + idx;
+          {(
+            [
+              [198, 0.22],
+              [248, 0.18],
+              [298, 0.14],
+              [356, 0.1],
+              [424, 0.07],
+            ] as const
+          ).map(([y, ink], i) => {
+            const grade = (5 - i) as Grade;
+            const open = Boolean(rings.find((r) => r.grade === grade)?.open);
             return (
-              <g
-                key={row.grade}
-                data-terrace={row.grade}
+              <path
+                key={grade}
+                data-terrace={grade}
                 data-terrace-open={open || undefined}
-                className="cursor-pointer"
+                d={`M0 ${y} Q90 ${y - 13} 180 ${y} T360 ${y} L360 530 L0 530 Z`}
+                fill="var(--color-bg-warm)"
+                opacity={open ? 0.55 + ink : 0.28}
                 onClick={() => {
-                  if (open) onFocusGrade(row.grade);
+                  if (open) onFocusGrade(grade);
                 }}
-              >
-                <path
-                  d={terraceFill(row.top, row.h, bulge)}
-                  fill={open ? "var(--color-bg-warm)" : "var(--color-bg)"}
-                  stroke="var(--color-fg)"
-                  strokeWidth={active ? 1.1 : 0.55}
-                  opacity={open ? (active ? 0.95 : 0.72) : 0.38}
-                />
-                {open
-                  ? [0, 1, 2, 3].map((i) => (
-                      <path
-                        key={i}
-                        d={furrow(row.top + 14, i)}
-                        fill="none"
-                        stroke="var(--color-fg)"
-                        strokeWidth="0.45"
-                        opacity={active ? 0.18 : 0.08}
-                      />
-                    ))
-                  : null}
-              </g>
+              />
             );
           })}
 
-          <g opacity="0.92" aria-hidden>
-            <path d="M 292 430 L 318 352 L 344 430 Z" fill="var(--color-status-perfect)" />
-            <path d="M 300 400 L 318 368 L 336 400 Z" fill="var(--color-status-perfect)" opacity="0.85" />
-            <rect x="315" y="428" width="6" height="22" fill="var(--color-fg)" opacity="0.7" />
-          </g>
-          <rect x="328" y="72" width="18" height="18" fill="var(--color-primary)" opacity="0.92" />
+          {[
+            [38, 302],
+            [92, 358],
+            [302, 308],
+            [262, 424],
+            [62, 428],
+            [326, 366],
+            [150, 198],
+            [236, 252],
+          ].map(([x, y]) => {
+            const s = y > 340 ? 11 : y > 280 ? 9 : 7;
+            return (
+              <path
+                key={`${x}-${y}`}
+                d={`M${x} ${y} l${s} ${s * 1.9} h${-s * 2} Z`}
+                fill="var(--color-status-perfect)"
+                opacity="0.85"
+              />
+            );
+          })}
+          <rect x="196" y="354" width="56" height="5" fill="var(--color-border-strong)" />
+          <rect x="328" y="28" width="16" height="16" fill="var(--color-primary)" opacity="0.92" />
+
           <path
-            d={runLoop(nearRow.top, nearRow.h)}
+            d={SWITCHBACK_PATH}
             fill="none"
             stroke="var(--color-fg)"
-            strokeWidth="1.4"
-            opacity="0.22"
+            strokeWidth="8"
+            strokeDasharray="2 9"
+            opacity="0.28"
+          />
+          <path
+            ref={pathRef}
+            d={SWITCHBACK_PATH}
+            fill="none"
+            stroke="var(--color-border-strong)"
+            strokeWidth="5"
+            strokeLinecap="round"
             data-run-rail
           />
 
@@ -271,40 +278,25 @@ export function WelcomeOverview({
               strokeWidth="0.8"
               opacity="0.28"
               points={line.points
-                .map((p) => {
-                  const row = TERRACES.find((t) => t.grade === p.grade);
-                  if (!row) return null;
-                  const x = 36 + (p.index / Math.max(p.total, 1)) * 280;
-                  const y = row.top + row.h * 0.45;
-                  return `${x},${y}`;
-                })
-                .filter(Boolean)
+                .map((p, i) => `${40 + i * 40},${420 - p.grade * 36}`)
                 .join(" ")}
             />
           ))}
 
-          {rings
-            .filter((ring) => ring.open)
-            .map((ring) => {
-              const row = TERRACES.find((t) => t.grade === ring.grade);
-              if (!row) return null;
-              const isNear = ring.grade === (focused?.grade ?? profileGrade);
-              const cars = ring.consist;
-              if (!isNear && cars.length === 0) return null;
-              const idle = isNear && cars.length === 0;
-              return (
-                <Consist
-                  key={ring.grade}
-                  grade={ring.grade}
-                  cars={cars}
-                  idle={idle}
-                  paused={paused && isNear}
-                  path={runLoop(row.top, row.h)}
-                  glow={isNear ? glow : undefined}
-                  focusChar={isNear ? focusChar : undefined}
-                />
-              );
-            })}
+          <g data-orbit data-consist={focusGrade} data-overview-cars={consist.length} data-idle={idle || undefined}>
+            <g {...posed(enginePose)}>
+              <Engine steam />
+            </g>
+            {consist.map((char, i) => (
+              <g
+                key={char}
+                data-car-scale={carPoses[i]?.scale.toFixed(3)}
+                {...posed(carPoses[i] ?? { x: 0, y: 0, scale: 1, opacity: 0, hidden: true })}
+              >
+                <WoodCar char={char} glow={glowOn && glow?.includes(char)} focus={char === focusChar} />
+              </g>
+            ))}
+          </g>
         </svg>
       </section>
 
