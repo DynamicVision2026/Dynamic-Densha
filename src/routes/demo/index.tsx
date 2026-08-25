@@ -34,10 +34,12 @@ function DemoHome() {
     <ChildHome
       hrefBase="/demo"
       grade={viewGrade}
+      profileGrade={DEMO_CHILD.grade}
       cars={cars}
       board={home.board}
       echoQueue={home.echoQueue}
       lines={map.lines}
+      rings={home.rings}
     />
   );
 }

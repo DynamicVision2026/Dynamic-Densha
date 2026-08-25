@@ -26,6 +26,7 @@ import { buildForwardMetrics } from "@/lib/parent-forward";
 import { buildProjectedArrival } from "@/lib/projected-arrival";
 import { canAdvanceGrade, shouldShowAprilPrompt } from "@/lib/grade-rollover";
 import { buildWeeklyPlan } from "@/lib/weekly-plan";
+import { buildGradeRings } from "@/lib/train-overview";
 import {
   ensureChildPlan,
   listChildRoutes,
@@ -335,6 +336,7 @@ export const getHomeState = createServerFn({ method: "GET" })
       viewGrade === child.grade
         ? buildDepartureBoard({ progress: map, inspections, plan: weekly, nowIso: now })
         : null;
+    const rings = buildGradeRings({ progress: map, profileGrade: child.grade });
     return {
       child,
       viewGrade,
@@ -346,6 +348,7 @@ export const getHomeState = createServerFn({ method: "GET" })
       maxNew: p.max_new_per_day,
       peek: pickWeekPeek({ progress: map, grade: viewGrade }),
       board,
+      rings,
     };
   });
 
@@ -358,11 +361,14 @@ export const getKanjiStudy = createServerFn({ method: "GET" })
     const p = paramsForChar(data.char, child.grade);
     const started = await echoStartsToday(context.userId, data.childId, now);
     const progress = map.get(data.char) ?? emptyProgress(data.char);
+    const charGrade = (getKanji(data.char)?.grade ?? child.grade) as Grade;
+    const rings = buildGradeRings({ progress: map, profileGrade: child.grade });
     return {
       child,
       progress,
       unlocked: true,
       echoOn: echoAvailable(progress, now, started, p),
+      gradePerfect: rings.find((r) => r.grade === charGrade)?.perfect ?? 0,
     };
   });
 
@@ -459,6 +465,14 @@ export const submitPractice = createServerFn({ method: "POST" })
       correct: graded.correct,
       label: graded.label,
       progress: next,
+      gradePerfect: buildGradeRings({
+        progress: (() => {
+          const nextMap = new Map(map);
+          nextMap.set(data.char, next);
+          return nextMap;
+        })(),
+        profileGrade: child.grade,
+      }).find((r) => r.grade === (getKanji(data.char)?.grade ?? child.grade))?.perfect ?? 0,
     };
   });
 

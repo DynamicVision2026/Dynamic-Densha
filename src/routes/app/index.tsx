@@ -88,10 +88,12 @@ function AppHome() {
       hrefBase="/app"
       childId={childId ?? undefined}
       grade={viewGrade}
+      profileGrade={childGrade}
       cars={cars}
       board={home.board}
       echoQueue={home.echoQueue}
       lines={mapQ.data?.lines ?? []}
+      rings={home.rings ?? []}
     />
   );
 }

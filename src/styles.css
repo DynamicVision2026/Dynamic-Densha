@@ -202,3 +202,81 @@
     height 180ms ease;
 }
 
+.welcome-glow {
+  filter: drop-shadow(0 0 4px rgb(61 122 90 / 0.85));
+}
+
+@keyframes welcome-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.welcome-orbit {
+  animation: welcome-orbit 96s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+.welcome-orbit.is-paused {
+  animation-play-state: paused;
+}
+
+.welcome-orbit.welcome-lap {
+  animation: welcome-orbit 1.8s ease-in-out 1;
+}
+
+.couple-bloom {
+  animation: couple-in 400ms ease-out both;
+}
+.couple-car {
+  animation: couple-in 500ms 80ms ease-out both;
+}
+.couple-rail {
+  transform-origin: left center;
+  animation: couple-rail 400ms 400ms ease-out both;
+}
+.couple-puff {
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  border: 1px solid rgb(61 122 90 / 0.35);
+  animation: couple-puff 500ms 1100ms ease-out both;
+  pointer-events: none;
+}
+.couple-count {
+  animation: couple-in 300ms 1400ms ease-out both;
+}
+.couple-cta {
+  transition: opacity 280ms ease-out 1900ms;
+}
+.couple-done .couple-bloom,
+.couple-done .couple-car,
+.couple-done .couple-rail,
+.couple-done .couple-count {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+.couple-done .couple-cta {
+  transition: opacity 160ms ease-out;
+  opacity: 1;
+  pointer-events: auto;
+}
+.couple-done .couple-puff {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes couple-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes couple-rail {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes couple-puff {
+  from { opacity: 0.8; transform: scale(0.7); }
+  to { opacity: 0; transform: scale(1.4); }
+}
+
+

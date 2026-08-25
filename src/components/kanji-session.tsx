@@ -9,9 +9,10 @@ import { PuzzleFrame } from "@/components/puzzle-frame";
 import { QuizPanel } from "@/components/quiz-panel";
 import { ReadingLine } from "@/components/speaker-button";
 import { RideShell } from "@/components/ride-shell";
+import { CoupleBeat } from "@/components/couple-beat";
 import { TrainAnnounce } from "@/components/train-announce";
 import { Button } from "@/components/ui/button";
-import { getKanji } from "@/data/kyoiku";
+import { getKanji, GRADE_COUNTS, type Grade } from "@/data/kyoiku";
 import { lookupReadingAudio } from "@/data/reading-audio";
 import { readStoredActiveGrade } from "@/lib/active-grade";
 import {
@@ -21,6 +22,13 @@ import {
 } from "@/lib/announcements";
 import { echoArrivalWhen } from "@/lib/echo-arrival";
 import { markEchoTaughtToday, wasEchoTaughtToday } from "@/lib/echo-teach";
+import { justReachedPerfect } from "@/lib/stamps";
+import {
+  pushCouplePending,
+  takeCouplePending,
+  takeCouplePendingPeek,
+  writeOverviewIntent,
+} from "@/lib/train-overview";
 import { exampleWordSurfaces, surfaceById } from "@/lib/echo-surfaces";
 import { getEncounter } from "@/lib/encounters";
 import { stopFixedAudio } from "@/lib/fixed-audio";
@@ -93,7 +101,7 @@ export function KanjiSession({
     isEcho: boolean;
     echoBatchDone: boolean;
     sessionId: string;
-  }) => Promise<{ correct: boolean; label: string; progress: ProgressState }>;
+  }) => Promise<{ correct: boolean; label: string; progress: ProgressState; gradePerfect?: number }>;
   onEchoStart?: () => void;
 }) {
   const { t } = useI18n();
@@ -132,6 +140,7 @@ export function KanjiSession({
       : `s-${Date.now()}`,
   );
   const [repairCount, setRepairCount] = useState(0);
+  const [couple, setCouple] = useState<{ chars: string[]; count: number } | null>(null);
   const [lastWrongByKind, setLastWrongByKind] = useState<Partial<Record<PracticeKind, string>>>(
     {},
   );
@@ -188,6 +197,7 @@ export function KanjiSession({
     setResult(null);
     setRepairCount(0);
     setLastWrongByKind({});
+    setCouple(null);
     setLocalBeat(
       openingBeat({
         lookMode,
@@ -255,6 +265,26 @@ export function KanjiSession({
   }, [localBeat, char, lookMode, repairCount]);
 
   const item = items[index] ?? null;
+
+  function applyAnswer(
+    out: { correct: boolean; label: string; progress: ProgressState; gradePerfect?: number },
+    itemId: string,
+    kind: PracticeKind,
+  ) {
+    setResult({ correct: out.correct, label: out.label });
+    if (!out.correct) {
+      setLastWrongByKind((prev) => ({ ...prev, [kind]: itemId }));
+      setRepairCount((c) => c + 1);
+    }
+    if (justReachedPerfect(progress, out.progress)) {
+      pushCouplePending(char);
+      const pending = takeCouplePendingPeek();
+      setCouple({
+        chars: pending.length ? pending : [char],
+        count: Math.max(out.gradePerfect ?? pending.length, 1),
+      });
+    }
+  }
 
   if (!kanji) {
     return (
@@ -536,11 +566,7 @@ export function KanjiSession({
               echoBatchDone,
               sessionId,
             }).then((out) => {
-              setResult({ correct: out.correct, label: out.label });
-              if (!out.correct) {
-                setLastWrongByKind((prev) => ({ ...prev, [item.kind]: item.id }));
-                setRepairCount((c) => c + 1);
-              }
+              applyAnswer(out, item.id, item.kind);
             });
           }}
           onCommit={(choiceId) => {
@@ -557,11 +583,7 @@ export function KanjiSession({
               sessionId,
             })
               .then((out) => {
-                setResult({ correct: out.correct, label: out.label });
-                if (!out.correct) {
-                  setLastWrongByKind((prev) => ({ ...prev, [item.kind]: item.id }));
-                  setRepairCount((c) => c + 1);
-                }
+                applyAnswer(out, item.id, item.kind);
               })
               .finally(() => {
                 answering.current = false;
@@ -590,6 +612,56 @@ export function KanjiSession({
       </div>
     );
   } else if (localBeat === "feedback" && !lookMode) {
+    const pending = couple?.chars?.length ? couple.chars : takeCouplePendingPeek();
+    const coupleNow = status === "perfect" && (Boolean(couple) || pending.includes(char));
+    const coupleCount = couple?.count ?? pending.length;
+    const coupleChars = couple?.chars?.length ? couple.chars : pending;
+    const g = (getKanji(char)?.grade ?? 1) as Grade;
+    const gradeComplete = coupleNow && coupleCount >= GRADE_COUNTS[g] && GRADE_COUNTS[g] > 0;
+    const homeSearch = { grade: readStoredActiveGrade() ?? kanji.grade };
+    if (coupleNow) {
+      stage = (
+        <CoupleBeat
+          char={char}
+          count={Math.max(coupleCount, 1)}
+          added={Math.max(coupleChars.length, 1)}
+          gradeComplete={gradeComplete}
+        />
+      );
+      action = (
+        <div className="space-y-3">
+          <Link
+            to={hrefHome}
+            search={homeSearch}
+            data-see-train
+            onClick={() => {
+              takeCouplePending();
+              writeOverviewIntent({
+                open: true,
+                focusChar: char,
+                glow: coupleChars,
+                gradeComplete,
+              });
+            }}
+            className="inline-flex h-[88px] w-full items-center justify-center rounded-xl bg-primary font-display text-xl text-primary-fg"
+          >
+            {t("seeTrain")}
+          </Link>
+          <Link
+            to={hrefHome}
+            search={homeSearch}
+            data-couple-next
+            onClick={() => {
+              takeCouplePending();
+              writeOverviewIntent({ open: false, glow: coupleChars });
+            }}
+            className="inline-flex h-[88px] w-full items-center justify-center rounded-xl border border-border bg-surface font-display text-xl text-fg-muted"
+          >
+            {t("next")}
+          </Link>
+        </div>
+      );
+    } else {
     stage = (
       <section className="flex min-h-0 flex-1 flex-col items-center justify-center space-y-4 text-center" data-tour="feedback">
         <h1 className="font-display text-7xl leading-none">{kanji.char}</h1>
@@ -642,6 +714,7 @@ export function KanjiSession({
         )}
       </div>
     );
+    }
   }
 
   return (

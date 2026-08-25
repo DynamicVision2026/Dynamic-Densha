@@ -27,6 +27,7 @@ import { mapLinesFor } from "@/lib/lines";
 import { buildParentReport } from "@/lib/parent-report";
 import { pickWeekPeek } from "@/lib/week-peek";
 import { isInspectionDue } from "@/lib/inspection";
+import { buildGradeRings } from "@/lib/train-overview";
 import {
   demoBoardAndForward,
   demoProfileGrade,
@@ -349,7 +350,7 @@ export function submitDemoAnswer(input: {
   isEcho: boolean;
   echoBatchDone: boolean;
   sessionId: string;
-}): { correct: boolean; label: string; progress: ProgressState } {
+}): { correct: boolean; label: string; progress: ProgressState; gradePerfect?: number } {
   const item = getItem(input.itemId, true);
   if (!item || item.kanji !== input.char) {
     throw new Error("unknown item");
@@ -393,7 +394,10 @@ export function submitDemoAnswer(input: {
     session_id: input.sessionId,
   });
   writeEvents(events);
-  return { correct: graded.correct, label: graded.label, progress: next };
+  const rings = buildGradeRings({ progress: readAll(), profileGrade: DEMO_CHILD.grade });
+  const g = (getKanji(input.char)?.grade ?? DEMO_CHILD.grade) as Grade;
+  const gradePerfect = rings.find((r) => r.grade === g)?.perfect ?? 0;
+  return { correct: graded.correct, label: graded.label, progress: next, gradePerfect };
 }
 
 /** Workshop: UI-only 当たり / 半分当たり. Never writes mastery. */
@@ -420,6 +424,7 @@ export function getDemoHome(viewGrade: Grade = DEMO_CHILD.grade) {
   const perfect = [...map.values()].filter(
     (row) => row.status === "perfect" && gradeChars.has(row.kanji),
   ).length;
+  const rings = buildGradeRings({ progress: map, profileGrade: DEMO_CHILD.grade });
   const echoQueue = [...map.values()]
     .filter((row) => echoAvailable(row, now, 0, p))
     .slice(0, Math.max(0, p.echo_per_day_cap - echoesStartedToday(now)));
@@ -437,6 +442,7 @@ export function getDemoHome(viewGrade: Grade = DEMO_CHILD.grade) {
     maxNew: p.max_new_per_day,
     peek: pickWeekPeek({ progress: map, grade: viewGrade }),
     board: demoBoardAndForward({ progress: map, events: readEvents(), nowIso: now }).board,
+    rings,
   };
 }
 
