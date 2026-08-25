@@ -3,8 +3,10 @@ import { familyRadials, hubCounts, type GradeRingView } from "@/lib/train-overvi
 import {
   CAR_CAP,
   CAR_GAP,
+  FIRST_CLIMB_D,
   SWITCHBACK_PATH,
   TRAIN_SPEED,
+  firstClimbDistance,
   openingHead,
   poseAt,
   sampleLut,
@@ -112,21 +114,25 @@ export function WelcomeOverview({
   const hub = hubCounts(rings, focusGrade);
   const consist = (focused?.consist ?? []).slice(Math.max(0, (focused?.consist.length ?? 0) - CAR_CAP));
   const idle = consist.length === 0;
-  const paused = glowOn || complete || reduced || idle;
+  const paused = glowOn || reduced || idle;
 
   const pathRef = useRef<SVGPathElement>(null);
   const [lut, setLut] = useState<[number, number][]>([]);
   const [length, setLength] = useState(0);
   const [head, setHead] = useState(0);
   const headRef = useRef(0);
+  const climbRef = useRef(FIRST_CLIMB_D);
 
   useLayoutEffect(() => {
     const node = pathRef.current;
     if (!node) return;
     const L = node.getTotalLength();
-    setLut(sampleLut((d) => node.getPointAtLength(d), L));
+    const sampled = sampleLut((d) => node.getPointAtLength(d), L);
+    const climb = firstClimbDistance(sampled);
+    setLut(sampled);
     setLength(L);
-    const start = openingHead(consist.length, L);
+    climbRef.current = climb;
+    const start = openingHead(consist.length, L, climb);
     headRef.current = start;
     setHead(start);
   }, [consist.length]);
@@ -154,7 +160,7 @@ export function WelcomeOverview({
     const tick = (ts: number) => {
       const dt = Math.min(0.05, (ts - last) / 1000 || 0);
       last = ts;
-      const next = wrapHead(headRef.current + TRAIN_SPEED * dt, units, length);
+      const next = wrapHead(headRef.current + TRAIN_SPEED * dt, units, length, climbRef.current);
       headRef.current = next;
       setHead(next);
       raf = window.requestAnimationFrame(tick);
@@ -191,17 +197,17 @@ export function WelcomeOverview({
 
       <section className="relative min-h-0 flex-1 overflow-hidden">
         <svg
-          viewBox="0 0 360 530"
+          viewBox="-20 0 410 530"
           preserveAspectRatio="xMidYMax meet"
-          className="h-full w-full"
+          className="h-full w-full overflow-visible"
           role="img"
           aria-label={t("greenCars")}
           data-hero-plate
         >
-          <rect width="360" height="530" fill="var(--color-bg)" />
-          <path d="M0 150 L62 84 L108 122 L158 62 L214 118 L268 76 L330 128 L360 108 L360 200 L0 200 Z" fill="var(--color-fg)" opacity="0.14" />
-          <path d="M0 172 L54 128 L120 166 L190 120 L252 164 L318 132 L360 158 L360 220 L0 220 Z" fill="var(--color-fg)" opacity="0.08" />
-          <rect x="-20" y="168" width="400" height="14" rx="7" fill="var(--color-bg)" opacity="0.8" />
+          <rect x="-20" y="0" width="410" height="530" fill="var(--color-bg)" />
+          <path d="M-20 150 L62 84 L108 122 L158 62 L214 118 L268 76 L330 128 L390 108 L390 200 L-20 200 Z" fill="var(--color-fg)" opacity="0.14" />
+          <path d="M-20 172 L54 128 L120 166 L190 120 L252 164 L318 132 L390 158 L390 220 L-20 220 Z" fill="var(--color-fg)" opacity="0.08" />
+          <rect x="-30" y="168" width="440" height="14" rx="7" fill="var(--color-bg)" opacity="0.8" />
 
           {(
             [
@@ -219,7 +225,7 @@ export function WelcomeOverview({
                 key={grade}
                 data-terrace={grade}
                 data-terrace-open={open || undefined}
-                d={`M0 ${y} Q90 ${y - 13} 180 ${y} T360 ${y} L360 530 L0 530 Z`}
+                d={`M-20 ${y} Q90 ${y - 13} 185 ${y} T390 ${y} L390 530 L-20 530 Z`}
                 fill="var(--color-bg-warm)"
                 opacity={open ? 0.55 + ink : 0.28}
                 onClick={() => {
@@ -250,7 +256,7 @@ export function WelcomeOverview({
             );
           })}
           <rect x="196" y="354" width="56" height="5" fill="var(--color-border-strong)" />
-          <rect x="328" y="28" width="16" height="16" fill="var(--color-primary)" opacity="0.92" />
+          <rect x="348" y="28" width="16" height="16" fill="var(--color-primary)" opacity="0.92" />
 
           <path
             d={SWITCHBACK_PATH}
@@ -283,14 +289,21 @@ export function WelcomeOverview({
             />
           ))}
 
-          <g data-orbit data-consist={focusGrade} data-overview-cars={consist.length} data-idle={idle || undefined}>
-            <g {...posed(enginePose)}>
+          <g
+            data-orbit
+            data-consist={focusGrade}
+            data-overview-cars={consist.length}
+            data-idle={idle || undefined}
+            data-head={head.toFixed(0)}
+          >
+            <g {...posed(enginePose)} data-engine-y={enginePose.y.toFixed(0)}>
               <Engine steam />
             </g>
             {consist.map((char, i) => (
               <g
                 key={char}
                 data-car-scale={carPoses[i]?.scale.toFixed(3)}
+                data-car-y={carPoses[i]?.y.toFixed(0)}
                 {...posed(carPoses[i] ?? { x: 0, y: 0, scale: 1, opacity: 0, hidden: true })}
               >
                 <WoodCar char={char} glow={glowOn && glow?.includes(char)} focus={char === focusChar} />

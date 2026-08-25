@@ -6,7 +6,16 @@ import { getGradeParams } from "../src/lib/grade-params.ts";
 import { emptyProgress, evaluateProgress, type ProgressState } from "../src/lib/progress-eval.ts";
 import { justReachedPerfect } from "../src/lib/stamps.ts";
 import { buildGradeRings, hubCounts } from "../src/lib/train-overview.ts";
-import { openingHead, scaleAt, wrapHead, SWITCHBACK_PATH } from "../src/lib/welcome-switchback.ts";
+import {
+  CAR_GAP,
+  FIRST_CLIMB_D,
+  SWITCHBACK_PATH,
+  firstClimbDistance,
+  openingHead,
+  poseAt,
+  scaleAt,
+  wrapHead,
+} from "../src/lib/welcome-switchback.ts";
 
 function mapOf(rows: ProgressState[]) {
   return new Map(rows.map((r) => [r.kanji, r]));
@@ -98,6 +107,7 @@ test("overview is UI state on child home, not a peer route", () => {
   assert.match(overview, /data-switchback/);
   assert.match(overview, /SWITCHBACK_PATH/);
   assert.match(overview, /requestAnimationFrame/);
+  assert.match(overview, /firstClimbDistance/);
   assert.equal(/RING_R|concentric|offsetPath/.test(overview), false);
   assert.match(css, /\.couple-done \.couple-puff/);
   assert.match(ja, /はっしゃひょうへ/);
@@ -108,15 +118,33 @@ test("overview is UI state on child home, not a peer route", () => {
   assert.equal(/opts\?\.char \?\? hubLast/.test(home), false);
 });
 
-test("switchback: nearer (lower) cars are larger; wrap resets after the tail clears", () => {
+test("switchback: nearer (lower) cars are larger; wrap resets to the opening frame", () => {
   assert.match(SWITCHBACK_PATH, /M -80 412/);
   assert.ok(scaleAt(412) > scaleAt(196));
   assert.ok(scaleAt(412) > 0.85);
   assert.ok(scaleAt(174) < 0.45);
-  assert.equal(wrapHead(2000, 5, 100), 0);
+  assert.equal(wrapHead(2000, 5, 100), openingHead(4, 100));
   assert.equal(wrapHead(80, 5, 1000), 80);
-  assert.ok(openingHead(4, 1200) < 1200 * 0.42);
-  assert.equal(openingHead(4, 2000), 100 + 4 * 54);
+  assert.ok(openingHead(4, 1200) <= 1200 * 0.4);
+  assert.equal(openingHead(4, 2000), FIRST_CLIMB_D + CAR_GAP);
+  assert.ok(openingHead(0, 2000) < 200);
+  assert.ok(openingHead(4, 2000) > openingHead(1, 2000));
+  const longMin = 88 + 13 * CAR_GAP;
+  assert.ok(openingHead(12, 2127) >= longMin);
+});
+
+test("switchback: first landing is detected from the LUT; pose interpolates", () => {
+  const lut: [number, number][] = [];
+  for (let i = 0; i <= 100; i++) lut.push([i * 3, 412]);
+  for (let i = 101; i <= 120; i++) lut.push([i * 3, 412 - (i - 100) * 3]);
+  for (let i = 121; i <= 160; i++) lut.push([i * 3, 346]);
+  assert.ok(firstClimbDistance(lut) >= 121 * 3 && firstClimbDistance(lut) <= 123 * 3);
+  const length = lut.length * 3;
+  const a = poseAt(9, lut, length);
+  const b = poseAt(10.5, lut, length);
+  assert.ok(Math.abs(b.x - 10.5) < 0.01);
+  assert.equal(a.y, 412);
+  assert.equal(poseAt(-1, lut, length).hidden, true);
 });
 
 test("second due echo still becomes perfect (couple trigger; rules unchanged)", () => {
