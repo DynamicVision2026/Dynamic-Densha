@@ -32,13 +32,18 @@ export function AppShell({
   const hrefBase = path.startsWith("/demo") ? "/demo" : "/app";
   const showWorld =
     (path.startsWith("/demo") || path.startsWith("/app")) && !path.includes("/kanji/");
-  const lens = parseGradeFromSearchStr(searchStr) ?? readStoredActiveGrade() ?? grade;
+  const onParent = path.includes("/parent");
+  const urlGrade = parseGradeFromSearchStr(searchStr);
+  const stored = readStoredActiveGrade();
+  const lens = onParent
+    ? (grade ?? urlGrade ?? stored)
+    : (urlGrade ?? stored ?? grade);
   const homeSearch = lens ? { grade: lens } : undefined;
 
   return (
     <div className="paper-wash min-h-dvh">
       <header className="sticky top-0 z-20 border-b border-border/80 bg-bg/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-3 sm:gap-3">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-4 py-3 sm:gap-3">
           <Link
             to={path.startsWith("/demo") ? "/demo" : "/app"}
             search={homeSearch}
@@ -112,7 +117,7 @@ export function AppShell({
       {showWorld ? (
         <div className="border-b border-border/80 bg-bg/90">
           <div className="mx-auto flex max-w-5xl px-2 py-1 sm:px-4">
-            <WorldNav hrefBase={hrefBase} />
+            <WorldNav hrefBase={hrefBase} grade={onParent ? grade : lens} />
           </div>
         </div>
       ) : null}

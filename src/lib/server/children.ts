@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import type { Grade } from "@/data/kyoiku";
 import { DEFAULT_WEEKLY_NEW, orderedKanjiForGrade, parseStartBand, startIndexFor, type StartBand } from "@/lib/grade-route";
 import { insertGradeRoute, savePlan, performChildRollover, dismissRolloverPrompt } from "@/lib/server/grade-route";
+import { loadProgress } from "@/lib/server/progress";
 import { aprilBoundaryYear } from "@/lib/grade-rollover";
 import { pickWeeklyNew, tokyoWeekStart } from "@/lib/weekly-plan";
 
@@ -90,25 +91,6 @@ export const createChild = createServerFn({ method: "POST" })
     } satisfies ChildRow;
   });
 
-export const updateChildGrade = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator((input: { childId: string; grade: number }) => {
-    const grade = Number(input.grade);
-    if (!Number.isInteger(grade) || grade < 1 || grade > 6) {
-      throw new Error("学年が正しくありません");
-    }
-    return { childId: input.childId, grade: grade as Grade };
-  })
-  .handler(async ({ context, data }) => {
-    const sql = await getSql();
-    await sql`
-      update children
-      set grade = ${data.grade}
-      where id = ${data.childId} and user_id = ${context.userId}
-    `;
-    return { ok: true as const };
-  });
-
 /** Change 乗りはじめ without wiping mastery or rewriting the Day-one route snapshot. */
 export const updateStartBand = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -130,7 +112,8 @@ export const updateStartBand = createServerFn({ method: "POST" })
     const cursor = startIndexFor(data.startBand, ordered.length);
     const nowIso = new Date().toISOString();
     const weekStart = tokyoWeekStart(nowIso);
-    const newKanji = pickWeeklyNew(ordered, cursor, DEFAULT_WEEKLY_NEW, new Map());
+    const { map } = await loadProgress(context.userId, data.childId);
+    const newKanji = pickWeeklyNew(ordered, cursor, DEFAULT_WEEKLY_NEW, map);
     await sql`
       update children
       set start_band = ${data.startBand}

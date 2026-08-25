@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { PHONETIC_FAMILIES } from "../src/data/phonetic-families.ts";
 import { getGradeParams } from "../src/lib/grade-params.ts";
@@ -57,4 +58,14 @@ test("buildFamilyQuiz for 青 stone uses elementary セイ", () => {
   assert.equal(quiz.kind, "reading");
   assert.equal(quiz.phoneticFamily?.expected_reading, "セイ");
   assert.ok(quiz.choices.some((c) => c.label === "セイ" && c.correct));
+});
+
+test("P1-2 workshop routes never call submitPractice / submitDemoAnswer", () => {
+  const app = readFileSync("src/routes/app/workshop.tsx", "utf8");
+  const demo = readFileSync("src/routes/demo/workshop.tsx", "utf8");
+  const helper = readFileSync("src/lib/demo-progress.ts", "utf8");
+  assert.equal(/submitPractice/.test(app), false);
+  assert.equal(/submitDemoAnswer/.test(demo), false);
+  assert.match(helper, /Workshop: UI-only/);
+  assert.equal(/sessionId: "workshop"/.test(helper), false);
 });

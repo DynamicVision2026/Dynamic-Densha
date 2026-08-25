@@ -357,14 +357,15 @@ export function submitDemoAnswer(input: {
   const graded = gradeChoice(item, input.choiceId);
   const now = new Date().toISOString();
   const prev = getDemoStudy(input.char);
+  const scoringEcho = echoIsDue(prev, now);
   const next = evaluateProgress(
     prev,
     {
       type: "answer",
       kind: item.kind,
       correct: graded.correct,
-      isEcho: input.isEcho,
-      echoBatchDone: input.echoBatchDone,
+      isEcho: scoringEcho,
+      echoBatchDone: scoringEcho,
       nowIso: now,
       shapeAvailable: shapeSurfaceAvailable(input.char),
       surfaceId: item.surfaceId ?? item.payload.surface?.id ?? `${item.kanji}:solo`,
@@ -388,27 +389,18 @@ export function submitDemoAnswer(input: {
     answer: graded.label,
     created_at: now,
     item_id: input.itemId,
-    is_echo: input.isEcho,
+    is_echo: scoringEcho,
     session_id: input.sessionId,
   });
   writeEvents(events);
   return { correct: graded.correct, label: graded.label, progress: next };
 }
 
-/** Workshop tour: write only for characters at or below demo grade. Gentle family item. */
+/** Workshop: UI-only 当たり / 半分当たり. Never writes mastery. */
 export function applyDemoWorkshop(kanji: string, choiceId: string) {
-  const k = getKanji(kanji);
-  if (!k || k.grade > DEMO_CHILD.grade) return null;
   const item = getPhoneticFamilyItem(kanji);
   if (!item) return null;
-  return submitDemoAnswer({
-    char: kanji,
-    itemId: item.id,
-    choiceId,
-    isEcho: false,
-    echoBatchDone: false,
-    sessionId: "workshop",
-  });
+  return gradeChoice(item, choiceId);
 }
 
 export function getDemoHome(viewGrade: Grade = DEMO_CHILD.grade) {

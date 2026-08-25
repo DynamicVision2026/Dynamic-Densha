@@ -10,6 +10,9 @@ import type { MasteryStatus, PracticeKind } from "./mastery";
  *
  * U9: perfect requires `perfect_echo_required` successful spaced 再訪 (default 2).
  * Same-session success still stops at almost.
+ *
+ * P0-1: echo ordinal/spacing comes from stored `echoDueAt` + `almost` status.
+ * Client `isEcho` / `echoBatchDone` are UI hints only — never authority.
  */
 
 export type Lights = {
@@ -129,6 +132,11 @@ export function allRequiredLightsOn(
 export function echoIsDue(state: ProgressState, nowIso: string): boolean {
   if (state.status !== "almost" || !state.echoDueAt) return false;
   return Date.parse(nowIso) >= Date.parse(state.echoDueAt);
+}
+
+/** Scoring 残響: stored progress only. Same predicate as echoIsDue. */
+export function echoScoringEligible(state: ProgressState, nowIso: string): boolean {
+  return echoIsDue(state, nowIso);
 }
 
 /** True when the visit is later than ~2× the scheduled delay. Never demotes. */
@@ -288,9 +296,9 @@ export function evaluateProgress(
     );
   }
 
-  const { kind, correct, isEcho, echoBatchDone, nowIso, shapeAvailable, surfaceId, gentle } =
-    event;
+  const { kind, correct, nowIso, shapeAvailable, surfaceId, gentle } = event;
   const novelSurface = Boolean(surfaceId) && !prev.surfacesSeenSuccess.includes(surfaceId!);
+  const echoEligible = echoIsDue(prev, nowIso);
 
   if (prev.status === "perfect") {
     const decayed = maybeDecay(prev, nowIso, params);
@@ -337,8 +345,8 @@ export function evaluateProgress(
     allRequiredLightsOn(next, required) &&
     next.repairRequiredKinds.length === 0;
 
-  if (isEcho) {
-    if (ready && echoBatchDone) {
+  if (echoEligible) {
+    if (correct && ready) {
       const count = (next.echoSuccessCount ?? 0) + 1;
       const need = echoesNeeded(params);
       if (count >= need) {
@@ -358,8 +366,8 @@ export function evaluateProgress(
         echoDueAt: new Date(Date.parse(nowIso) + delayH * 3600 * 1000).toISOString(),
       };
     }
-    if (!correct || (echoBatchDone && !ready)) {
-      if (!correct && (novelSurface || gentle)) return next;
+    if (!correct) {
+      if (novelSurface || gentle) return next;
       return { ...next, status: "fix", echoSuccessCount: 0 };
     }
     return next;

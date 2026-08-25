@@ -48,25 +48,6 @@ export function parseKinds(raw: string): PracticeKind[] {
     .filter((s): s is PracticeKind => (PRACTICE_KINDS as readonly string[]).includes(s));
 }
 
-export function nextStatus(input: {
-  status: MasteryStatus;
-  correct: boolean;
-  correctStreak: number;
-  wrongCount: number;
-  completedKinds: PracticeKind[];
-}): MasteryStatus {
-  // Legacy helper. Phase 1 learning loop uses evaluateProgress in progress-eval.ts.
-  // Kept so existing imports typecheck; does not grant perfect (echo-gated).
-  if (!input.correct) {
-    if (input.wrongCount >= 3) return "lost";
-    return "fix";
-  }
-  if (input.completedKinds.length >= 3) return "almost";
-  if (input.wrongCount > 0) return "fix";
-  if (input.completedKinds.length >= 1) return "almost";
-  return input.status === "new" ? "new" : input.status;
-}
-
 export function isCleared(status: MasteryStatus): boolean {
   return status === "almost" || status === "perfect";
 }

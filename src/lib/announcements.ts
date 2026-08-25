@@ -133,7 +133,13 @@ export function writeLastStation(kanji: string) {
   }
 }
 
-/** True when this boarding is a station change (including first ride this tab). */
+/**
+ * Announcement product lock (2026-08-25):
+ *   shouldAnnounce = !isEcho && !isAutoDemoTour && station changed
+ * - 残響 / みてみる / scripted auto-demo: silent
+ * - Normal /demo and /app station teach entry (including なおし re-entry): may announce
+ * Do not mute all `/demo/*`.
+ */
 export function shouldAnnounce(
   kanji: string,
   opts: { lookMode: boolean; echoOn: boolean; echoDue?: boolean; demoActive?: boolean },

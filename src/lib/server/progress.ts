@@ -131,7 +131,7 @@ function rowToState(r: Record<string, unknown>): ProgressState {
   });
 }
 
-async function loadProgress(userId: string, childId: string) {
+export async function loadProgress(userId: string, childId: string) {
   const sql = await getSql();
   const owned = await sql<{ id: string; grade: number; name: string }>`
     select id, grade, name from children
@@ -417,14 +417,15 @@ export const submitPractice = createServerFn({ method: "POST" })
     const now = new Date().toISOString();
     const p = paramsForChar(data.char, child.grade);
     const prev = map.get(data.char) ?? emptyProgress(data.char);
+    const scoringEcho = echoIsDue(prev, now);
     const next = evaluateProgress(
       prev,
       {
         type: "answer",
         kind: item.kind,
         correct: graded.correct,
-        isEcho: data.isEcho,
-        echoBatchDone: data.echoBatchDone,
+        isEcho: scoringEcho,
+        echoBatchDone: scoringEcho,
         nowIso: now,
         shapeAvailable: shapeSurfaceAvailable(data.char),
         surfaceId: item.surfaceId ?? item.payload.surface?.id ?? `${item.kanji}:solo`,
@@ -450,7 +451,7 @@ export const submitPractice = createServerFn({ method: "POST" })
       )
       values (
         ${context.userId}, ${data.childId}, ${data.char}, ${item.kind}, ${graded.correct},
-        ${item.payload.prompt}, ${graded.label}, ${data.itemId}, ${data.isEcho}, ${data.sessionId}
+        ${item.payload.prompt}, ${graded.label}, ${data.itemId}, ${scoringEcho}, ${data.sessionId}
       )
     `;
 

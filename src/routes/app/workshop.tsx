@@ -8,10 +8,7 @@ import { PHONETIC_FAMILIES } from "@/data/phonetic-families";
 import { readActiveChildId, writeActiveChildId } from "@/lib/active-child";
 import { resolveActiveGrade, usePersistActiveGrade } from "@/lib/active-grade";
 import { listChildren } from "@/lib/server/children";
-import { submitPractice } from "@/lib/server/progress";
-import { getPhoneticFamilyItem } from "@/lib/items";
-import { FAMILY_HIT_ID } from "@/lib/phonetic-family";
-import { getKanji, type Grade } from "@/data/kyoiku";
+import { type Grade } from "@/data/kyoiku";
 import { useI18n } from "@/lib/i18n/i18n";
 import { workshopSearchFrom } from "@/lib/grade-nav";
 import { cn } from "@/lib/utils";
@@ -116,30 +113,7 @@ function AppWorkshop() {
           <PhoneticWorkshopBoard
             family={family}
             childGrade={grade}
-            onCommit={(choiceId, meta) => {
-              const sessionId = `workshop-${Date.now()}`;
-              const write = (kanji: string, id: string) => {
-                const k = getKanji(kanji);
-                const item = getPhoneticFamilyItem(kanji);
-                if (!k || k.grade > grade || !item || !childId) return;
-                void submitPractice({
-                  data: {
-                    childId,
-                    char: kanji,
-                    itemId: item.id,
-                    choiceId: id,
-                    isEcho: false,
-                    echoBatchDone: false,
-                    sessionId,
-                  },
-                }).catch(() => {
-                  /* unopened train */
-                });
-              };
-              write(meta.kanji, choiceId);
-              if (choiceId === FAMILY_HIT_ID && meta.reading === family.phonetic.reading) {
-                write(family.phonetic.kanji, FAMILY_HIT_ID);
-              }
+            onCommit={(_choiceId, _meta) => {
               setDone(true);
             }}
           />

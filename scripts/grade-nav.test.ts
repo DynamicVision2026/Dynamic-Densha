@@ -18,6 +18,8 @@ test("canonical grade param is 1–6 only", () => {
   assert.equal(parseGrade(2), 2);
   assert.equal(parseGrade("9"), undefined);
   assert.equal(parseGrade("foo"), undefined);
+  assert.equal(parseGrade('"1"'), 1);
+  assert.equal(parseGrade("'5'"), 5);
   assert.equal(coerceGrade(undefined, 1), 1);
   assert.equal(coerceGrade("5", 1), 5);
 });

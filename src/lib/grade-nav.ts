@@ -6,7 +6,14 @@ export const GRADES: Grade[] = [1, 2, 3, 4, 5, 6];
 export type GradeSearch = { grade?: Grade };
 
 export function parseGrade(v: unknown): Grade | undefined {
-  const n = typeof v === "number" ? v : Number(String(v ?? "").trim());
+  if (typeof v === "number") {
+    if (v === 1 || v === 2 || v === 3 || v === 4 || v === 5 || v === 6) return v;
+    return undefined;
+  }
+  const raw = String(v ?? "")
+    .trim()
+    .replace(/^["']+|["']+$/g, "");
+  const n = Number(raw);
   if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5 || n === 6) return n;
   return undefined;
 }

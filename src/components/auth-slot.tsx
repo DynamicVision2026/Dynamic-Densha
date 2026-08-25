@@ -13,7 +13,7 @@ export function AuthSlot() {
     return (
       <Link
         to="/login"
-        className="inline-flex h-11 shrink-0 items-center whitespace-nowrap rounded-md border border-border bg-surface px-3 text-sm font-medium sm:px-4"
+        className="inline-flex min-h-11 shrink-0 items-center whitespace-normal rounded-md border border-border bg-surface px-2 py-1 text-center text-xs font-medium leading-tight sm:h-11 sm:whitespace-nowrap sm:px-4 sm:text-sm"
       >
         {t("loginParent")}
       </Link>

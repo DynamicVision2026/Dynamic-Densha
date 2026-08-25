@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { getGradeParams } from "../src/lib/grade-params.ts";
 import {
@@ -63,8 +64,8 @@ function echoOnce(state: ProgressState, nowIso: string, params: EvalParams = G1)
 
 function twoEchoes(state: ProgressState, params: EvalParams = G1): ProgressState {
   let s = state;
-  s = echoOnce(s, "2026-08-22T02:00:00.000Z", params);
-  s = echoOnce(s, "2026-08-25T02:00:00.000Z", params);
+  s = echoOnce(s, s.echoDueAt ?? NOW, params);
+  s = echoOnce(s, s.echoDueAt ?? NOW, params);
   return s;
 }
 
@@ -77,10 +78,10 @@ test("same-session lights only reach almost, never perfect", () => {
 
 test("first successful echo stays almost; second spaced echo is perfect", () => {
   let s = passKinds(taught(), ["reading", "meaning", "shape"]);
-  s = echoOnce(s, "2026-08-22T02:00:00.000Z");
+  s = echoOnce(s, s.echoDueAt ?? NOW);
   assert.equal(s.status, "almost");
   assert.equal(s.echoSuccessCount, 1);
-  s = echoOnce(s, "2026-08-25T02:00:00.000Z");
+  s = echoOnce(s, s.echoDueAt ?? NOW);
   assert.equal(s.status, "perfect");
   assert.equal(s.echoSuccessCount, 2);
   assert.ok(s.perfectAt);
@@ -176,7 +177,7 @@ test("perfect_echo_required from grade params (3 stays almost after 2)", () => {
   let s = twoEchoes(passKinds(taught(), ["reading", "meaning", "shape"]), need3);
   assert.equal(s.status, "almost");
   assert.equal(s.echoSuccessCount, 2);
-  s = echoOnce(s, "2026-08-29T02:00:00.000Z", need3);
+  s = echoOnce(s, s.echoDueAt ?? NOW, need3);
   assert.equal(s.status, "perfect");
 });
 
@@ -190,14 +191,15 @@ test("echo_second_delay_hours comes from params", () => {
 
 test("G1 second echo is due after ~168 hours, not 72", () => {
   let s = passKinds(taught(), ["reading", "meaning", "shape"]);
-  const first = "2026-08-22T02:00:00.000Z";
+  const first = s.echoDueAt ?? NOW;
   s = echoOnce(s, first);
   assert.equal(s.status, "almost");
   assert.equal(s.echoSuccessCount, 1);
   assert.equal(G1.echo_second_delay_hours, 168);
-  assert.equal(echoIsDue(s, "2026-08-25T02:00:00.000Z"), false);
-  assert.equal(echoIsDue(s, "2026-08-29T02:00:00.000Z"), true);
-  s = echoOnce(s, "2026-08-29T02:00:00.000Z");
+  const plus72 = new Date(Date.parse(first) + 72 * 3600 * 1000).toISOString();
+  assert.equal(echoIsDue(s, plus72), false);
+  assert.equal(echoIsDue(s, s.echoDueAt ?? NOW), true);
+  s = echoOnce(s, s.echoDueAt ?? NOW);
   assert.equal(s.status, "perfect");
 });
 
@@ -213,11 +215,8 @@ test("decay flag on after decay_days returns to almost without clearing perfectA
   const s = twoEchoes(passKinds(taught(), ["reading", "meaning", "shape"]), decaying);
   assert.equal(s.status, "perfect");
   const firstPerfect = s.perfectAt;
-  const later = evaluateProgress(
-    s,
-    { type: "open", nowIso: "2026-09-16T02:00:00.000Z" },
-    decaying,
-  );
+  const laterIso = new Date(Date.parse(firstPerfect ?? NOW) + 22 * 86_400_000).toISOString();
+  const later = evaluateProgress(s, { type: "open", nowIso: laterIso }, decaying);
   assert.equal(later.status, "almost");
   assert.equal(later.perfectAt, firstPerfect);
   assert.equal(later.echoSuccessCount, 1);
@@ -232,11 +231,8 @@ test("perfect_decay_days on the flag uses the spec name", () => {
   };
   const s = twoEchoes(passKinds(taught(), ["reading", "meaning", "shape"]), decaying);
   assert.equal(s.status, "perfect");
-  const later = evaluateProgress(
-    s,
-    { type: "open", nowIso: "2026-09-16T02:00:00.000Z" },
-    decaying,
-  );
+  const laterIso = new Date(Date.parse(s.perfectAt ?? NOW) + 22 * 86_400_000).toISOString();
+  const later = evaluateProgress(s, { type: "open", nowIso: laterIso }, decaying);
   assert.equal(later.status, "almost");
   assert.equal(later.perfectAt, s.perfectAt);
 });
@@ -314,4 +310,66 @@ test("wrong on an overdue echo still demotes to fix", () => {
   );
   assert.equal(s.status, "fix");
   assert.equal(s.echoSuccessCount, 0);
+});
+
+test("P0-1 two instant client-echo submits cannot reach perfect", () => {
+  let s = passKinds(taught(), ["reading", "meaning", "shape"]);
+  const due = s.echoDueAt ?? NOW;
+  s = echoOnce(s, due);
+  assert.equal(s.status, "almost");
+  assert.equal(s.echoSuccessCount, 1);
+  s = echoOnce(s, due);
+  assert.equal(s.status, "almost");
+  assert.equal(s.echoSuccessCount, 1);
+  assert.equal(s.perfectAt, null);
+});
+
+test("P0-1 clock fixture: first due echo stays almost; second after spacing is perfect", () => {
+  let s = passKinds(taught(), ["reading", "meaning", "shape"]);
+  s = echoOnce(s, s.echoDueAt ?? NOW);
+  assert.equal(s.status, "almost");
+  assert.equal(s.echoSuccessCount, 1);
+  s = echoOnce(s, s.echoDueAt ?? NOW);
+  assert.equal(s.status, "perfect");
+  assert.equal(s.echoSuccessCount, 2);
+});
+
+test("P0-1 client isEcho/echoBatchDone ignored before due", () => {
+  let s = passKinds(taught(), ["reading", "meaning", "shape"]);
+  s = echoOnce(s, NOW);
+  assert.equal(s.status, "almost");
+  assert.equal(s.echoSuccessCount, 0);
+});
+
+test("P0-1 non-echo practice never grants perfect", () => {
+  let s = passKinds(taught(), ["reading", "meaning", "shape"]);
+  assert.equal(s.status, "almost");
+  for (let i = 0; i < 4; i++) {
+    s = passKinds(s, ["reading", "meaning", "shape"]);
+  }
+  assert.equal(s.status, "almost");
+  assert.equal(s.echoSuccessCount, 0);
+  assert.equal(s.perfectAt, null);
+});
+
+test("P0-1 server and demo derive echo from stored progress, ignore client flags", () => {
+  const server = readFileSync("src/lib/server/progress.ts", "utf8");
+  const demo = readFileSync("src/lib/demo-progress.ts", "utf8");
+  const evalSrc = readFileSync("src/lib/progress-eval.ts", "utf8");
+  const children = readFileSync("src/lib/server/children.ts", "utf8");
+  assert.match(server, /scoringEcho = echoIsDue\(prev, now\)/);
+  assert.match(demo, /scoringEcho = echoIsDue\(prev, now\)/);
+  assert.equal(/isEcho:\s*data\.isEcho/.test(server), false);
+  assert.equal(/echoBatchDone:\s*data\.echoBatchDone/.test(server), false);
+  assert.equal(/isEcho:\s*input\.isEcho/.test(demo), false);
+  assert.equal(/echoBatchDone:\s*input\.echoBatchDone/.test(demo), false);
+  assert.equal(/event\.isEcho/.test(evalSrc), false);
+  assert.equal(/event\.echoBatchDone/.test(evalSrc), false);
+  assert.match(evalSrc, /const echoEligible = echoIsDue\(prev, nowIso\)/);
+  assert.equal(/updateChildGrade/.test(children), false);
+  const preview = readFileSync("src/lib/auth/preview.ts", "utf8");
+  const authServer = readFileSync("src/lib/auth/server.ts", "utf8");
+  assert.equal(/PREVIEW_CLIENT_SECRET\s*=/.test(preview), false);
+  assert.equal(/[0-9a-f]{64}/.test(preview), false);
+  assert.match(authServer, /GROK_PREVIEW_CLIENT_SECRET/);
 });

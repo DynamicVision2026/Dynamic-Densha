@@ -1,16 +1,23 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { BookMarked, Hammer, Map, Search, TrainFront } from "lucide-react";
 import { readStoredActiveGrade } from "@/lib/active-grade";
-import { parseGradeFromSearchStr } from "@/lib/grade-nav";
+import { parseGrade, parseGradeFromSearchStr } from "@/lib/grade-nav";
 import { useI18n } from "@/lib/i18n/i18n";
 import { cn } from "@/lib/utils";
 
-export function WorldNav({ hrefBase }: { hrefBase: "/demo" | "/app" }) {
+export function WorldNav({
+  hrefBase,
+  grade: gradeOverride,
+}: {
+  hrefBase: "/demo" | "/app";
+  grade?: number;
+}) {
   const { t } = useI18n();
   const { path, searchStr } = useRouterState({
     select: (s) => ({ path: s.location.pathname, searchStr: s.location.searchStr }),
   });
-  const grade = parseGradeFromSearchStr(searchStr) ?? readStoredActiveGrade();
+  const grade =
+    parseGrade(gradeOverride) ?? parseGradeFromSearchStr(searchStr) ?? readStoredActiveGrade();
   const gradeSearch = grade ? { grade } : undefined;
   const items = [
     {
