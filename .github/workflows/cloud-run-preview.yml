@@ -74,8 +74,8 @@ jobs:
             --tag "$TAG" \
             --allow-unauthenticated
 
-      - name: Show latest Cloud Build log
-        if: always()
+      - name: Show latest Cloud Build log on failure
+        if: failure()
         run: |
           BUILD_ID=$(gcloud builds list --project "$PROJECT_ID" --region "$REGION" --limit=1 --sort-by=~createTime --format='value(id)')
           echo "Latest build: $BUILD_ID"
