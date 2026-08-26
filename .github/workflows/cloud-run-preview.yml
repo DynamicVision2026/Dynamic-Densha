@@ -2,7 +2,7 @@ name: Cloud Run Preview Deploy
 
 # Manual-only: trigger from the Actions tab (or `gh workflow run`) against
 # whichever branch/ref you want previewed. Deploys a --no-traffic revision
-# tagged "welcome-polish" so it never affects live traffic.
+# tagged "entrance-page" so it never affects live traffic.
 #
 # Requires a repository secret named GCP_SA_KEY containing a GCP service
 # account JSON key with these roles on the dynamic-densha project:
@@ -25,7 +25,7 @@ on:
 env:
   PROJECT_ID: dynamic-densha
   REGION: asia-northeast1
-  TAG: welcome-polish
+  TAG: entrance-page
 
 jobs:
   deploy:
@@ -62,14 +62,7 @@ jobs:
               --allow-unauthenticated
           fi
 
-      - name: Show latest Cloud Build log on failure
-        if: failure()
-        run: |
-          BUILD_ID=$(gcloud builds list --project "$PROJECT_ID" --region "$REGION" --limit=1 --sort-by=~createTime --format='value(id)')
-          echo "Latest build: $BUILD_ID"
-          gcloud builds log "$BUILD_ID" --project "$PROJECT_ID" --region "$REGION" || true
-
-      - name: Deploy welcome-polish tagged revision at 0% traffic
+      - name: Deploy entrance-page tagged revision at 0% traffic
         env:
           SERVICE: ${{ inputs.service_name }}
         run: |
@@ -81,12 +74,19 @@ jobs:
             --tag "$TAG" \
             --allow-unauthenticated
 
+      - name: Show latest Cloud Build log on failure
+        if: failure()
+        run: |
+          BUILD_ID=$(gcloud builds list --project "$PROJECT_ID" --region "$REGION" --limit=1 --sort-by=~createTime --format='value(id)')
+          echo "Latest build: $BUILD_ID"
+          gcloud builds log "$BUILD_ID" --project "$PROJECT_ID" --region "$REGION" || true
+
       - name: Print preview URL
         env:
           SERVICE: ${{ inputs.service_name }}
         run: |
           URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" \
-            --format="value(status.traffic[?tag='$TAG'].url)")
+            --format="json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((t.get('url') for t in d['status']['traffic'] if t.get('tag')=='$TAG'), ''))")
           echo "### Cloud Run preview URL" >> "$GITHUB_STEP_SUMMARY"
           echo "$URL" >> "$GITHUB_STEP_SUMMARY"
           echo "PREVIEW_URL=$URL"

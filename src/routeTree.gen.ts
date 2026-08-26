@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteRouteImport } from './routes/app/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OnboardRouteImport } from './routes/onboard'
+import { Route as ParentsRouteImport } from './routes/parents'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppCatalogRouteImport } from './routes/app/catalog'
 import { Route as AppMapRouteImport } from './routes/app/map'
@@ -49,6 +50,11 @@ const LoginRoute = LoginRouteImport.update({
 const OnboardRoute = OnboardRouteImport.update({
   id: '/onboard',
   path: '/onboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentsRoute = ParentsRouteImport.update({
+  id: '/parents',
+  path: '/parents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -142,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
+  '/parents': typeof ParentsRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
+  '/parents': typeof ParentsRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
@@ -188,6 +196,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
+  '/parents': typeof ParentsRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/login'
     | '/onboard'
+    | '/parents'
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/onboard'
+    | '/parents'
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
@@ -258,6 +269,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/login'
     | '/onboard'
+    | '/parents'
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
@@ -282,6 +294,7 @@ export interface RootRouteChildren {
   AppRouteRoute: typeof AppRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
   OnboardRoute: typeof OnboardRoute
+  ParentsRoute: typeof ParentsRoute
   DemoCatalogRoute: typeof DemoCatalogRoute
   DemoMapRoute: typeof DemoMapRoute
   DemoMistakesRoute: typeof DemoMistakesRoute
@@ -321,6 +334,13 @@ declare module '@tanstack/react-router' {
       path: '/onboard'
       fullPath: '/onboard'
       preLoaderRoute: typeof OnboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parents': {
+      id: '/parents'
+      path: '/parents'
+      fullPath: '/parents'
+      preLoaderRoute: typeof ParentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -476,6 +496,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRouteRoute: AppRouteRouteWithChildren,
   LoginRoute: LoginRoute,
   OnboardRoute: OnboardRoute,
+  ParentsRoute: ParentsRoute,
   DemoCatalogRoute: DemoCatalogRoute,
   DemoMapRoute: DemoMapRoute,
   DemoMistakesRoute: DemoMistakesRoute,
