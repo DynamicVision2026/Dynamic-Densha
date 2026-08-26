@@ -29,8 +29,27 @@ RUN npm install
 
 COPY . .
 RUN npm run build:container
-RUN echo "=== generated css assets ===" && find .output/public/assets -name '*.css' -exec basename {} \; \
- && echo "=== css referenced by server bundle ===" && grep -o 'assets/styles-[A-Za-z0-9_-]*\.css' .output/server/_ssr/*.mjs .output/server/index.mjs 2>/dev/null | sort -u || true
+
+# Known Nitro/vinxi node-server-preset quirk: the internal SSR-render Vite
+# pass produces its own copy of the global stylesheet with a different
+# content hash than the client build's copy in .output/public/assets, and
+# at least one server chunk embeds a <link> reference to that internal
+# hash instead of the client one. That internal file is never copied into
+# .output/public, so the browser 404s on it. Since this project currently
+# emits exactly one global CSS file, alias any CSS filename referenced by
+# a server chunk but missing from public/assets to the real file's
+# content, so whichever hash the HTML happens to reference resolves.
+RUN node -e "\
+  const fs = require('fs'); const path = require('path'); \
+  const assetsDir = '.output/public/assets'; \
+  const cssFiles = fs.readdirSync(assetsDir).filter((f) => f.endsWith('.css')); \
+  if (cssFiles.length !== 1) { console.log('skip: expected exactly one global css file, found', cssFiles); process.exit(0); } \
+  const refs = new Set(); \
+  const walk = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.mjs')) { const c = fs.readFileSync(p, 'utf8'); const m = c.match(/assets\/styles-[A-Za-z0-9_-]+\.css/g); if (m) m.forEach((x) => refs.add(x)); } } }; \
+  walk('.output/server'); \
+  const src = path.join(assetsDir, cssFiles[0]); \
+  for (const ref of refs) { const name = ref.split('/').pop(); const dest = path.join(assetsDir, name); if (!fs.existsSync(dest)) { fs.copyFileSync(src, dest); console.log('aliased missing css ref', name, '->', cssFiles[0]); } } \
+"
 
 FROM node:20-slim AS runtime
 WORKDIR /app
