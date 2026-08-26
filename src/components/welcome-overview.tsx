@@ -96,7 +96,6 @@ export function WelcomeOverview({
   onFocusGrade,
   variant = "overview",
   ctaLabel,
-  totalCars,
 }: {
   rings: GradeRingView[];
   profileGrade: Grade;
@@ -110,8 +109,6 @@ export function WelcomeOverview({
   variant?: "overview" | "landing";
   /** Overrides the default board-return label, e.g. a child-friendly "ride the train" CTA. */
   ctaLabel?: string;
-  /** Landing only: total kanji count (e.g. 1026), shown as a n/total ratio with an explainer line. */
-  totalCars?: number;
 }) {
   const { t } = useI18n();
   const [linesOn, setLinesOn] = useState(false);
@@ -194,31 +191,16 @@ export function WelcomeOverview({
       data-idle={idle || undefined}
       data-variant={variant}
     >
-      <div className="absolute left-3 top-[max(0.6rem,env(safe-area-inset-top))] z-[2] flex max-w-[68%] flex-col items-start gap-1">
-        <button
-          type="button"
-          data-green-sign
-          onClick={() => onFocusGrade(focusGrade)}
-          className="min-h-11 rounded-md border border-border bg-surface/90 px-3 py-2 text-left shadow-soft"
-          aria-label={
-            variant === "landing" && totalCars
-              ? `${t("greenCars")} ${t("welcomeCarsRatio", { n: hub.green, total: totalCars })}`
-              : `${t("greenCars")} ${t("greenCarsCount", { n: hub.green })}`
-          }
-        >
-          <span className="block text-[11px] tracking-wide text-fg-subtle">{t("greenCars")}</span>
-          <span className="font-display text-2xl tabular-nums leading-none">
-            {variant === "landing" && totalCars
-              ? t("welcomeCarsRatio", { n: hub.green, total: totalCars })
-              : t("greenCarsCount", { n: hub.green })}
-          </span>
-        </button>
-        {variant === "landing" && totalCars ? (
-          <p className="rounded-md bg-surface/85 px-2.5 py-1.5 text-[11px] leading-4 text-fg-subtle shadow-soft">
-            {t("welcomeGreenExplain")}
-          </p>
-        ) : null}
-      </div>
+      <button
+        type="button"
+        data-green-sign
+        onClick={() => onFocusGrade(focusGrade)}
+        className="absolute left-3 top-[max(0.6rem,env(safe-area-inset-top))] z-[2] min-h-11 rounded-md border border-border bg-surface/90 px-3 py-2 text-left shadow-soft"
+        aria-label={`${t("greenCars")} ${t("greenCarsCount", { n: hub.green })}`}
+      >
+        <span className="block text-[11px] tracking-wide text-fg-subtle">{t("greenCars")}</span>
+        <span className="font-display text-2xl tabular-nums leading-none">{t("greenCarsCount", { n: hub.green })}</span>
+      </button>
 
       <section
         className={cn(

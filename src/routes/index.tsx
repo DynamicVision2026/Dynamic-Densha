@@ -5,9 +5,7 @@ import { WelcomeOverview } from "@/components/welcome-overview";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { DEMO_CHILD, getDemoHome } from "@/lib/demo-progress";
 import { useI18n } from "@/lib/i18n/i18n";
-import { GRADE_COUNTS, type Grade } from "@/data/kyoiku";
-
-const TOTAL_KYOIKU_KANJI = Object.values(GRADE_COUNTS).reduce((sum, n) => sum + n, 0);
+import type { Grade } from "@/data/kyoiku";
 
 // Reads localStorage-backed demo progress to paint the train-world preview;
 // must stay client-only, same as /demo.
@@ -67,7 +65,6 @@ function WelcomeLanding() {
             focusGrade={focusGrade}
             hrefBase="/demo"
             variant="landing"
-            totalCars={TOTAL_KYOIKU_KANJI}
             ctaLabel={hasConsist ? t("welcomeNextStation") : t("welcomeRide")}
             onBack={() => navigate({ to: "/demo" })}
             onFocusGrade={setFocusGrade}
