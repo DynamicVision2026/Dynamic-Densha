@@ -60,7 +60,7 @@ function WelcomeLanding() {
           </Link>
         </div>
 
-        <div className="relative min-h-0 flex-1">
+        <div className="relative flex min-h-0 flex-1">
           <WelcomeOverview
             rings={home.rings}
             profileGrade={DEMO_CHILD.grade}
