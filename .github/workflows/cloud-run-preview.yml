@@ -2,7 +2,7 @@ name: Cloud Run Preview Deploy
 
 # Manual-only: trigger from the Actions tab (or `gh workflow run`) against
 # whichever branch/ref you want previewed. Deploys a --no-traffic revision
-# tagged "welcome-polish" so it never affects live traffic.
+# tagged "entrance-page" so it never affects live traffic.
 #
 # Requires a repository secret named GCP_SA_KEY containing a GCP service
 # account JSON key with these roles on the dynamic-densha project:
@@ -25,7 +25,7 @@ on:
 env:
   PROJECT_ID: dynamic-densha
   REGION: asia-northeast1
-  TAG: welcome-polish
+  TAG: entrance-page
 
 jobs:
   deploy:
@@ -62,7 +62,7 @@ jobs:
               --allow-unauthenticated
           fi
 
-      - name: Deploy welcome-polish tagged revision at 0% traffic
+      - name: Deploy entrance-page tagged revision at 0% traffic
         env:
           SERVICE: ${{ inputs.service_name }}
         run: |

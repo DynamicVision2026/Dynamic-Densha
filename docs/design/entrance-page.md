@@ -1,13 +1,12 @@
 # Entrance page — designer decisions
 
 **Date:** 2026-08-26
-**For:** Designer
-**From:** Engineering (will implement after answers)
-**Live preview:** https://welcome-polish---dynamic-densha-web-fs3oxcgzha-an.a.run.app/
-**Open PR (UI polish only):** https://github.com/DynamicVision2026/Dynamic-Densha/pull/2
-**Please reply by question number** (`Q1 = C`, `Q5 = B`, plus copy where asked). Do not rewrite the whole brief.
+**Status:** Q1–Q18 answered. Implemented on `release/entrance-page` (PR #6). Do **not** QA this rewrite on `release/welcome-ui-polish` / `6eb129e`.
+**Preview tag:** `entrance-page` (Cloud Run). Some sandboxes block `*.run.app` with 403 CONNECT — check out the branch locally instead.
+**Open PR:** https://github.com/DynamicVision2026/Dynamic-Densha/pull/6
+**Older polish PR (not this work):** https://github.com/DynamicVision2026/Dynamic-Densha/pull/2
 
-This ticket is **not** a continuation of PR #2. PR #2 stays Welcome-UI-only. The entrance rewrite is a new issue / new branch once you answer.
+This ticket’s questions below are the frozen brief. Implementation follows the numbered answers, not this file’s “current product facts” table (that table described the polish branch).
 
 ---
 
