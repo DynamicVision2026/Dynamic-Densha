@@ -38,19 +38,21 @@ export function wrapHead(head: number, unitCount: number, length: number, climb 
 }
 
 /**
- * Place the consist on the near terrace.
- * 3+ cars: engine on the first landing so the opening frame is a 之字, tail still on-canvas.
+ * Place the consist entering from the bottom-most run.
+ * 1+ cars: tail starts just onto the visible canvas, so every entrance
+ * (initial mount and each loop restart) genuinely comes from the bottom-left.
  * 0 cars: idle engine on the near run.
  */
-export function openingHead(carCount: number, length: number, climb = FIRST_CLIMB_D): number {
+export function openingHead(carCount: number, length: number, _climb = FIRST_CLIMB_D): number {
   if (length <= 0) return 0;
   if (carCount <= 0) return Math.min(180, length * 0.12);
   const trainLen = (carCount + 1) * CAR_GAP;
   const tailMin = 88;
   const minHead = tailMin + trainLen;
-  // One car-length onto the second terrace so the engine is not hugging the hairpin.
-  const want = carCount >= 3 ? climb + CAR_GAP : minHead;
-  return Math.min(length * 0.4, Math.max(minHead, want));
+  // Always enter from the near end of the bottom run (tail just onto the
+  // visible canvas) so every loop restart genuinely enters from the
+  // bottom-left, instead of jumping ahead onto a higher terrace.
+  return Math.min(length * 0.4, minHead);
 }
 
 export function sampleLut(
