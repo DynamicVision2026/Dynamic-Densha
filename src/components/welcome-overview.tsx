@@ -57,19 +57,19 @@ function WoodCar({
         width="52"
         height="45"
         rx="8"
-        fill="var(--color-bg-warm)"
-        stroke="var(--color-fg)"
-        strokeWidth={focus ? 1.6 : 1.1}
+        fill="var(--color-car)"
+        stroke="var(--color-car-strong)"
+        strokeWidth={focus ? 1.8 : 1.1}
       />
-      <rect x="-20" y="-40" width="40" height="7" rx="1.4" fill="var(--color-border)" opacity="0.8" />
-      <circle cx="-12" cy="1" r="4" fill="var(--color-fg)" opacity="0.72" />
-      <circle cx="12" cy="1" r="4" fill="var(--color-fg)" opacity="0.72" />
+      <rect x="-20" y="-40" width="40" height="7" rx="1.4" fill="var(--color-car-strong)" opacity="0.85" />
+      <circle cx="-12" cy="1" r="4" fill="var(--color-car-strong)" opacity="0.8" />
+      <circle cx="12" cy="1" r="4" fill="var(--color-car-strong)" opacity="0.8" />
       <text
         textAnchor="middle"
         y="-18"
         fontSize="28"
         fontFamily="var(--font-display)"
-        fill="var(--color-fg)"
+        fill="var(--color-car-fg)"
       >
         {char}
       </text>
@@ -94,6 +94,8 @@ export function WelcomeOverview({
   hrefBase,
   onBack,
   onFocusGrade,
+  variant = "overview",
+  ctaLabel,
 }: {
   rings: GradeRingView[];
   profileGrade: Grade;
@@ -103,6 +105,10 @@ export function WelcomeOverview({
   hrefBase: "/demo" | "/app";
   onBack: () => void;
   onFocusGrade: (g: Grade) => void;
+  /** "landing" renders the first-screen entry treatment: dominant CTA, no line toggle. */
+  variant?: "overview" | "landing";
+  /** Overrides the default board-return label, e.g. a child-friendly "ride the train" CTA. */
+  ctaLabel?: string;
 }) {
   const { t } = useI18n();
   const [linesOn, setLinesOn] = useState(false);
@@ -183,6 +189,7 @@ export function WelcomeOverview({
       data-href-base={hrefBase}
       data-green-count={hub.green}
       data-idle={idle || undefined}
+      data-variant={variant}
     >
       <button
         type="button"
@@ -195,7 +202,12 @@ export function WelcomeOverview({
         <span className="font-display text-2xl tabular-nums leading-none">{t("greenCarsCount", { n: hub.green })}</span>
       </button>
 
-      <section className="relative min-h-0 flex-1 overflow-hidden">
+      <section
+        className={cn(
+          "relative min-h-0 flex-1 overflow-hidden",
+          variant === "landing" && "welcome-landing-scene pb-20 sm:pb-24",
+        )}
+      >
         <svg
           viewBox="-20 0 410 530"
           preserveAspectRatio="xMidYMax meet"
@@ -205,8 +217,8 @@ export function WelcomeOverview({
           data-hero-plate
         >
           <rect x="-20" y="0" width="410" height="530" fill="var(--color-bg)" />
-          <path d="M-20 150 L62 84 L108 122 L158 62 L214 118 L268 76 L330 128 L390 108 L390 200 L-20 200 Z" fill="var(--color-fg)" opacity="0.14" />
-          <path d="M-20 172 L54 128 L120 166 L190 120 L252 164 L318 132 L390 158 L390 220 L-20 220 Z" fill="var(--color-fg)" opacity="0.08" />
+          <path d="M-20 150 L62 84 L108 122 L158 62 L214 118 L268 76 L330 128 L390 108 L390 200 L-20 200 Z" fill="var(--color-mist-far)" opacity="0.22" />
+          <path d="M-20 172 L54 128 L120 166 L190 120 L252 164 L318 132 L390 158 L390 220 L-20 220 Z" fill="var(--color-mist-near)" opacity="0.16" />
           <rect x="-30" y="168" width="440" height="14" rx="7" fill="var(--color-bg)" opacity="0.8" />
 
           {(
@@ -313,22 +325,36 @@ export function WelcomeOverview({
         </svg>
       </section>
 
-      <button
-        type="button"
-        data-overview-back
-        onClick={onBack}
-        className="absolute bottom-[max(0.9rem,env(safe-area-inset-bottom))] left-3 z-[2] inline-flex h-11 min-w-11 items-center rounded-md border border-border bg-surface/90 px-3 text-sm text-fg-muted shadow-soft"
-      >
-        {t("overviewBack")}
-      </button>
-      <button
-        type="button"
-        data-toggle-lines
-        onClick={() => setLinesOn((v) => !v)}
-        className="absolute bottom-[max(0.9rem,env(safe-area-inset-bottom))] right-3 z-[2] inline-flex h-11 items-center rounded-md border border-border bg-surface/90 px-3 text-xs text-fg-subtle shadow-soft"
-      >
-        {linesOn ? t("hideLines") : t("seeLines")}
-      </button>
+      {variant === "landing" ? (
+        <button
+          type="button"
+          data-overview-back
+          data-welcome-cta
+          onClick={onBack}
+          className="welcome-landing-cta absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[2] inline-flex h-14 min-w-[min(88%,22rem)] -translate-x-1/2 items-center justify-center rounded-xl bg-primary px-8 font-display text-xl tracking-wide text-primary-fg sm:h-16 sm:text-2xl"
+        >
+          {ctaLabel ?? t("overviewBack")}
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            data-overview-back
+            onClick={onBack}
+            className="absolute bottom-[max(0.9rem,env(safe-area-inset-bottom))] left-3 z-[2] inline-flex h-11 min-w-11 items-center rounded-md border border-border bg-surface/90 px-3 text-sm text-fg-muted shadow-soft"
+          >
+            {ctaLabel ?? t("overviewBack")}
+          </button>
+          <button
+            type="button"
+            data-toggle-lines
+            onClick={() => setLinesOn((v) => !v)}
+            className="absolute bottom-[max(0.9rem,env(safe-area-inset-bottom))] right-3 z-[2] inline-flex h-11 items-center rounded-md border border-border bg-surface/90 px-3 text-xs text-fg-subtle shadow-soft"
+          >
+            {linesOn ? t("hideLines") : t("seeLines")}
+          </button>
+        </>
+      )}
     </div>
   );
 }
