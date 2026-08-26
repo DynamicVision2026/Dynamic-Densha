@@ -81,13 +81,8 @@ export function ParentDoor({
     }
   }
 
-  function onClick(e: React.MouseEvent<HTMLButtonElement>) {
-    const fromPointer = pointerHold.current;
+  function onClick(_e: React.MouseEvent<HTMLButtonElement>) {
     pointerHold.current = false;
-    if (fromPointer) {
-      if (fillRef.current < 1) e.preventDefault();
-      return;
-    }
     go();
   }
 

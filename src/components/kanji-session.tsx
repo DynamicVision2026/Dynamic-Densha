@@ -22,6 +22,11 @@ import {
 } from "@/lib/announcements";
 import { echoArrivalWhen } from "@/lib/echo-arrival";
 import { markEchoTaughtToday, wasEchoTaughtToday } from "@/lib/echo-teach";
+import {
+  guestSavePromptedThisSession,
+  markGuestRidden,
+  markGuestSavePrompted,
+} from "@/lib/guest-ride";
 import { justReachedPerfect } from "@/lib/stamps";
 import {
   pushCouplePending,
@@ -106,6 +111,13 @@ export function KanjiSession({
 }) {
   const { t } = useI18n();
   const tour = useAutoDemo();
+  useEffect(() => {
+    if (hrefHome === "/demo") markGuestRidden();
+  }, [hrefHome]);
+  const [showGuestSave] = useState(
+    () => hrefHome === "/demo" && !guestSavePromptedThisSession(),
+  );
+  const [saveDismissed, setSaveDismissed] = useState(false);
   const kanji = getKanji(char);
   const params = getGradeParams(grade);
   const shape = shapeSurfaceAvailable(char);
@@ -125,6 +137,11 @@ export function KanjiSession({
       computed,
     }),
   );
+  useEffect(() => {
+    if (showGuestSave && !lookMode && localBeat === "feedback" && progress.status === "almost") {
+      markGuestSavePrompted();
+    }
+  }, [showGuestSave, lookMode, localBeat, progress.status]);
   const [readingsOpen, setReadingsOpen] = useState(progress.understandCompleted);
   const [placed, setPlaced] = useState(progress.understandCompleted);
   const [heard, setHeard] = useState(false);
@@ -706,13 +723,43 @@ export function KanjiSession({
             {t("continuePractice")}
           </Button>
         ) : (
-          <Link
-            to={hrefHome}
-            search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
-            className="inline-flex h-[88px] w-full items-center justify-center rounded-xl bg-primary font-display text-xl text-primary-fg"
-          >
-            {t("next")}
-          </Link>
+          <>
+            {showGuestSave && !saveDismissed && status === "almost" ? (
+              <div
+                data-guest-save
+                className="space-y-3 rounded-xl border border-border bg-surface px-4 py-4 text-left"
+              >
+                <p className="font-display text-xl leading-snug">{t("guestSaveTitle")}</p>
+                <p className="text-sm leading-7 text-fg-muted">{t("guestSaveReason")}</p>
+                <Link
+                  to="/login"
+                  data-guest-save-confirm
+                  onClick={() => markGuestSavePrompted()}
+                  className="inline-flex h-14 w-full items-center justify-center rounded-xl bg-primary font-display text-lg text-primary-fg"
+                >
+                  {t("guestSaveConfirm")}
+                </Link>
+                <button
+                  type="button"
+                  data-guest-save-later
+                  onClick={() => {
+                    markGuestSavePrompted();
+                    setSaveDismissed(true);
+                  }}
+                  className="inline-flex h-12 w-full items-center justify-center rounded-xl border-2 border-fg bg-transparent font-display text-lg text-fg"
+                >
+                  {t("guestSaveLater")}
+                </button>
+              </div>
+            ) : null}
+            <Link
+              to={hrefHome}
+              search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
+              className="inline-flex h-[88px] w-full items-center justify-center rounded-xl bg-primary font-display text-xl text-primary-fg"
+            >
+              {t("next")}
+            </Link>
+          </>
         )}
       </div>
     );

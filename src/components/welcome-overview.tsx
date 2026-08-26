@@ -78,10 +78,11 @@ function WoodCar({
 }
 
 function posed(pose: CarPose) {
-  if (pose.hidden) return { opacity: "0", transform: `translate(${pose.x} ${pose.y})` };
+  const rot = pose.angle ?? 0;
+  if (pose.hidden) return { opacity: "0", transform: `translate(${pose.x} ${pose.y}) rotate(${rot.toFixed(1)})` };
   return {
     opacity: String(pose.opacity),
-    transform: `translate(${pose.x.toFixed(1)} ${pose.y.toFixed(1)}) scale(${pose.scale.toFixed(3)})`,
+    transform: `translate(${pose.x.toFixed(1)} ${pose.y.toFixed(1)}) rotate(${rot.toFixed(1)}) scale(${pose.scale.toFixed(3)})`,
   };
 }
 
@@ -191,21 +192,23 @@ export function WelcomeOverview({
       data-idle={idle || undefined}
       data-variant={variant}
     >
-      <button
-        type="button"
-        data-green-sign
-        onClick={() => onFocusGrade(focusGrade)}
-        className="absolute left-3 top-[max(0.6rem,env(safe-area-inset-top))] z-[2] min-h-11 rounded-md border border-border bg-surface/90 px-3 py-2 text-left shadow-soft"
-        aria-label={`${t("greenCars")} ${t("greenCarsCount", { n: hub.green })}`}
-      >
-        <span className="block text-[11px] tracking-wide text-fg-subtle">{t("greenCars")}</span>
-        <span className="font-display text-2xl tabular-nums leading-none">{t("greenCarsCount", { n: hub.green })}</span>
-      </button>
+      {variant === "landing" ? null : (
+        <button
+          type="button"
+          data-green-sign
+          onClick={() => onFocusGrade(focusGrade)}
+          className="absolute left-3 top-[max(0.6rem,env(safe-area-inset-top))] z-[2] min-h-11 rounded-md border border-border bg-surface/90 px-3 py-2 text-left shadow-soft"
+          aria-label={`${t("greenCars")} ${t("greenCarsCount", { n: hub.green })}`}
+        >
+          <span className="block text-[11px] tracking-wide text-fg-subtle">{t("greenCars")}</span>
+          <span className="font-display text-2xl tabular-nums leading-none">{t("greenCarsCount", { n: hub.green })}</span>
+        </button>
+      )}
 
       <section
         className={cn(
           "relative min-h-0 flex-1 overflow-hidden",
-          variant === "landing" && "welcome-landing-scene pb-20 sm:pb-24",
+          variant === "landing" && "welcome-landing-scene",
         )}
       >
         <svg
@@ -223,23 +226,22 @@ export function WelcomeOverview({
 
           {(
             [
-              [198, 0.22],
-              [248, 0.18],
-              [298, 0.14],
-              [356, 0.1],
-              [424, 0.07],
+              [60, 0.28],
+              [180, 0.22],
+              [300, 0.16],
+              [430, 0.1],
             ] as const
           ).map(([y, ink], i) => {
-            const grade = (5 - i) as Grade;
+            const grade = (4 - i) as Grade;
             const open = Boolean(rings.find((r) => r.grade === grade)?.open);
             return (
               <path
                 key={grade}
                 data-terrace={grade}
                 data-terrace-open={open || undefined}
-                d={`M-20 ${y} Q90 ${y - 13} 185 ${y} T390 ${y} L390 530 L-20 530 Z`}
+                d={`M-20 ${y} Q90 ${y - 16} 185 ${y} T390 ${y} L390 530 L-20 530 Z`}
                 fill="var(--color-bg-warm)"
-                opacity={open ? 0.55 + ink : 0.28}
+                opacity={open ? 0.62 + ink : 0.32}
                 onClick={() => {
                   if (open) onFocusGrade(grade);
                 }}
@@ -248,26 +250,38 @@ export function WelcomeOverview({
           })}
 
           {[
-            [38, 302],
-            [92, 358],
-            [302, 308],
-            [262, 424],
-            [62, 428],
-            [326, 366],
-            [150, 198],
-            [236, 252],
+            [36, 318],
+            [78, 448],
+            [118, 328],
+            [268, 318],
+            [310, 448],
+            [54, 198],
+            [96, 208],
+            [248, 198],
+            [288, 88],
+            [62, 88],
+            [332, 328],
+            [148, 448],
+            [198, 88],
+            [356, 208],
           ].map(([x, y]) => {
-            const s = y > 340 ? 11 : y > 280 ? 9 : 7;
+            const s = y > 360 ? 12 : y > 240 ? 9 : 7;
             return (
               <path
                 key={`${x}-${y}`}
                 d={`M${x} ${y} l${s} ${s * 1.9} h${-s * 2} Z`}
-                fill="var(--color-status-perfect)"
-                opacity="0.85"
+                fill="#3d5c45"
+                opacity="0.92"
               />
             );
           })}
-          <rect x="196" y="354" width="56" height="5" fill="var(--color-border-strong)" />
+          {/* Bridge on terrace 2 */}
+          <g data-bridge aria-hidden>
+            <path d="M148 300 Q190 268 232 300" fill="none" stroke="var(--color-border-strong)" strokeWidth="5" />
+            <rect x="148" y="297" width="84" height="6" rx="1.5" fill="var(--color-fg)" opacity="0.72" />
+            <rect x="156" y="300" width="5" height="18" fill="var(--color-fg)" opacity="0.45" />
+            <rect x="219" y="300" width="5" height="18" fill="var(--color-fg)" opacity="0.45" />
+          </g>
           <rect x="348" y="28" width="16" height="16" fill="var(--color-primary)" opacity="0.92" />
 
           <path
@@ -287,6 +301,11 @@ export function WelcomeOverview({
             strokeLinecap="round"
             data-run-rail
           />
+          <g data-tunnel aria-hidden>
+            <path d="M -78 268 Q -28 132 48 272 Z" fill="var(--color-mist-far)" />
+            <ellipse cx="-18" cy="240" rx="24" ry="32" fill="#2a2926" />
+            <ellipse cx="-18" cy="240" rx="15" ry="22" fill="#161412" />
+          </g>
 
           {radials.map((line) => (
             <polyline
@@ -316,7 +335,7 @@ export function WelcomeOverview({
                 key={char}
                 data-car-scale={carPoses[i]?.scale.toFixed(3)}
                 data-car-y={carPoses[i]?.y.toFixed(0)}
-                {...posed(carPoses[i] ?? { x: 0, y: 0, scale: 1, opacity: 0, hidden: true })}
+                {...posed(carPoses[i] ?? { x: 0, y: 0, scale: 1, opacity: 0, hidden: true, angle: 0 })}
               >
                 <WoodCar char={char} glow={glowOn && glow?.includes(char)} focus={char === focusChar} />
               </g>
@@ -325,17 +344,7 @@ export function WelcomeOverview({
         </svg>
       </section>
 
-      {variant === "landing" ? (
-        <button
-          type="button"
-          data-overview-back
-          data-welcome-cta
-          onClick={onBack}
-          className="welcome-landing-cta absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[2] inline-flex h-14 min-w-[min(88%,22rem)] -translate-x-1/2 items-center justify-center rounded-xl bg-primary px-8 font-display text-xl tracking-wide text-primary-fg sm:h-16 sm:text-2xl"
-        >
-          {ctaLabel ?? t("overviewBack")}
-        </button>
-      ) : (
+      {variant === "landing" ? null : (
         <>
           <button
             type="button"
