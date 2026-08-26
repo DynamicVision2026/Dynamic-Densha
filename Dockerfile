@@ -33,22 +33,29 @@ RUN npm run build:container
 # Known Nitro/vinxi node-server-preset quirk: the internal SSR-render Vite
 # pass produces its own copy of the global stylesheet with a different
 # content hash than the client build's copy in .output/public/assets, and
-# at least one server chunk embeds a <link> reference to that internal
-# hash instead of the client one. That internal file is never copied into
-# .output/public, so the browser 404s on it. Since this project currently
-# emits exactly one global CSS file, alias any CSS filename referenced by
-# a server chunk but missing from public/assets to the real file's
-# content, so whichever hash the HTML happens to reference resolves.
+# at least one server chunk embeds a string reference to that internal
+# hash instead of the client one. Nitro's static-asset server appears to
+# use a build-time manifest of known public files rather than a live
+# directory scan, so simply adding a same-named file after the fact is
+# NOT picked up (confirmed by testing) -- the fix has to rewrite the
+# stale reference itself to point at the real, already-known-good file.
+# Since this project currently emits exactly one global CSS file, this is
+# a safe, hash-agnostic textual rewrite scoped to compiled server output
+# only (no app/UI source is touched).
 RUN node -e "\
   const fs = require('fs'); const path = require('path'); \
   const assetsDir = '.output/public/assets'; \
   const cssFiles = fs.readdirSync(assetsDir).filter((f) => f.endsWith('.css')); \
   if (cssFiles.length !== 1) { console.log('skip: expected exactly one global css file, found', cssFiles); process.exit(0); } \
-  const refs = new Set(); \
-  const walk = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.mjs')) { const c = fs.readFileSync(p, 'utf8'); const m = c.match(/assets\/styles-[A-Za-z0-9_-]+\.css/g); if (m) m.forEach((x) => refs.add(x)); } } }; \
-  walk('.output/server'); \
-  const src = path.join(assetsDir, cssFiles[0]); \
-  for (const ref of refs) { const name = ref.split('/').pop(); const dest = path.join(assetsDir, name); if (!fs.existsSync(dest)) { fs.copyFileSync(src, dest); console.log('aliased missing css ref', name, '->', cssFiles[0]); } } \
+  const real = cssFiles[0]; \
+  const walk = (dir, out) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p, out); else if (e.name.endsWith('.mjs')) out.push(p); } }; \
+  const files = []; walk('.output/server', files); \
+  for (const f of files) { \
+    let c = fs.readFileSync(f, 'utf8'); \
+    const before = c; \
+    c = c.replace(/assets\/styles-[A-Za-z0-9_-]+\.css/g, 'assets/' + real); \
+    if (c !== before) { fs.writeFileSync(f, c); console.log('rewrote stale css ref in', f, '-> assets/' + real); } \
+  } \
 "
 
 FROM node:20-slim AS runtime
