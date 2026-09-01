@@ -16,13 +16,14 @@ import { useNow } from "@/lib/use-now";
 export const Route = createFileRoute("/")({ component: Home, ssr: false });
 
 function Home() {
+  const { t } = useI18n();
   const { user, isPending } = useCurrentUserState();
   const [ridden] = useState(() => hasGuestRidden());
 
   if (isPending) {
     return (
       <ChildShell>
-        <div className="grid flex-1 place-items-center text-sm text-fg-muted">漢字でんしゃ</div>
+        <div className="grid flex-1 place-items-center text-sm text-fg-muted">{t("brand")}</div>
       </ChildShell>
     );
   }
