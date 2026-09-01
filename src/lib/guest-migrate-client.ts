@@ -4,6 +4,7 @@ import {
   GUEST_MIGRATED_KEY,
   parseGuestProgressMap,
 } from "@/lib/guest-import";
+import { guestSessionId } from "@/lib/guest-ride";
 
 function readDemoRaw(): unknown {
   try {
@@ -21,7 +22,7 @@ export async function maybeImportGuestProgress(childId: string): Promise<void> {
   try {
     if (window.localStorage.getItem(GUEST_MIGRATED_KEY)) return;
     const rows = parseGuestProgressMap(readDemoRaw());
-    await importGuestProgress({ data: { childId, rows } });
+    await importGuestProgress({ data: { childId, rows, guestSessionId: guestSessionId() } });
     window.localStorage.setItem(GUEST_MIGRATED_KEY, "1");
   } catch {
     /* home still loads */

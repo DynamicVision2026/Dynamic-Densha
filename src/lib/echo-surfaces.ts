@@ -129,7 +129,35 @@ function sameReadingPool(all: EchoSurface[], last: EchoSurface | null): EchoSurf
   return same.length > 0 ? same : all;
 }
 
-/** Same taught reading only. Never せい → う. */
+function pickFromPool(
+  pool: EchoSurface[],
+  last: EchoSurface | null | undefined,
+  lastSurfaceId: string | null | undefined,
+  seen: Set<string>,
+): EchoSurface | null {
+  const unused = pool.filter((s) => s.id !== lastSurfaceId && !seen.has(s.id));
+  const words = unused.filter(isWordSurface);
+  const pickFrom = words.length > 0 ? words : unused;
+
+  const lastText = last?.text ?? "";
+  const lastFrame = last?.frame ?? "";
+  const differentWord = pickFrom.filter((s) => s.text !== lastText);
+  if (differentWord.length > 0) return differentWord[0]!;
+
+  const newFrame = pickFrom.filter(
+    (s) => s.text === lastText && (s.frame ?? "") !== lastFrame,
+  );
+  if (newFrame.length > 0) return newFrame[0]!;
+
+  return pickFrom.length > 0 ? pickFrom[0]! : null;
+}
+
+/**
+ * Same taught reading preferred. Never せい → う.
+ * Never returns `lastSurfaceId` itself when any other legal surface for this
+ * kanji+kind exists — a same-reading pool of one (just the last draw) widens
+ * to any legal surface rather than handing the child the identical item twice.
+ */
 export function selectEchoSurface(input: {
   char: string;
   kind: PracticeKind;
@@ -143,23 +171,17 @@ export function selectEchoSurface(input: {
   if (all.length === 0) return soloSurface(char);
 
   const last = all.find((s) => s.id === lastSurfaceId) ?? surfaceById(char, lastSurfaceId);
-  const pool = sameReadingPool(all, last);
   const seen = new Set(input.seenIds ?? []);
-  const unused = pool.filter((s) => s.id !== lastSurfaceId && !seen.has(s.id));
-  const words = unused.filter(isWordSurface);
-  const pickFrom = words.length > 0 ? words : unused;
 
-  const lastText = last?.text ?? char;
-  const lastFrame = last?.frame ?? "";
-  const differentWord = pickFrom.filter((s) => s.text !== lastText);
-  if (differentWord.length > 0) return differentWord[0]!;
+  const pool = sameReadingPool(all, last);
+  const fromSameReading = pickFromPool(pool, last, lastSurfaceId, seen);
+  if (fromSameReading) return fromSameReading;
 
-  const newFrame = pickFrom.filter(
-    (s) => s.text === lastText && (s.frame ?? "") !== lastFrame,
-  );
-  if (newFrame.length > 0) return newFrame[0]!;
+  // The same-reading pool had nothing to offer beyond the last-drawn surface
+  // itself. Widen to any legal surface for this kanji+kind rather than repeat it.
+  const fromAny = pickFromPool(all, last, lastSurfaceId, seen);
+  if (fromAny) return fromAny;
 
-  if (pickFrom.length > 0) return pickFrom[0]!;
   return last ?? pool[0] ?? soloSurface(char);
 }
 
@@ -171,16 +193,25 @@ export function isLegalEchoTransition(char: string, fromId: string, toId: string
   return foldReading(from.reading) === foldReading(to.reading);
 }
 
-/** Dual 再訪 bundle: ≥2 echo entries that share one taught reading. */
+/**
+ * Dual 再訪 bundle: true only when `selectEchoSurface` can never be forced to
+ * repeat a given starting surface for this kanji — checked by actually
+ * simulating every legal reading/meaning starting draw through the real
+ * selection function, not by an aggregate reading-coverage count (which can
+ * report "clean" while a specific starting surface still has no alternative).
+ */
 export function hasEchoBundle(char: string): boolean {
-  const words = exampleWordSurfaces(char);
-  if (words.length < 1) return false;
-  const byReading = new Map<string, Set<string>>();
-  for (const s of words) {
-    const key = foldReading(s.reading);
-    const set = byReading.get(key) ?? new Set();
-    set.add(surfaceIdentity(s));
-    byReading.set(key, set);
+  for (const kind of ["reading", "meaning"] as const) {
+    const surfaces = echoSurfacesFor(char).filter((s) => usableForKind(s, kind));
+    for (const start of surfaces) {
+      const next = selectEchoSurface({
+        char,
+        kind,
+        lastSurfaceId: start.id,
+        seenIds: [start.id],
+      });
+      if (!next || next.id === start.id) return false;
+    }
   }
-  return [...byReading.values()].some((set) => set.size >= 2);
+  return true;
 }

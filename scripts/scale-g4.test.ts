@@ -20,8 +20,19 @@ test("G4 full 配当 is teach_ready", () => {
     .filter((k) => !isTeachReady(k.char))
     .map((k) => k.char + ":" + teachReadyReport(k.char).fails.join("+"));
   assert.deepEqual(blocked, []);
+  // 媛's only taught reading is エン, and its one common elementary-level word
+  // (愛媛) is a place name read ひめ — genuinely jukujikun, so it may not credit
+  // the reading lamp (see wIrregular in echo-surface-rows.ts). With no other
+  // child-appropriate エン word to pair it with, reading-kind dual echo for 媛
+  // has no second surface to offer; this is a real content gap, not a bug.
+  // 達 has no taught kunyomi either, and its one common elementary word
+  // (友達) is likewise jukujikun (だち is not a taught reading of 達) — the
+  // same real content gap as 媛, not a bug.
+  const NO_READING_BUNDLE = new Set(["媛", "達"]);
   for (const k of g4) {
-    assert.equal(hasEchoBundle(k.char), true, k.char);
+    if (!NO_READING_BUNDLE.has(k.char)) {
+      assert.equal(hasEchoBundle(k.char), true, k.char);
+    }
     assert.equal(hasEncounter(k.char), true, k.char);
     assert.ok(getPublishedShape(k.char), k.char);
   }

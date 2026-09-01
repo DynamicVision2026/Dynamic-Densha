@@ -18,6 +18,8 @@ import {
   type ProgressState,
 } from "@/lib/progress-eval";
 import { jaArrivalT } from "@/lib/echo-arrival";
+import { guestSessionId } from "@/lib/guest-ride";
+import { attestGuestEcho } from "@/lib/server/guest-attest";
 import {
   drawPublishedItems,
   getItem,
@@ -432,6 +434,16 @@ export function submitDemoAnswer(input: {
     gentle: Boolean(item.payload.confusable || item.payload.phoneticFamily || item.payload.cloze),
   });
   persist(input.char, next);
+  if ((next.echoSuccessCount ?? 0) > (prev.echoSuccessCount ?? 0)) {
+    // Fire-and-forget: real-elapsed-time evidence for PI-6, never blocking or
+    // failing the ride if the network call doesn't land.
+    const sid = guestSessionId();
+    if (sid) {
+      void attestGuestEcho({
+        data: { guestSessionId: sid, kanji: input.char, attemptNo: next.echoSuccessCount },
+      }).catch(() => {});
+    }
+  }
   if (
     prev.status === "perfect" &&
     next.status === "perfect" &&

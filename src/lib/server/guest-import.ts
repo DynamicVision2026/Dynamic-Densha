@@ -9,6 +9,8 @@ import {
 } from "@/lib/guest-import";
 import { seedInspectionDue } from "@/lib/server/grade-route";
 import { loadProgress, saveProgress } from "@/lib/server/progress";
+import { getSql } from "@/lib/db";
+import { attestedElapsedMs, loadGuestEchoAttempts } from "@/lib/server/guest-echo-attempts";
 
 function asPayload(row: GuestProgressPayload): GuestProgressPayload {
   return {
@@ -34,21 +36,33 @@ function asPayload(row: GuestProgressPayload): GuestProgressPayload {
 
 export const importGuestProgress = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { childId: string; rows: GuestProgressPayload[] }) => ({
+  .validator((input: { childId: string; rows: GuestProgressPayload[]; guestSessionId?: string }) => ({
     childId: String(input.childId ?? ""),
     rows: Array.isArray(input.rows) ? input.rows.map(asPayload).filter((r) => r.kanji) : [],
+    guestSessionId: String(input.guestSessionId ?? "").slice(0, 64),
   }))
   .handler(async ({ context, data }) => {
     const serverNow = new Date().toISOString();
     const { child, map } = await loadProgress(context.userId, data.childId);
+    const sql = data.guestSessionId ? await getSql() : null;
     const imported: string[] = [];
     for (const row of data.rows) {
       if (!isImportableGuestRow(row)) continue;
       if (map.has(row.kanji)) continue;
+      // PI-6: a guest-claimed "perfect" only survives import when its two
+      // echo successes were server-attested to real elapsed wall-clock time,
+      // not merely the guest device's own (forgeable) clock.
+      let elapsed: number | null | undefined;
+      if (row.status === "perfect") {
+        elapsed = sql
+          ? attestedElapsedMs(await loadGuestEchoAttempts(sql, data.guestSessionId, row.kanji), 2)
+          : null;
+      }
       const { progress, inspection } = rebuildImportedProgress(
         row,
         serverNow,
         (getKanji(row.kanji)?.grade ?? child.grade) as Grade,
+        elapsed,
       );
       await saveProgress(context.userId, data.childId, progress);
       if (inspection) {

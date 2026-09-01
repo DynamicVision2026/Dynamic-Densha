@@ -114,6 +114,7 @@ export function ParentReportView({
 
       <section className="mt-4 rounded-xl border border-border bg-surface p-5" data-parent-attention>
         <h2 className="font-display text-lg">{t("parentAttention")}</h2>
+        <p className="mt-2 text-xs leading-relaxed text-fg-subtle">{t("parentU2Note")}</p>
         {report.attention.length === 0 ? (
           <p className="mt-3 text-sm text-fg-muted">{t("parentAttentionEmpty")}</p>
         ) : (
