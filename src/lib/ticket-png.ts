@@ -1,6 +1,6 @@
 /** Draw the だいたい stub to PNG. Call only from a user tap. Fridge-safe: no identity. */
 
-import { drawTicketQr } from "./ticket-qr.ts";
+import { drawTicketQr, TICKET_QR_HREF } from "./ticket-qr.ts";
 
 export type TicketPngInput = {
   glyphs: string[];
@@ -10,6 +10,19 @@ export type TicketPngInput = {
   domain: string;
   title?: string;
 };
+
+/** Fridge-safe dump of what the PNG/QR may contain. No identity fields. */
+export function ticketExportPlainText(input: TicketPngInput): string {
+  return [
+    ...(input.glyphs ?? []),
+    input.title ?? "だいたい",
+    input.returnLabel,
+    input.serial,
+    input.domain,
+    input.issueDay,
+    TICKET_QR_HREF,
+  ].join("\n");
+}
 
 function fillRoundRect(
   ctx: CanvasRenderingContext2D,

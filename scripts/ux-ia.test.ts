@@ -148,8 +148,10 @@ test("empty boarding pass stays live as 自由乗車", () => {
   assert.match(ticket, /data-ticket-empty/);
   assert.match(ticket, /onClick=\{onRide\}/);
   assert.match(home, /ticketEmpty/);
-  assert.match(home, /freeRide|catalogTo/);
-  assert.equal(/\bdisabled\b/.test(ticket.replace(/aria-disabled/g, "")), false);
+  assert.match(home, /freeRide/);
+  assert.match(home, /depart\.kanji/);
+  assert.equal(/aria-disabled/.test(ticket), false);
+  assert.equal(/\bdisabled\b/.test(ticket), false);
 });
 
 test("parent document is sticky + 900px; sitemap order progress → week → attention → paper", () => {

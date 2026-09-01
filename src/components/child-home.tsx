@@ -95,7 +95,6 @@ export function ChildHome({
     setOverview(true);
   }
 
-  const catalogTo = hrefBase === "/demo" ? "/demo/catalog" : "/app/catalog";
   const nextLabel =
     board?.today.find((c) => c.label)?.label ??
     board?.tomorrow[0]?.label ??
@@ -104,10 +103,6 @@ export function ChildHome({
   const glyphs = cards.map((c) => c.kanji);
 
   function rideFromTicket() {
-    if (depart.empty) {
-      void navigate({ to: catalogTo, search: { grade } });
-      return;
-    }
     void navigate({
       to: rideTo,
       params: { char: depart.kanji },

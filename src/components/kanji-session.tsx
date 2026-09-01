@@ -27,7 +27,10 @@ import {
   earliestArrival,
   readSessionAlmost,
   rememberAlmost,
+  rememberSessionPerfect,
   retireStub,
+  sessionHasPerfect,
+  shouldShowSessionStub,
   stubRetired,
   type SessionAlmostRow,
 } from "@/lib/session-almost";
@@ -321,6 +324,7 @@ export function KanjiSession({
       if (!stubRetired()) setStubOn(true);
     }
     if (justReachedPerfect(progress, out.progress)) {
+      rememberSessionPerfect(char);
       pushCouplePending(char);
       const pending = takeCouplePendingPeek();
       setCouple({
@@ -716,11 +720,13 @@ export function KanjiSession({
     const rows = sessionRows.length ? sessionRows : readSessionAlmost();
     const arrival = earliestArrival(rows);
     const stubGlyphs = rows.map((r) => r.kanji);
-    const showStub =
-      stubOn &&
-      !stubRetired() &&
-      (progress.status === "almost" || progress.status === "perfect") &&
-      stubGlyphs.length > 0;
+    const showStub = shouldShowSessionStub({
+      reachedAlmostThisSession: stubOn,
+      retired: stubRetired(),
+      currentStatus: progress.status,
+      sessionHasPerfect: sessionHasPerfect() || Boolean(couple) || pending.includes(char),
+      glyphCount: stubGlyphs.length,
+    });
     const serial = `KD-${stubGlyphs.join("") || kanji.char}`;
     function dismissStub() {
       retireStub();

@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { earliestArrival, type SessionAlmostRow } from "../src/lib/session-almost.ts";
+import {
+  earliestArrival,
+  shouldShowSessionStub,
+  type SessionAlmostRow,
+} from "../src/lib/session-almost.ts";
+import { ticketExportPlainText } from "../src/lib/ticket-png.ts";
+import { TICKET_QR_HREF } from "../src/lib/ticket-qr.ts";
 
 test("DepartureTicket is a button with accessible name", () => {
   const src = readFileSync("src/components/departure-ticket.tsx", "utf8");
@@ -11,12 +17,16 @@ test("DepartureTicket is a button with accessible name", () => {
   assert.match(src, /きょうの きっぷ、のる/);
 });
 
-test("empty ticket has data-ticket-empty and a click handler", () => {
+test("empty ticket is a button, click handler fires, no disabled attribute", () => {
   const src = readFileSync("src/components/departure-ticket.tsx", "utf8");
-  assert.match(src, /data-ticket-empty/);
+  const home = readFileSync("src/components/child-home.tsx", "utf8");
+  assert.match(src, /<button/);
+  assert.match(src, /type="button"/);
   assert.match(src, /onClick=\{onRide\}/);
-  assert.match(src, /emptyLead/);
-  assert.equal(/[^a-z-]disabled=\{/.test(src), false);
+  assert.match(src, /data-ticket-empty/);
+  assert.equal(/disabled/.test(src), false);
+  assert.match(home, /params: \{ char: depart\.kanji \}/);
+  assert.match(home, /freeRide/);
 });
 
 test("glyphs come from board cards, not a hardcoded list", () => {
@@ -40,11 +50,40 @@ test("no date math in ticket components", () => {
   }
 });
 
-test("perfect input still labels だいたい", () => {
-  const src = readFileSync("src/components/session-stub.tsx", "utf8");
-  assert.match(src, /だいたい/);
-  assert.equal(/かんぺき/.test(src), false);
-  assert.match(src, /status === "fix"/);
+test("almost session → stub present", () => {
+  assert.equal(
+    shouldShowSessionStub({
+      reachedAlmostThisSession: true,
+      retired: false,
+      currentStatus: "almost",
+      sessionHasPerfect: false,
+      glyphCount: 1,
+    }),
+    true,
+  );
+});
+
+test("perfect session → stub absent", () => {
+  assert.equal(
+    shouldShowSessionStub({
+      reachedAlmostThisSession: true,
+      retired: false,
+      currentStatus: "perfect",
+      sessionHasPerfect: false,
+      glyphCount: 1,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowSessionStub({
+      reachedAlmostThisSession: true,
+      retired: false,
+      currentStatus: "almost",
+      sessionHasPerfect: true,
+      glyphCount: 3,
+    }),
+    false,
+  );
 });
 
 test("one stub for a 3-char session; earliest nextArrival.label wins", () => {
@@ -85,10 +124,27 @@ test("stub QR is a static public URL with no identity", () => {
   assert.equal(m?.[1]?.includes("?"), false);
   const stub = readFileSync("src/components/session-stub.tsx", "utf8");
   const png = readFileSync("src/lib/ticket-png.ts", "utf8");
-  const qr = src;
-  const blob = stub + png + qr;
+  const blob = stub + png + src;
   assert.equal(/childId|userId|nickname|childName|\bemail\b/.test(blob), false);
   assert.equal(/\blocalStorage\b/.test(blob), false);
   assert.match(stub, /data-qr-href=\{/);
   assert.match(png, /drawTicketQr/);
+});
+
+test("PNG export text has no child identity", () => {
+  const text = ticketExportPlainText({
+    glyphs: ["右", "円"],
+    returnLabel: "あした",
+    serial: "KD-右円",
+    issueDay: "2026-09-02",
+    domain: "kanji-densha",
+    title: "だいたい",
+  });
+  assert.match(text, /右/);
+  assert.match(text, /あした/);
+  assert.equal(text.includes(TICKET_QR_HREF), true);
+  assert.equal(TICKET_QR_HREF.includes("?"), false);
+  assert.equal(/childId|userId|nickname|childName|\bemail\b|そら/.test(text), false);
+  const pngSrc = readFileSync("src/lib/ticket-png.ts", "utf8");
+  assert.equal(/childId|userId|\bemail\b|nickname/.test(pngSrc), false);
 });

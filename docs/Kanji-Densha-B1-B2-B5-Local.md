@@ -105,3 +105,13 @@ After login, when the parent first has a child id, `importGuestProgress` runs on
 
 P1–P5: QR is `https://kanji-densha.app/` only. No packages tree. T3 path-guard check is in `npm test`. See `docs/ticket-mechanism.md`.
 
+## P6 alignment
+
+Branch name stays `ticket/b1-surface-seen` (B1 schema started here; do not rename).
+
+- `migrations/0008_surface_seen.sql` is on this branch.
+- `saveProgress` dual-writes `surface_seen`; `loadProgress` hydrates table ∪ JSON.
+- `src/lib/server/progress.ts`: `insertMissingSurfaceSeen` at save (line 241).
+- `evaluateProgress` still reads only `surfacesSeenSuccess` (no table name, no second U2 path).
+- Perfect / day-eight 到着: no SessionStub. Empty boarding pass is live (`じゆうに のる`).
+

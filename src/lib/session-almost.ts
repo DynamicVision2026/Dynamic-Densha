@@ -55,6 +55,33 @@ export function retireStub() {
   writeJson(RETIRED_KEY, "1");
 }
 
+const PERFECT_KEY = "densha.session.perfect.v1";
+
+export function rememberSessionPerfect(kanji: string) {
+  const rows = readJson<string[]>(PERFECT_KEY, []);
+  const next = Array.from(new Set([...rows, kanji]));
+  writeJson(PERFECT_KEY, next);
+  return next;
+}
+
+export function sessionHasPerfect(): boolean {
+  return readJson<string[]>(PERFECT_KEY, []).length > 0;
+}
+
+/** Stub only for first だいたい. Perfect / day-eight coupling owns 到着. */
+export function shouldShowSessionStub(input: {
+  reachedAlmostThisSession: boolean;
+  retired: boolean;
+  currentStatus: string;
+  sessionHasPerfect: boolean;
+  glyphCount: number;
+}): boolean {
+  if (!input.reachedAlmostThisSession || input.retired) return false;
+  if (input.glyphCount < 1) return false;
+  if (input.sessionHasPerfect || input.currentStatus === "perfect") return false;
+  return input.currentStatus === "almost";
+}
+
 /** Earliest return copy: min dueIso string. No Date.parse. */
 export function earliestArrival(rows: SessionAlmostRow[]): SessionAlmostRow | null {
   if (!rows.length) return null;

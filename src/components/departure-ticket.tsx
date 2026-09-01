@@ -30,7 +30,6 @@ export function DepartureTicket({
       data-departure-ticket
       data-ticket-empty={empty || undefined}
       aria-label={ariaName}
-      aria-disabled={empty || undefined}
       onClick={onRide}
       className={cn(
         "mx-auto flex w-full max-w-[448px] min-h-16 flex-col gap-2 rounded-lg border-2 border-primary bg-surface px-5 py-4 text-left text-ticket-ink",
