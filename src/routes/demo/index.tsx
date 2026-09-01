@@ -4,6 +4,7 @@ import { ChildHome } from "@/components/child-home";
 import { DEMO_CHILD, getDemoHome, getDemoMap } from "@/lib/demo-progress";
 import { resolveActiveGrade, usePersistActiveGrade } from "@/lib/active-grade";
 import { gradeSearchFrom } from "@/lib/grade-nav";
+import { useNow } from "@/lib/use-now";
 
 export const Route = createFileRoute("/demo/")({
   component: DemoHome,
@@ -24,6 +25,9 @@ function DemoHome() {
       void navigate({ to: "/demo", search: { grade: viewGrade }, replace: true });
     }
   }, [search.grade, viewGrade, navigate]);
+  // Re-render on visibilitychange/focus/midnight so a board left open
+  // overnight rebuilds from a fresh clock instead of freezing at mount (PI-3).
+  useNow();
   const home = getDemoHome(viewGrade);
   const map = getDemoMap(viewGrade);
   const cars = home.trains.flatMap((t) =>
