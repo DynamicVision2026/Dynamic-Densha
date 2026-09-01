@@ -78,7 +78,7 @@ test("child home chrome has no peer nav / login / workshop / demo tile", () => {
   const demo = readFileSync("src/routes/demo/index.tsx", "utf8");
   const app = readFileSync("src/routes/app/index.tsx", "utf8");
   const shell = readFileSync("src/components/app-shell.tsx", "utf8");
-  assert.match(home, /しゅっぱつ|depart/);
+  assert.match(home, /DepartureTicket/);
   assert.match(home, /ParentDoor/);
   assert.equal(/WorldNav/.test(home), false);
   assert.equal(/WatchDemoButton/.test(home + demo + app), false);
@@ -109,11 +109,12 @@ test("index launches child 発車標, not a marketing wall", () => {
   assert.equal(/ctaRide/.test(index), false);
 });
 
-test("home landscape keeps しゅっぱつ bottom-center, not a side rail", () => {
+test("home boarding pass is the only primary control", () => {
   const home = readFileSync("src/components/child-home.tsx", "utf8");
-  assert.match(home, /landscape:w-\[40%\]/);
-  assert.match(home, /data-child-action/);
-  assert.equal(/side-rail|landscape:flex-row/.test(home), false);
+  assert.match(home, /DepartureTicket/);
+  assert.match(home, /data-child-stage/);
+  assert.equal(/data-child-action/.test(home), false);
+  assert.equal(/hamburger|bottom-nav/.test(home), false);
 });
 
 test("map is overlay state, not a child tab; old map routes replace to home", () => {
@@ -141,14 +142,14 @@ test("parent door holds 1.5s for pointer and exposes immediate a11y control", ()
   assert.match(door, /aria-hidden/);
 });
 
-test("empty board copy stays live as じゆうに のる", () => {
+test("empty boarding pass stays live as 自由乗車", () => {
   const home = readFileSync("src/components/child-home.tsx", "utf8");
-  assert.match(home, /emptyBoard/);
-  assert.match(home, /freeRide/);
-  assert.match(home, /echoArrival/);
-  assert.match(home, /data-empty-board/);
-  assert.match(home, /data-free-ride/);
-  assert.equal(/disabled/.test(home), false);
+  const ticket = readFileSync("src/components/departure-ticket.tsx", "utf8");
+  assert.match(ticket, /data-ticket-empty/);
+  assert.match(ticket, /onClick=\{onRide\}/);
+  assert.match(home, /ticketEmpty/);
+  assert.match(home, /freeRide|catalogTo/);
+  assert.equal(/\bdisabled\b/.test(ticket.replace(/aria-disabled/g, "")), false);
 });
 
 test("parent document is sticky + 900px; sitemap order progress → week → attention → paper", () => {

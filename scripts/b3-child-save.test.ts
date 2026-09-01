@@ -2,13 +2,12 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("child ride components have no ほぞんする / あとで", () => {
+test("child ride components have no ほぞんする", () => {
   const dir = "src/components";
   const files = readdirSync(dir).filter((f) => f.endsWith(".tsx") || f.endsWith(".ts"));
   for (const f of files) {
     const src = readFileSync(`${dir}/${f}`, "utf8");
     assert.equal(/ほぞんする/.test(src), false, f);
-    assert.equal(/あとで/.test(src), false, f);
   }
   const session = readFileSync("src/components/kanji-session.tsx", "utf8");
   assert.match(session, /toBoard/);

@@ -94,3 +94,12 @@ After login, when the parent first has a child id, `importGuestProgress` runs on
 - P-Save child modal must not return (PR #6)
 - Parent `/parents` save prompt not built
 - Still waiting **准许 push**
+
+---
+
+## U1 / U2 / U3 (frontend)
+
+- Child home: `DepartureTicket` is the only primary. Occupied = board glyphs + ▶ のる. Empty = `data-ticket-empty` きょうは おやすみ + nextArrival.label, tap still 自由乗車 (catalog). Same component for guest and account.
+- 到着 at first だいたい: `SessionStub` (mint, never かんぺき) + きっぷを もらう / あとで. ボードへ / れっしゃを みる stay. PNG only after tap. No ほぞんする.
+- Ticket cars stay blue for だいたい. No gold かんぺき ticket.
+

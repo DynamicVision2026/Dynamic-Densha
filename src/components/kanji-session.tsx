@@ -10,6 +10,7 @@ import { QuizPanel } from "@/components/quiz-panel";
 import { ReadingLine } from "@/components/speaker-button";
 import { RideShell } from "@/components/ride-shell";
 import { CoupleBeat } from "@/components/couple-beat";
+import { SessionStub } from "@/components/session-stub";
 import { TrainAnnounce } from "@/components/train-announce";
 import { Button } from "@/components/ui/button";
 import { getKanji, GRADE_COUNTS, type Grade } from "@/data/kyoiku";
@@ -21,7 +22,16 @@ import {
   writeLastStation,
 } from "@/lib/announcements";
 import { markEchoTaughtToday, wasEchoTaughtToday } from "@/lib/echo-teach";
-import { justReachedPerfect } from "@/lib/stamps";
+import { justReachedAlmost, justReachedPerfect } from "@/lib/stamps";
+import {
+  earliestArrival,
+  readSessionAlmost,
+  rememberAlmost,
+  retireStub,
+  stubRetired,
+  type SessionAlmostRow,
+} from "@/lib/session-almost";
+import { claimTicketPng } from "@/lib/ticket-png";
 import {
   pushCouplePending,
   takeCouplePending,
@@ -156,6 +166,8 @@ export function KanjiSession({
   const [lastWrongByKind, setLastWrongByKind] = useState<Partial<Record<PracticeKind, string>>>(
     {},
   );
+  const [sessionRows, setSessionRows] = useState<SessionAlmostRow[]>(() => readSessionAlmost());
+  const [stubOn, setStubOn] = useState(false);
   const echoArmed = useRef(false);
   const itemsArmed = useRef(false);
   const answering = useRef(false);
@@ -296,6 +308,17 @@ export function KanjiSession({
     if (!out.correct) {
       setLastWrongByKind((prev) => ({ ...prev, [kind]: itemId }));
       setRepairCount((c) => c + 1);
+    }
+    if (justReachedAlmost(progress, out.progress)) {
+      const arrival = out.nextArrival;
+      const rows = rememberAlmost({
+        kanji: char,
+        label: arrival?.label ?? engineArrival?.label ?? "",
+        dueIso: arrival?.dueIso ?? engineArrival?.dueIso ?? null,
+        dueLocalDate: arrival?.dueLocalDate ?? engineArrival?.dueLocalDate ?? null,
+      });
+      setSessionRows(rows);
+      if (!stubRetired()) setStubOn(true);
     }
     if (justReachedPerfect(progress, out.progress)) {
       pushCouplePending(char);
@@ -690,7 +713,30 @@ export function KanjiSession({
         </div>
       );
     } else {
-    stage = (
+    const rows = sessionRows.length ? sessionRows : readSessionAlmost();
+    const arrival = earliestArrival(rows);
+    const stubGlyphs = rows.map((r) => r.kanji);
+    const showStub =
+      stubOn &&
+      !stubRetired() &&
+      (progress.status === "almost" || progress.status === "perfect") &&
+      stubGlyphs.length > 0;
+    const serial = `KD-${stubGlyphs.join("") || kanji.char}`;
+    function dismissStub() {
+      retireStub();
+      setStubOn(false);
+    }
+    stage = showStub ? (
+      <SessionStub
+        glyphs={stubGlyphs}
+        returnLabel={arrival?.label || arrivalWhen || t("echoArrivalToday")}
+        serial={serial}
+        issueDay={arrival?.dueLocalDate || ""}
+        domain={t("stubDomain")}
+        status="almost"
+        title={t("stubTitle")}
+      />
+    ) : (
       <section className="flex min-h-0 flex-1 flex-col items-center justify-center space-y-4 text-center" data-tour="feedback">
         <h1 className="font-display text-7xl leading-none">{kanji.char}</h1>
         <MasteryLights lights={progress.lights} ui={params.lights_ui} />
@@ -732,7 +778,37 @@ export function KanjiSession({
             {t("continuePractice")}
           </Button>
         ) : (
-          <div className="space-y-3">
+          <>
+            {showStub ? (
+              <>
+                <Button
+                  type="button"
+                  className="h-[88px] w-full"
+                  data-stub-claim
+                  onClick={() => {
+                    void claimTicketPng({
+                      glyphs: stubGlyphs,
+                      returnLabel: arrival?.label || arrivalWhen || t("echoArrivalToday"),
+                      serial,
+                      issueDay: arrival?.dueLocalDate || "",
+                      domain: t("stubDomain"),
+                      title: t("stubTitle"),
+                    }).finally(dismissStub);
+                  }}
+                >
+                  {t("stubClaim")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-14 w-full"
+                  data-stub-later
+                  onClick={dismissStub}
+                >
+                  {t("stubLater")}
+                </Button>
+              </>
+            ) : null}
             <Link
               to={hrefHome}
               search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
@@ -753,7 +829,7 @@ export function KanjiSession({
             >
               {t("seeTrain")}
             </Link>
-          </div>
+          </>
         )}
       </div>
     );

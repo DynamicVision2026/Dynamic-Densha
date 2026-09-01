@@ -21,6 +21,12 @@ export function mergeStamp(existing: Stamp[], next: Stamp): Stamp[] {
   return [next, ...existing];
 }
 
+export function justReachedAlmost(prev: ProgressState | undefined, next: ProgressState): boolean {
+  if (next.status !== "almost") return false;
+  if (!prev) return true;
+  return prev.status !== "almost" && prev.status !== "perfect";
+}
+
 export function justReachedPerfect(prev: ProgressState | undefined, next: ProgressState): boolean {
   if (next.status !== "perfect") return false;
   if (!prev) return true;
