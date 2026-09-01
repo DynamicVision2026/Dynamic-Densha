@@ -298,12 +298,15 @@ export function evaluateProgress(
 
   const { kind, correct, nowIso, shapeAvailable, surfaceId, gentle } = event;
   const novelSurface = Boolean(surfaceId) && !prev.surfacesSeenSuccess.includes(surfaceId!);
+  const u2Shield = novelSurface && (prev.status === "almost" || prev.status === "perfect");
   const echoEligible = echoIsDue(prev, nowIso);
 
   if (prev.status === "perfect") {
     const decayed = maybeDecay(prev, nowIso, params);
     if (decayed.status !== "perfect") return decayed;
-    return { ...prev, lastPracticeAt: nowIso, attempts: prev.attempts + 1 };
+    if (correct) {
+      return { ...prev, lastPracticeAt: nowIso, attempts: prev.attempts + 1 };
+    }
   }
 
   let next: ProgressState = {
@@ -331,7 +334,7 @@ export function evaluateProgress(
   } else {
     next.lights[kind] = false;
     next.repairRequiredKinds = uniqueKinds([...next.repairRequiredKinds, kind]);
-    if (!novelSurface && !gentle) {
+    if (!u2Shield && !gentle) {
       next.wrongCountByKind[kind] = (next.wrongCountByKind[kind] ?? 0) + 1;
       next.consecutiveWrongByKind[kind] = (next.consecutiveWrongByKind[kind] ?? 0) + 1;
       next = applyFailureStatus(next, kind, params);
@@ -367,7 +370,7 @@ export function evaluateProgress(
       };
     }
     if (!correct) {
-      if (novelSurface || gentle) return next;
+      if (u2Shield || gentle) return next;
       return { ...next, status: "fix", echoSuccessCount: 0 };
     }
     return next;

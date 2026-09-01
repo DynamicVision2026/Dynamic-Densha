@@ -232,6 +232,49 @@ test("three novel failures do not send G1 to まよい", () => {
   let s = emptyProgress("花");
   s = evaluateProgress(s, { type: "completeEncounter", nowIso: NOW }, G1);
   s = evaluateProgress(s, { type: "completeUnderstand", nowIso: NOW }, G1);
+  s = evaluateProgress(
+    s,
+    {
+      type: "answer",
+      kind: "reading",
+      correct: true,
+      isEcho: false,
+      echoBatchDone: false,
+      nowIso: NOW,
+      shapeAvailable: true,
+      surfaceId: "花:solo",
+    },
+    G1,
+  );
+  s = evaluateProgress(
+    s,
+    {
+      type: "answer",
+      kind: "meaning",
+      correct: true,
+      isEcho: false,
+      echoBatchDone: false,
+      nowIso: NOW,
+      shapeAvailable: true,
+      surfaceId: "花:solo",
+    },
+    G1,
+  );
+  s = evaluateProgress(
+    s,
+    {
+      type: "answer",
+      kind: "shape",
+      correct: true,
+      isEcho: false,
+      echoBatchDone: false,
+      nowIso: NOW,
+      shapeAvailable: true,
+      surfaceId: "花:solo",
+    },
+    G1,
+  );
+  assert.equal(s.status, "almost");
   for (let i = 0; i < 3; i++) {
     s = evaluateProgress(
       s,
@@ -248,6 +291,7 @@ test("three novel failures do not send G1 to まよい", () => {
       G1,
     );
   }
+  assert.equal(s.status, "almost");
   assert.notEqual(s.status, "lost");
   assert.equal(s.wrongCountByKind.reading, 0);
   assert.equal(s.lights.reading, false);
