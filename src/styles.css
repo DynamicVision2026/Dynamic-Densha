@@ -25,12 +25,17 @@
   --color-status-fix-fg: #2a2416;
   --color-status-almost: #4a7ba7;
   --color-status-almost-fg: #f3f7fb;
-  --color-status-perfect: #3d7a5a;
-  --color-status-perfect-fg: #f3faf6;
+  --color-status-perfect: #B7CDA0;
+  --color-status-perfect-fg: #1C2B1E;
   --color-ticket-mint: #d7ebe0;
   --color-ticket-amber: #f0e0b8;
   --color-ticket-ink: #1c1916;
   --color-ring: #c45c48;
+  --color-car: #B7CDA0;
+  --color-car-strong: #8FA97A;
+  --color-car-fg: #1C2B1E;
+  --color-mist-far: #8fa39a;
+  --color-mist-near: #7c9188;
   --color-card: #fffbf3;
   --color-card-foreground: #1c1916;
   --color-muted: #ebe3d2;
@@ -64,6 +69,11 @@
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
   html,
   body,
@@ -309,6 +319,44 @@
 @keyframes couple-consist {
   from { opacity: 0; transform: translateX(-16px); }
   to { opacity: 1; transform: none; }
+}
+
+.welcome-landing-cta {
+  box-shadow: 0 14px 32px -14px rgb(196 92 72 / 0.45);
+  animation: welcome-cta-breathe 3.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-landing-cta {
+    animation: none;
+  }
+}
+@keyframes welcome-cta-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.015);
+  }
+}
+
+.welcome-landing-scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 70%, rgb(244 239 228 / 0.9) 100%);
+  pointer-events: none;
+}
+
+@keyframes return-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(61 122 90 / 0); }
+  40% { box-shadow: 0 0 12px 3px rgb(61 122 90 / 0.5); }
+}
+.return-glow {
+  animation: return-glow 1000ms ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .return-glow { animation: none; }
 }
 
 

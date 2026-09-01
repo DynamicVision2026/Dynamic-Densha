@@ -35,6 +35,8 @@ import {
   type SessionAlmostRow,
 } from "@/lib/session-almost";
 import { claimTicketPng } from "@/lib/ticket-png";
+import { playArrivalBeat } from "@/lib/arrival-audio";
+import { markGuestRidden } from "@/lib/guest-ride";
 import {
   pushCouplePending,
   takeCouplePending,
@@ -127,6 +129,9 @@ export function KanjiSession({
 }) {
   const { t } = useI18n();
   const tour = useAutoDemo();
+  useEffect(() => {
+    if (hrefHome === "/demo") markGuestRidden();
+  }, [hrefHome]);
   const kanji = getKanji(char);
   const params = getGradeParams(grade);
   const shape = shapeSurfaceAvailable(char);
@@ -175,6 +180,7 @@ export function KanjiSession({
   const itemsArmed = useRef(false);
   const answering = useRef(false);
   const afterReteach = useRef<BeatId>("practice");
+  const arrivalAudioPlayed = useRef(false);
   const echoDue = echoIsDue(progress, now);
   const staleEcho = echoIsStale(progress, now, params);
   const [announce, setAnnounce] = useState<ReturnType<typeof announcementFor> | null>(() =>
@@ -209,6 +215,29 @@ export function KanjiSession({
   useEffect(() => {
     return () => stopFixedAudio();
   }, [char, localBeat]);
+
+  useEffect(() => {
+    arrivalAudioPlayed.current = false;
+  }, [char]);
+
+  useEffect(() => {
+    if (localBeat !== "feedback" || lookMode) return;
+    if (arrivalAudioPlayed.current) return;
+    const pending = takeCouplePendingPeek();
+    const coupleNow =
+      progress.status === "perfect" && (Boolean(couple) || pending.includes(char));
+    const rows = sessionRows.length ? sessionRows : readSessionAlmost();
+    const showStub = shouldShowSessionStub({
+      reachedAlmostThisSession: stubOn,
+      retired: stubRetired(),
+      currentStatus: progress.status,
+      sessionHasPerfect: sessionHasPerfect() || Boolean(couple) || pending.includes(char),
+      glyphCount: rows.length,
+    });
+    if (!coupleNow && !showStub) return;
+    arrivalAudioPlayed.current = true;
+    return playArrivalBeat();
+  }, [localBeat, lookMode, progress.status, stubOn, couple, char, sessionRows]);
 
   useEffect(() => {
     echoArmed.current = false;

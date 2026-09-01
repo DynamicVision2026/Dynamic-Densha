@@ -92,7 +92,7 @@ test("overview is UI state on child home, not a peer route", () => {
   assert.match(home, /WelcomeOverview/);
   assert.match(home, /HubPlate/);
   assert.match(hub, /data-open-overview/);
-  assert.match(home, /landscape:w-\[40%\]/);
+  assert.match(home, /DepartureTicket/);
   assert.equal(/createFileRoute/.test(overview), false);
   assert.equal(/WatchDemoButton|loginParent|workshopTry/.test(home), false);
   assert.match(session, /CoupleBeat/);
@@ -119,18 +119,27 @@ test("overview is UI state on child home, not a peer route", () => {
 });
 
 test("switchback: nearer (lower) cars are larger; wrap resets to the opening frame", () => {
-  assert.match(SWITCHBACK_PATH, /M -80 412/);
-  assert.ok(scaleAt(412) > scaleAt(196));
-  assert.ok(scaleAt(412) > 0.85);
-  assert.ok(scaleAt(174) < 0.45);
+  assert.match(SWITCHBACK_PATH, /M -80 430/);
+  assert.ok(scaleAt(430) > scaleAt(180));
+  assert.ok(scaleAt(430) > 0.85);
+  assert.ok(scaleAt(60) < 0.45);
   assert.equal(wrapHead(2000, 5, 100), openingHead(4, 100));
   assert.equal(wrapHead(80, 5, 1000), 80);
   assert.ok(openingHead(4, 1200) <= 1200 * 0.4);
-  assert.equal(openingHead(4, 2000), FIRST_CLIMB_D + CAR_GAP);
+  assert.equal(openingHead(4, 2000), 88 + 5 * CAR_GAP);
   assert.ok(openingHead(0, 2000) < 200);
   assert.ok(openingHead(4, 2000) > openingHead(1, 2000));
   const longMin = 88 + 13 * CAR_GAP;
   assert.ok(openingHead(12, 2127) >= longMin);
+});
+
+test("switchback: hairpins are at least 60px radius", () => {
+  // Semicircle r = dy/2. Terraces at 430, 300, 180, 60 → dy 130, 120, 120.
+  const ys = [430, 300, 180, 60];
+  for (let i = 0; i < ys.length - 1; i++) {
+    const r = (ys[i]! - ys[i + 1]!) / 2;
+    assert.ok(r >= 60, `hairpin ${i} r=${r}`);
+  }
 });
 
 test("switchback: first landing is detected from the LUT; pose interpolates", () => {

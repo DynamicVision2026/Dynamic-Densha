@@ -43,7 +43,7 @@ import {
 } from "@/lib/demo-route";
 import type { StartBand } from "@/lib/grade-route";
 
-const KEY = "densha.demo.progress.v3";
+const KEY = "densha.demo.progress.v4";
 const EVENT_KEY = "densha.demo.events.v2";
 const ECHO_KEY = "densha.demo.echo-starts.v2";
 const STAMP_KEY = "densha.demo.stamps.v1";
@@ -157,38 +157,23 @@ function migrateDemo(all: Record<string, ProgressState>): {
   all: Record<string, ProgressState>;
   changed: boolean;
 } {
-  let changed = false;
-  const next = { ...all };
-  const seeded = seedMap();
-  for (const char of DEMO_CONSIST_CHARS) {
-    if (!next[char]) {
-      next[char] = seeded[char]!;
-      changed = true;
-    }
-  }
-  const couple = next[DEMO_COUPLE_CHAR];
-  if (!couple) {
-    next[DEMO_COUPLE_CHAR] = seeded[DEMO_COUPLE_CHAR]!;
-    changed = true;
-  }
-  return { all: next, changed };
+  // Do not inject the decorative door consist (一音下火) into a live guest record.
+  return { all, changed: false };
 }
 
 function readAll(): Record<string, ProgressState> {
-  if (typeof window === "undefined") return seedMap();
+  if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) {
-      const seeded = seedMap();
-      window.localStorage.setItem(KEY, JSON.stringify(seeded));
-      return seeded;
+      return {};
     }
     const parsed = JSON.parse(raw) as Record<string, ProgressState>;
     const { all, changed } = migrateDemo(parsed);
     if (changed) writeAll(all);
     return all;
   } catch {
-    return seedMap();
+    return {};
   }
 }
 

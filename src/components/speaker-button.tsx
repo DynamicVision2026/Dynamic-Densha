@@ -1,7 +1,21 @@
 import { useEffect, useState } from "react";
 import { lookupReadingAudio } from "@/data/reading-audio";
 import { hasAudioFailed, playFixedAudio, playingAudioUrl } from "@/lib/fixed-audio";
+import { isRideMuted, writeRideMuted } from "@/lib/arrival-audio";
 import { cn } from "@/lib/utils";
+
+function SpeakerGlyph({ crossed }: { crossed?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M8 8H5v8h3l5 4V4L8 8z" />
+      {crossed ? (
+        <path d="M16 9l5 6M21 9l-5 6" />
+      ) : (
+        <path d="M16.2 9.2a3.4 3.4 0 0 1 0 5.6" />
+      )}
+    </svg>
+  );
+}
 
 export function SpeakerButton({
   text,
@@ -50,10 +64,36 @@ export function SpeakerButton({
         onHeard?.();
       }}
     >
-      <svg viewBox="0 0 24 24" className="size-5" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M8 8H5v8h3l5 4V4L8 8z" />
-        <path d="M16.2 9.2a3.4 3.4 0 0 1 0 5.6" />
-      </svg>
+      <SpeakerGlyph />
+    </button>
+  );
+}
+
+export function RideMuteToggle({
+  mutedLabel,
+  soundLabel,
+}: {
+  mutedLabel: string;
+  soundLabel: string;
+}) {
+  const [muted, setMuted] = useState(() => isRideMuted());
+  return (
+    <button
+      type="button"
+      data-ride-mute
+      aria-pressed={muted}
+      aria-label={muted ? soundLabel : mutedLabel}
+      className={cn(
+        "inline-grid size-11 shrink-0 place-items-center rounded-full border border-border bg-surface text-fg shadow-soft",
+        "hover:bg-bg-warm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      )}
+      onClick={() => {
+        const next = !muted;
+        writeRideMuted(next);
+        setMuted(next);
+      }}
+    >
+      <SpeakerGlyph crossed={muted} />
     </button>
   );
 }
