@@ -8,6 +8,7 @@ import { readActiveChildId, writeActiveChildId } from "@/lib/active-child";
 import { resolveActiveGrade, usePersistActiveGrade } from "@/lib/active-grade";
 import { gradeSearchFrom } from "@/lib/grade-nav";
 import { listChildren } from "@/lib/server/children";
+import { maybeImportGuestProgress } from "@/lib/guest-migrate-client";
 import { getHomeState, getMapState } from "@/lib/server/progress";
 import type { Grade } from "@/data/kyoiku";
 
@@ -39,6 +40,11 @@ function AppHome() {
     setChildId(next);
     writeActiveChildId(next);
   }, [childrenQ.data, navigate]);
+
+  useEffect(() => {
+    if (!childId) return;
+    void maybeImportGuestProgress(childId);
+  }, [childId]);
 
   const current = useMemo(
     () => childrenQ.data?.find((c) => c.id === childId),

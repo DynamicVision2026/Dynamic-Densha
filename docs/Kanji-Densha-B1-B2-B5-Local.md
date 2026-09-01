@@ -2,7 +2,7 @@
 
 Local only. Not a GitHub wiki. Branch `ticket/b1-surface-seen`. Do not push until 准许 push.
 
-B3 / B4 deferred. P-Save / P-Migrate locked: no ほぞんする, no guest localStorage import.
+B1 / B2 / B5 already accepted (34 tests). B3 + B4 on this branch.
 
 ---
 
@@ -65,7 +65,32 @@ almost --echo 2 pass--> perfect
 
 Dual echo. U2 loops on almost/perfect. New miss → fix.
 
-## Locked, not started
+---
 
-- P-Save / P-Migrate still locked
-- B3 / B4 not started
+## B3 pass — child ride has no ほぞんする
+
+`rg` on `src/components` for `ほぞんする` is empty. 到着 is two kana lines + **ボードへ** / **れっしゃを みる** only (fix/lost still れんしゅうへ). No child save modal, no あとで.
+
+Parent-side save prompt is **not** built here (later, `/parents`). `guestSavePromote` copy stays on demo parent page only — that is login/parent copy, not the child ride.
+
+This branch was cut from `main` `f0f976d`. The child ほぞんする prompt lives on `release/entrance-page` (PR #6), **not** on this branch. Do **not** merge PR #6 guest-ride / child save modal onto this branch. `src/lib/guest-ride.ts` must stay absent.
+
+## B4 pass — option 3 import
+
+After login, when the parent first has a child id, `importGuestProgress` runs once (`densha.guest.migrated.v1`). Guest localStorage is **not** deleted.
+
+- KEEP: status, lights, encounter/understand, surfacesSeenSuccess, repair kinds, wrong counters, echoSuccessCount
+- DROP guest timestamps (echoDueAt, almostAt, perfectAt, seenAt, lastPracticeAt, inspection due)
+- REBUILD from **serverNow** (never the device clock)
+  - almost → `echoDueAt = serverNow + echo_delay_hours` (or `echo_second_delay_hours` if echoSuccessCount ≥ 1)
+  - perfect kept only if echoSuccessCount ≥ 2; else clamp to almost and schedule echo from serverNow
+  - inspections.due_at = serverNow + existing 点検 cadence (60d first)
+- Writes via `saveProgress` + `surface_seen` dual-write
+- Does **not** call `evaluateProgress`
+- Skips decorative door cars (`音` `下` `火`) and seed-only rows (`attempts === 0`)
+
+## Locked, waiting
+
+- P-Save child modal must not return (PR #6)
+- Parent `/parents` save prompt not built
+- Still waiting **准许 push**

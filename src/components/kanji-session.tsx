@@ -678,13 +678,14 @@ export function KanjiSession({
             to={hrefHome}
             search={homeSearch}
             data-couple-next
+            data-to-board
             onClick={() => {
               takeCouplePending();
               writeOverviewIntent({ open: false, glow: coupleChars });
             }}
             className="inline-flex h-[88px] w-full items-center justify-center rounded-xl border border-border bg-surface font-display text-xl text-fg-muted"
           >
-            {t("next")}
+            {t("toBoard")}
           </Link>
         </div>
       );
@@ -731,13 +732,28 @@ export function KanjiSession({
             {t("continuePractice")}
           </Button>
         ) : (
-          <Link
-            to={hrefHome}
-            search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
-            className="inline-flex h-[88px] w-full items-center justify-center rounded-xl bg-primary font-display text-xl text-primary-fg"
-          >
-            {t("next")}
-          </Link>
+          <div className="space-y-3">
+            <Link
+              to={hrefHome}
+              search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
+              data-to-board
+              onClick={() => writeOverviewIntent({ open: false })}
+              className="inline-flex h-[88px] w-full items-center justify-center rounded-xl bg-primary font-display text-xl text-primary-fg"
+            >
+              {t("toBoard")}
+            </Link>
+            <Link
+              to={hrefHome}
+              search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
+              data-see-train
+              onClick={() =>
+                writeOverviewIntent({ open: true, focusChar: kanji.char })
+              }
+              className="inline-flex h-[88px] w-full items-center justify-center rounded-xl border border-border bg-surface font-display text-xl text-fg-muted"
+            >
+              {t("seeTrain")}
+            </Link>
+          </div>
         )}
       </div>
     );

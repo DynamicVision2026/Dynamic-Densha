@@ -429,3 +429,19 @@ export function nextArrivalFrom(
     dueIso,
   };
 }
+
+/** Schedule 残響 from server now. Import uses this — never the device clock. */
+export function scheduleEchoFromNow(
+  nowIso: string,
+  params: Pick<EvalParams, "echo_delay_hours" | "echo_second_delay_hours">,
+  echoSuccessCount: number,
+): { almostAt: string; echoDueAt: string } {
+  const delayH =
+    echoSuccessCount >= 1
+      ? (params.echo_second_delay_hours ?? DEFAULT_SECOND_ECHO_HOURS)
+      : params.echo_delay_hours;
+  return {
+    almostAt: nowIso,
+    echoDueAt: new Date(Date.parse(nowIso) + delayH * 3600 * 1000).toISOString(),
+  };
+}
