@@ -311,4 +311,15 @@
   to { opacity: 1; transform: none; }
 }
 
+@keyframes return-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(61 122 90 / 0); }
+  40% { box-shadow: 0 0 12px 3px rgb(61 122 90 / 0.5); }
+}
+.return-glow {
+  animation: return-glow 1000ms ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .return-glow { animation: none; }
+}
+
 

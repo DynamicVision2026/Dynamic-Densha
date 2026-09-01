@@ -20,6 +20,7 @@ export function HomeLineStrip({
   childId,
   grade,
   onOpenMap,
+  glowChars,
 }: {
   cars: StripCar[];
   currentChar?: string;
@@ -27,6 +28,7 @@ export function HomeLineStrip({
   childId?: string;
   grade: Grade;
   onOpenMap: () => void;
+  glowChars?: string[];
 }) {
   const { t } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
@@ -83,6 +85,7 @@ export function HomeLineStrip({
             status={car.status}
             echoDue={car.echoDue}
             current={car.char === currentChar}
+            glow={Boolean(glowChars?.includes(car.char))}
             to={rideTo}
             search={search}
           />
@@ -97,6 +100,7 @@ function StripStation({
   status,
   echoDue,
   current,
+  glow,
   to,
   search,
 }: {
@@ -104,6 +108,7 @@ function StripStation({
   status: MasteryStatus;
   echoDue?: boolean;
   current?: boolean;
+  glow?: boolean;
   to: "/demo/kanji/$char" | "/app/kanji/$char";
   search: { child?: string; grade: Grade };
 }) {
@@ -115,6 +120,7 @@ function StripStation({
       params={{ char }}
       search={search}
       data-strip-car={char}
+      data-return-glow={glow || undefined}
       data-tour={`car-${char}`}
       className="flex snap-center flex-col items-center gap-1"
     >
@@ -123,6 +129,7 @@ function StripStation({
           "relative grid size-11 place-items-center rounded-md font-display text-xl leading-none",
           meta.className,
           current && "ring-2 ring-fg",
+          glow && "return-glow",
         )}
       >
         {char}

@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAutoDemo } from "@/components/auto-demo";
 import { ChildShell } from "@/components/child-shell";
 import { DepartureTicket } from "@/components/departure-ticket";
@@ -10,6 +10,13 @@ import { ParentDoor } from "@/components/parent-door";
 import { WelcomeOverview } from "@/components/welcome-overview";
 import type { MapLineView } from "@/components/route-map";
 import type { DepartureBoard } from "@/lib/departure-board";
+import { prefersReducedMotion } from "@/lib/arrival-audio";
+import {
+  perfectConsist,
+  planReturnMoment,
+  readConsistSeen,
+  writeConsistSeen,
+} from "@/lib/consist-seen";
 import {
   boardStageCards,
   pickDeparture,
@@ -54,6 +61,8 @@ export function ChildHome({
   const [focusGrade, setFocusGrade] = useState<Grade>(grade);
   const [focusChar, setFocusChar] = useState<string | undefined>();
   const [glow, setGlow] = useState<string[]>([]);
+  const [returnGlow, setReturnGlow] = useState<string[]>([]);
+  const consistSnapshot = useRef<string[] | null>(null);
   const cards = useMemo(
     () => boardStageCards({ board, echoQueue, cars }),
     [board, echoQueue, cars],
@@ -88,6 +97,31 @@ export function ChildHome({
     }
   }, []);
 
+  useEffect(() => {
+    const consist = perfectConsist(cars);
+    const plan = planReturnMoment({
+      consist,
+      snapshot: readConsistSeen(),
+      reducedMotion: prefersReducedMotion(),
+    });
+    consistSnapshot.current = plan.nextSnapshot;
+    if (plan.glow.length === 0) {
+      writeConsistSeen(plan.nextSnapshot);
+      return;
+    }
+    setReturnGlow(plan.glow);
+    const id = window.setTimeout(() => {
+      setReturnGlow([]);
+      writeConsistSeen(plan.nextSnapshot);
+    }, plan.holdMs);
+    return () => window.clearTimeout(id);
+  }, [cars]);
+
+  function skipReturnGlow() {
+    setReturnGlow([]);
+    writeConsistSeen(consistSnapshot.current ?? perfectConsist(cars));
+  }
+
   function openOverview(opts?: { char?: string }) {
     setMapOpen(false);
     setFocusGrade(grade);
@@ -103,6 +137,7 @@ export function ChildHome({
   const glyphs = cards.map((c) => c.kanji);
 
   function rideFromTicket() {
+    skipReturnGlow();
     void navigate({
       to: rideTo,
       params: { char: depart.kanji },
@@ -154,6 +189,7 @@ export function ChildHome({
               childId={childId}
               grade={grade}
               onOpenMap={() => setMapOpen(true)}
+              glowChars={returnGlow}
             />
             <ParentDoor to={parentTo} />
           </header>

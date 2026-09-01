@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useAutoDemo } from "@/components/auto-demo";
 import { ChildShell } from "@/components/child-shell";
+import { RideMuteToggle } from "@/components/speaker-button";
 import type { BeatId } from "@/lib/progress-eval";
 import { parseGrade } from "@/lib/grade-nav";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -63,6 +64,7 @@ export function RideShell({
           ))}
         </ol>
         <p className="min-w-11 text-right font-display text-xl leading-none">{char}</p>
+        <RideMuteToggle mutedLabel={t("rideMute")} soundLabel={t("rideUnmute")} />
       </header>
       <div
         data-ride-body
