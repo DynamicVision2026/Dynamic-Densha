@@ -11,6 +11,7 @@ import { doorRings } from "@/lib/door-scene";
 import { DEMO_CHILD, getDemoHome, getDemoMap } from "@/lib/demo-progress";
 import { hasGuestRidden } from "@/lib/guest-ride";
 import { useI18n } from "@/lib/i18n/i18n";
+import { useNow } from "@/lib/use-now";
 
 export const Route = createFileRoute("/")({ component: Home, ssr: false });
 
@@ -36,6 +37,9 @@ function GuestChildHome() {
     profileGrade: DEMO_CHILD.grade,
   });
   usePersistActiveGrade(viewGrade);
+  // Re-render on visibilitychange/focus/midnight so a board left open
+  // overnight rebuilds from a fresh clock instead of freezing at mount (PI-3).
+  useNow();
   const home = getDemoHome(viewGrade);
   const map = getDemoMap(viewGrade);
   const cars = home.trains.flatMap((t) =>
@@ -67,7 +71,7 @@ function WelcomeLanding() {
       className="paper-wash fixed inset-0 flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none"
     >
       <div className="mx-auto flex h-full min-h-0 w-full max-w-[1440px] flex-col md:flex-row">
-        <div className="relative z-[3] flex shrink-0 flex-col gap-3 px-5 pt-[max(1.15rem,env(safe-area-inset-top))] pb-3 md:min-w-[320px] md:max-w-[420px] md:shrink md:justify-center md:gap-5 md:px-10 md:pb-0 lg:max-w-[480px] lg:px-14">
+        <div className="relative z-[3] flex shrink-0 flex-col gap-3 overflow-y-auto px-5 pt-[max(1.15rem,env(safe-area-inset-top))] pb-3 md:min-w-[320px] md:max-w-[420px] md:shrink md:justify-center md:gap-5 md:px-10 md:pb-0 lg:max-w-[480px] lg:px-14">
           <div className="flex items-start justify-between gap-3">
             <p className="text-[11px] font-medium tracking-[0.22em] text-fg-subtle">{t("heroKicker")}</p>
             <LanguageSwitcher />
@@ -111,7 +115,7 @@ function WelcomeLanding() {
           <p className="-mt-2 text-sm leading-6 text-fg">{t("doorTrustPrice")}</p>
         </div>
 
-        <div className="relative flex min-h-0 flex-1">
+        <div className="relative flex min-h-0 flex-1 [@media(max-height:480px)]:hidden">
           <WelcomeOverview
             rings={rings}
             profileGrade={1}

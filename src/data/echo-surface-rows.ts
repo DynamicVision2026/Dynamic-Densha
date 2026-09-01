@@ -57,3 +57,30 @@ export function w(
     creditsReading: true,
   };
 }
+
+/**
+ * 熟字訓 / irregular-reading word: `reading` names the char's own taught
+ * reading for grouping only — this word does not actually pronounce the
+ * character that way (明日 is あした, not ミョウ+じつ), so it must never light
+ * or test the reading lamp. Meaning-only; never appears in a reading quiz.
+ */
+export function wIrregular(
+  text: string,
+  reading: string,
+  kana: string,
+  meaningJa: string,
+  frame?: string,
+  id?: string,
+): SurfaceRow {
+  return {
+    text,
+    reading,
+    kana,
+    meaningJa,
+    frame,
+    id,
+    kind: "word",
+    used_for_lights: ["meaning"],
+    creditsReading: false,
+  };
+}

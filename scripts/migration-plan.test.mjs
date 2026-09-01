@@ -57,9 +57,16 @@ test("non-.sql entries are dropped (readdir also yields the auth/ directory)", (
 });
 
 test("the auth schema ships outside the globbed directory", () => {
+  // This app has sign-in on, so 0001_auth.sql is already copied up into the
+  // globbed migrations/ directory. Once a database has applied it (by
+  // basename), re-globbing that directory must not list it as pending again —
+  // while every other real migration still is. And migrations/auth/0001_auth.sql,
+  // the canonical (never-globbed) source, must still exist to copy from.
   const migrationsDir = join(projectRoot(), "migrations");
-  assert.deepEqual(pendingMigrations(readdirSync(migrationsDir), []), []);
-  assert.ok(readdirSync(join(migrationsDir, "auth")).includes("0001_auth.sql"));
+  const pending = pendingMigrations(readdirSync(migrationsDir), [AUTH_MIGRATION]);
+  assert.ok(pending.length > 0, "expected other real migrations to remain pending");
+  assert.ok(!pending.some(({ name }) => name === AUTH_MIGRATION));
+  assert.ok(readdirSync(join(migrationsDir, "auth")).includes(AUTH_MIGRATION));
 });
 
 test("this workspace's auth schema copy is byte-identical to its source", () => {

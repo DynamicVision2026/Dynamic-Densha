@@ -134,7 +134,10 @@ function StripStation({
       >
         {char}
         {echoDue ? (
-          <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-engine" aria-hidden />
+          <span
+            className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-fg bg-transparent"
+            aria-hidden
+          />
         ) : null}
       </span>
     </Link>

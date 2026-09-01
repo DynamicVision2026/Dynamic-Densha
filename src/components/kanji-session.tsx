@@ -22,7 +22,9 @@ import {
   writeLastStation,
 } from "@/lib/announcements";
 import { markEchoTaughtToday, wasEchoTaughtToday } from "@/lib/echo-teach";
+import { echoArrivalWhen } from "@/lib/echo-arrival";
 import { justReachedAlmost, justReachedPerfect } from "@/lib/stamps";
+import { useNow } from "@/lib/use-now";
 import {
   earliestArrival,
   readSessionAlmost,
@@ -129,6 +131,7 @@ export function KanjiSession({
 }) {
   const { t } = useI18n();
   const tour = useAutoDemo();
+  const liveNow = useNow();
   useEffect(() => {
     if (hrefHome === "/demo") markGuestRidden();
   }, [hrefHome]);
@@ -390,7 +393,13 @@ export function KanjiSession({
   const rideReady = encounterDwell.ready && !busy;
   const understandReady =
     understandDwell.ready && canFinishUnderstand && listenOk && !busy;
-  const arrivalWhen = engineArrival?.label ?? "";
+  // Recomputed from the stable dueIso on every liveNow tick (visibilitychange,
+  // focus, next-JST-midnight) rather than trusted as a frozen snapshot string,
+  // so a ticket left open across a day boundary flips from あした to きょう.
+  function freshWhen(dueIso: string | null | undefined, fallback: string): string {
+    return dueIso ? echoArrivalWhen(dueIso, liveNow, t) : fallback;
+  }
+  const arrivalWhen = freshWhen(engineArrival?.dueIso, engineArrival?.label ?? "");
 
   const kicker = (
     <p
@@ -748,6 +757,7 @@ export function KanjiSession({
     } else {
     const rows = sessionRows.length ? sessionRows : readSessionAlmost();
     const arrival = earliestArrival(rows);
+    const arrivalLabel = freshWhen(arrival?.dueIso, arrival?.label || arrivalWhen || t("echoArrivalToday"));
     const stubGlyphs = rows.map((r) => r.kanji);
     const showStub = shouldShowSessionStub({
       reachedAlmostThisSession: stubOn,
@@ -764,7 +774,7 @@ export function KanjiSession({
     stage = showStub ? (
       <SessionStub
         glyphs={stubGlyphs}
-        returnLabel={arrival?.label || arrivalWhen || t("echoArrivalToday")}
+        returnLabel={arrivalLabel}
         serial={serial}
         issueDay={arrival?.dueLocalDate || ""}
         domain={t("stubDomain")}
@@ -823,7 +833,7 @@ export function KanjiSession({
                   onClick={() => {
                     void claimTicketPng({
                       glyphs: stubGlyphs,
-                      returnLabel: arrival?.label || arrivalWhen || t("echoArrivalToday"),
+                      returnLabel: arrivalLabel,
                       serial,
                       issueDay: arrival?.dueLocalDate || "",
                       domain: t("stubDomain"),

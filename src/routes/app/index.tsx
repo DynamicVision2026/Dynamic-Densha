@@ -10,6 +10,7 @@ import { gradeSearchFrom } from "@/lib/grade-nav";
 import { listChildren } from "@/lib/server/children";
 import { maybeImportGuestProgress } from "@/lib/guest-migrate-client";
 import { getHomeState, getMapState } from "@/lib/server/progress";
+import { useNow } from "@/lib/use-now";
 import type { Grade } from "@/data/kyoiku";
 
 export const Route = createFileRoute("/app/")({
@@ -63,8 +64,12 @@ function AppHome() {
     }
   }, [childId, search.grade, viewGrade, navigate]);
 
+  // Re-render on visibilitychange/focus/midnight and fold the tick into the
+  // query key so a board left open overnight refetches from the server's
+  // current clock instead of freezing at the last fetch (PI-3).
+  const nowTick = useNow();
   const homeQ = useQuery({
-    queryKey: ["home", childId, viewGrade],
+    queryKey: ["home", childId, viewGrade, nowTick],
     queryFn: () => getHomeState({ data: { childId: childId!, grade: viewGrade } }),
     enabled: Boolean(childId),
   });

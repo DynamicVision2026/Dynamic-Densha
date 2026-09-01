@@ -202,17 +202,23 @@ test("site title Grok App is a real name, not a sentinel", () => {
 });
 
 test("published grok.me slug is still a title fallback", () => {
+  // Isolated cwd: this repo's own src/lib/og/site.json has a real title, which
+  // would otherwise win over the host-slug fallback this test exercises.
+  const root = mkdtempSync(join(tmpdir(), "grok-og-iso-"));
   const out = injectGrokPwaHead("<html><head></head></html>", {
     host: "wild-race.grok.me",
+    cwd: root,
   });
   assert.match(out, /property="og:title" content="Wild Race"/);
 });
 
 test("emits og:image for a public host and prefers a custom card", () => {
+  const root = mkdtempSync(join(tmpdir(), "grok-og-iso-"));
   const placeholder = injectGrokPwaHead("<html><head></head></html>", {
     appName: "Wild Race",
     host: "wild-race.grok.me",
     site: { title: "Wild Race" },
+    cwd: root,
   });
   assert.match(
     placeholder,
@@ -224,15 +230,18 @@ test("emits og:image for a public host and prefers a custom card", () => {
     appName: "Wild Race",
     host: "wild-race.grok.me",
     site: { title: "Wild Race", card: "custom", type: "x:game" },
+    cwd: root,
   });
   assert.match(custom, /property="og:image" content="https:\/\/wild-race\.grok\.me\/og\.jpg"/);
   assert.match(custom, /property="og:type" content="x:game"/);
 });
 
 test("placeholder og:image appends site.color when it is 6-digit hex", () => {
+  const root = mkdtempSync(join(tmpdir(), "grok-og-iso-"));
   const themed = injectGrokPwaHead("<html><head></head></html>", {
     host: "wild-race.grok.me",
     site: { title: "Wild Race", color: "#FF4D2E" },
+    cwd: root,
   });
   assert.match(
     themed,
@@ -242,12 +251,14 @@ test("placeholder og:image appends site.color when it is 6-digit hex", () => {
   const invalid = injectGrokPwaHead("<html><head></head></html>", {
     host: "wild-race.grok.me",
     site: { title: "Wild Race", color: "red" },
+    cwd: root,
   });
   assert.doesNotMatch(invalid, /color=/);
 
   const custom = injectGrokPwaHead("<html><head></head></html>", {
     host: "wild-race.grok.me",
     site: { title: "Wild Race", card: "custom", color: "FF4D2E" },
+    cwd: root,
   });
   assert.doesNotMatch(custom, /color=/);
 });
@@ -269,7 +280,8 @@ test("site.json title wins over the host slug", () => {
 });
 
 test("injects into documents with no head element", () => {
-  const out = injectGrokPwaHead("<html><body>hi</body></html>", { appName: "Solo" });
+  const root = mkdtempSync(join(tmpdir(), "grok-og-iso-"));
+  const out = injectGrokPwaHead("<html><body>hi</body></html>", { appName: "Solo", cwd: root });
   assert.match(out, /<head>/);
   assert.match(out, /property="og:title" content="Solo"/);
   assert.match(out, /<\/head>/);
@@ -301,7 +313,8 @@ test("is idempotent", () => {
 });
 
 test("uses the app name in the injected title tag", () => {
-  const out = injectGrokPwaHead("<html><head></head></html>", { appName: "Wild Race" });
+  const root = mkdtempSync(join(tmpdir(), "grok-og-iso-"));
+  const out = injectGrokPwaHead("<html><head></head></html>", { appName: "Wild Race", cwd: root });
   assert.match(out, /apple-mobile-web-app-title" content="Wild Race"/);
 });
 

@@ -1,4 +1,4 @@
-import { w, type SurfaceRow } from "./echo-surface-rows.ts";
+import { w, wIrregular, type SurfaceRow } from "./echo-surface-rows.ts";
 
 /** W6.1 G3–G6: +15pp second distinct words where lexicon is easy. */
 export const ECHO_SURFACES_W61_G3G6: Record<string, SurfaceRow[]> = {
@@ -77,7 +77,7 @@ export const ECHO_SURFACES_W61_G3G6: Record<string, SurfaceRow[]> = {
   察: [w("観察", "サツ", "かんさつ", "かんさつ")],
   氏: [w("氏姓", "シ", "しせい", "しせい")],
   司: [w("司令", "シ", "しれい", "しれい")],
-  児: [w("小児", "ジ", "しょうに", "しょうに")],
+  児: [w("児童", "ジ", "じどう", "こどものこと"), wIrregular("小児", "ジ", "しょうに", "しょうに")],
   辞: [w("辞典", "ジ", "じてん", "じてん")],
   臣: [w("忠臣", "シン", "ちゅうしん", "ちゅうしん")],
   信: [w("信号", "シン", "しんごう", "しんごう")],
@@ -90,7 +90,7 @@ export const ECHO_SURFACES_W61_G3G6: Record<string, SurfaceRow[]> = {
   徒: [w("徒歩", "ト", "とほ", "とほ")],
   特: [w("特色", "トク", "とくしょく", "とくしょく")],
   念: [w("念願", "ネン", "ねんがん", "ねんがん")],
-  博: [w("博士", "ハク", "はかせ", "はかせ")],
+  博: [w("博物館", "ハク", "はくぶつかん", "いろいろな ものが ある たてもの"), wIrregular("博士", "ハク", "はかせ", "はかせ")],
   票: [w("票数", "ヒョウ", "ひょうすう", "ひょうすう")],
   標: [w("標準", "ヒョウ", "ひょうじゅん", "ひょうじゅん")],
   不: [w("不安", "フ", "ふあん", "ふあん")],

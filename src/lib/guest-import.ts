@@ -78,11 +78,21 @@ export function parseGuestProgressMap(raw: unknown): GuestProgressPayload[] {
 /**
  * Option 3: keep lamps + five-state. Re-derive echo / 点検 from serverNow.
  * Status is copied, not re-scored.
+ *
+ * PI-6: a claimed "perfect" (echoSuccessCount >= 2) is only trusted when
+ * `attestedElapsedMs` shows real wall-clock time (server-attested, not the
+ * guest device's own clock) actually separated the two echo successes by at
+ * least `echo_second_delay_hours`. Omit the argument (undefined) to trust the
+ * claim as before — existing callers and tests that never gathered
+ * attestations keep working. Pass `null` when attestations are missing, or a
+ * too-small number, to force the same demotion the echoSuccessCount < 2
+ * branch already gets.
  */
 export function rebuildImportedProgress(
   guest: GuestProgressPayload,
   serverNow: string,
   childGrade = 1,
+  attestedElapsedMs?: number | null,
 ): { progress: ProgressState; inspection: InspectionRow | null } {
   const params = getGradeParams(getKanji(guest.kanji)?.grade ?? childGrade);
   const kept: ProgressState = {
@@ -120,7 +130,11 @@ export function rebuildImportedProgress(
   }
 
   if (guest.status === "perfect") {
-    if (guest.echoSuccessCount >= 2) {
+    const requiredMs = params.echo_second_delay_hours * 3600 * 1000;
+    const verified =
+      attestedElapsedMs === undefined ||
+      (attestedElapsedMs !== null && attestedElapsedMs >= requiredMs);
+    if (guest.echoSuccessCount >= 2 && verified) {
       return {
         progress: {
           ...kept,

@@ -48,3 +48,30 @@ export function guestSavePromptedThisSession(): boolean {
 export function markGuestSavePrompted() {
   writeFlag(sessionStore(), SAVE_PROMPT_KEY);
 }
+
+const GUEST_SESSION_ID_KEY = "densha.guest.session-id.v1";
+
+/**
+ * Correlation key only — never an identity. Lets the server attest, per echo,
+ * that real elapsed time passed between a guest's two echo successes for a
+ * given kanji (see guest-echo-attempts.ts / PI-6), independent of the guest
+ * device's own clock. Not sent anywhere except that attestation call, and not
+ * imported into the account on login (guest-migrate-client.ts sends it once
+ * for verification, then it's never needed again).
+ */
+export function guestSessionId(): string {
+  const storage = localStore();
+  if (!storage) return "";
+  try {
+    const existing = storage.getItem(GUEST_SESSION_ID_KEY);
+    if (existing) return existing;
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `g-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    storage.setItem(GUEST_SESSION_ID_KEY, id);
+    return id;
+  } catch {
+    return "";
+  }
+}

@@ -75,6 +75,31 @@ test("perfect + echoSuccessCount 0 or 1 → clamped to almost, new echoDueAt", (
   }
 });
 
+test("PI-6: perfect claim with missing attestation evidence is demoted to almost", () => {
+  const guest = almostGuest({ kanji: "円", status: "perfect", echoSuccessCount: 2 });
+  const { progress, inspection } = rebuildImportedProgress(guest, NOW, 1, null);
+  assert.equal(progress.status, "almost");
+  assert.equal(progress.perfectAt, null);
+  assert.equal(inspection, null);
+  assert.ok(progress.echoDueAt);
+  assert.equal(progress.echoDueAt, scheduleEchoFromNow(NOW, G1, 2).echoDueAt);
+});
+
+test("PI-6: perfect claim with too-short attested gap is demoted to almost", () => {
+  const guest = almostGuest({ kanji: "円", status: "perfect", echoSuccessCount: 2 });
+  const tooShortMs = G1.echo_second_delay_hours * 3600 * 1000 - 1;
+  const { progress } = rebuildImportedProgress(guest, NOW, 1, tooShortMs);
+  assert.equal(progress.status, "almost");
+});
+
+test("PI-6: perfect claim with a real attested gap stays perfect", () => {
+  const guest = almostGuest({ kanji: "円", status: "perfect", echoSuccessCount: 2 });
+  const realMs = G1.echo_second_delay_hours * 3600 * 1000;
+  const { progress, inspection } = rebuildImportedProgress(guest, NOW, 1, realMs);
+  assert.equal(progress.status, "perfect");
+  assert.ok(inspection?.dueAt);
+});
+
 test("lights and surfacesSeenSuccess copied", () => {
   const guest = almostGuest({
     lights: { reading: true, meaning: false, shape: true },
