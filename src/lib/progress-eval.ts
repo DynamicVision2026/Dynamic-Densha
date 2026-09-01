@@ -1,4 +1,6 @@
 import type { MasteryStatus, PracticeKind } from "./mastery";
+import type { MessageKey } from "./i18n/messages.ts";
+import { echoArrival, echoArrivalWhen, ymdInZone } from "./echo-arrival.ts";
 
 /**
  * Timestamps are ISO-8601 UTC. Echo due is an absolute delay from `almost_at`
@@ -397,4 +399,33 @@ export function suggestBeat(
 
 export function utcDay(iso: string): string {
   return iso.slice(0, 10);
+}
+
+export type NextArrival = {
+  label: string;
+  days: number;
+  dueLocalDate: string | null;
+  dueIso: string | null;
+};
+
+type ArrivalT = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+/**
+ * Next 残響 copy. UI prints `label` only — no second calendar.
+ * new / fix / lost / perfect → null. Overdue Tokyo day is still きょう.
+ */
+export function nextArrivalFrom(
+  state: ProgressState,
+  nowIso: string,
+  t: ArrivalT,
+): NextArrival | null {
+  if (state.status !== "almost" || !state.echoDueAt) return null;
+  const dueIso = state.echoDueAt;
+  const { n } = echoArrival(dueIso, nowIso);
+  return {
+    label: echoArrivalWhen(dueIso, nowIso, t),
+    days: n,
+    dueLocalDate: ymdInZone(dueIso),
+    dueIso,
+  };
 }

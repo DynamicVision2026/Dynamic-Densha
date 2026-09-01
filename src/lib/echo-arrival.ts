@@ -1,4 +1,5 @@
 import type { MessageKey } from "./i18n/messages.ts";
+import { MESSAGES } from "./i18n/messages.ts";
 
 /** Relative next-残響 copy. JA calendar (Asia/Tokyo). Never “overdue / 遅れ”. */
 
@@ -54,4 +55,14 @@ export function echoArrivalWhen(
   const { kind, n } = echoArrival(dueIso, nowIso, timeZone);
   const key = echoArrivalMessage(kind);
   return kind === "inDays" ? t(key, { n }) : t(key);
+}
+
+/** Product-default JA table for engine/server callers that have no React i18n. */
+export function jaArrivalT(
+  key: MessageKey,
+  vars?: Record<string, string | number>,
+): string {
+  const raw = MESSAGES.ja[key] ?? key;
+  if (!vars) return raw;
+  return raw.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ""));
 }

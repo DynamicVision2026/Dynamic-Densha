@@ -13,9 +13,11 @@ import {
   emptyProgress,
   evaluateProgress,
   hydrateProgress,
+  nextArrivalFrom,
   utcDay,
   type ProgressState,
 } from "@/lib/progress-eval";
+import { jaArrivalT } from "@/lib/echo-arrival";
 import { getItem, gradeChoice, shapeSurfaceAvailable } from "@/lib/items";
 import { mapLinesFor } from "@/lib/lines";
 import { justReachedPerfect, stampFromPerfect, type Stamp } from "@/lib/stamps";
@@ -377,6 +379,7 @@ export const getKanjiStudy = createServerFn({ method: "GET" })
     return {
       child,
       progress,
+      nextArrival: nextArrivalFrom(progress, now, jaArrivalT),
       unlocked: true,
       echoOn: echoAvailable(progress, now, started, p),
       gradePerfect: rings.find((r) => r.grade === charGrade)?.perfect ?? 0,
@@ -395,7 +398,7 @@ export const completeEncounter = createServerFn({ method: "POST" })
       paramsForChar(data.char, child.grade),
     );
     await saveProgress(context.userId, data.childId, next);
-    return { progress: next };
+    return { progress: next, nextArrival: nextArrivalFrom(next, now, jaArrivalT) };
   });
 
 export const completeUnderstand = createServerFn({ method: "POST" })
@@ -410,7 +413,7 @@ export const completeUnderstand = createServerFn({ method: "POST" })
       paramsForChar(data.char, child.grade),
     );
     await saveProgress(context.userId, data.childId, next);
-    return { progress: next };
+    return { progress: next, nextArrival: nextArrivalFrom(next, now, jaArrivalT) };
   });
 
 export const submitPractice = createServerFn({ method: "POST" })
@@ -476,6 +479,7 @@ export const submitPractice = createServerFn({ method: "POST" })
       correct: graded.correct,
       label: graded.label,
       progress: next,
+      nextArrival: nextArrivalFrom(next, now, jaArrivalT),
       gradePerfect: buildGradeRings({
         progress: (() => {
           const nextMap = new Map(map);

@@ -160,10 +160,7 @@ export function ChildHome({
                 {board?.tomorrow[0] ? (
                   <p className="mt-2 text-xs text-fg-subtle">
                     {t("echoArrival", {
-                      when:
-                        board.tomorrow[0].when === "dayAfter"
-                          ? t("echoArrivalDayAfter")
-                          : t("echoArrivalTomorrow"),
+                      when: board.tomorrow[0].label ?? t("echoArrivalTomorrow"),
                     })}
                   </p>
                 ) : null}

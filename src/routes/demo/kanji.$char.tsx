@@ -14,7 +14,7 @@ import {
 import { parseGrade } from "@/lib/grade-nav";
 import { PRACTICE_KINDS, type PracticeKind } from "@/lib/mastery";
 import { useI18n } from "@/lib/i18n/i18n";
-import type { ProgressState } from "@/lib/progress-eval";
+import type { NextArrival, ProgressState } from "@/lib/progress-eval";
 
 type Search = { mode?: "play" | "look"; kind?: PracticeKind; grade?: number };
 
@@ -36,10 +36,15 @@ function DemoKanji() {
   const char = decodeURIComponent(raw);
   const search = Route.useSearch();
   const lookMode = (search.mode ?? "play") === "look";
-  const [progress, setProgress] = useState<ProgressState>(() => openDemoKanji(char));
+  const [progress, setProgress] = useState<ProgressState>(() => openDemoKanji(char).progress);
+  const [nextArrival, setNextArrival] = useState<NextArrival | null>(
+    () => openDemoKanji(char).nextArrival,
+  );
 
   useEffect(() => {
-    setProgress(openDemoKanji(char));
+    const out = openDemoKanji(char);
+    setProgress(out.progress);
+    setNextArrival(out.nextArrival);
   }, [char]);
 
   return (
@@ -47,18 +52,30 @@ function DemoKanji() {
       key={char}
       char={char}
       progress={progress}
+      nextArrival={nextArrival}
       grade={getKanji(char)?.grade ?? DEMO_CHILD.grade}
       lookMode={lookMode}
       echoOn={!lookMode && demoEchoOn(char)}
       childId={DEMO_CHILD.id}
       childName={t("demoName")}
       hrefHome="/demo"
-      onEncounter={() => setProgress(completeDemoEncounter(char))}
-      onUnderstand={() => setProgress(completeDemoUnderstand(char))}
+      onEncounter={() => {
+        const out = completeDemoEncounter(char);
+        setProgress(out.progress);
+        setNextArrival(out.nextArrival);
+        return out;
+      }}
+      onUnderstand={() => {
+        const out = completeDemoUnderstand(char);
+        setProgress(out.progress);
+        setNextArrival(out.nextArrival);
+        return out;
+      }}
       onEchoStart={() => recordEchoStart()}
       onAnswer={async (input) => {
         const out = submitDemoAnswer({ char, ...input });
         setProgress(out.progress);
+        setNextArrival(out.nextArrival);
         return out;
       }}
     />

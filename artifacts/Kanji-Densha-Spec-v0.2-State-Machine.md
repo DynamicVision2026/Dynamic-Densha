@@ -53,7 +53,7 @@ Dwell (product, not engine): 乗った / わかった stay disabled until the gr
 ## 5. Practice answers
 
 - **Correct:** light the lamp, clear that repair, reset consecutive wrongs, record `surfaceId` as seen.
-- **Wrong, novel surface** (`surfaceId` never succeeded): unlight + repair, **do not** increment lost counters (U2).
+- **Wrong, novel surface** (`surfaceId` never succeeded): unlight + repair. **U2 protects only `almost` / `perfect`** — status stays, lost counters do not increment. `new` / `fix` / `lost` still drop (`new` miss → `fix`).
 - **Wrong, `gentle`:** same exemption (U10 乗り間違い / soft 似た駅名).
 - **Wrong, counted:** unlight + repair, increment consecutive and lifetime.
 - After counted wrong: if consecutive ≥ `lost_wrong_threshold` **or** lifetime ≥ `lost_wrong_lifetime_threshold` → **まよい** and echo count resets. Else if repairs outstanding and previous was だいたい → **なおし**.
@@ -73,6 +73,13 @@ Failed echo (counted wrong, or batch done without required lights) → **なお�
 Same session never grants かんぺき (`perfect_echo_required` default 2, first delay ≥ 20h).
 
 Stale echo (visit later than ~2× scheduled delay) is a copy concern only — **never demotes**.
+
+Call sites attach arrival after eval. UI prints `nextArrival.label` only (きょう / あした / あさって / N日後). Overdue Tokyo day is still きょう. Never 遅れ.
+
+```
+Engine-->>Demo: { progress, nextArrival }
+Engine-->>Server: { progress, nextArrival }
+```
 
 ## 7. Decay
 

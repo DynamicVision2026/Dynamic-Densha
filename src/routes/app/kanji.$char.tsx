@@ -46,7 +46,7 @@ function KanjiStudy() {
     mutationFn: () => completeEncounter({ data: { childId, char } }),
     onSuccess: (out) => {
       void qc.setQueryData(["study", childId, char], (prev: typeof studyQ.data) =>
-        prev ? { ...prev, progress: out.progress } : prev,
+        prev ? { ...prev, progress: out.progress, nextArrival: out.nextArrival } : prev,
       );
     },
   });
@@ -54,7 +54,7 @@ function KanjiStudy() {
     mutationFn: () => completeUnderstand({ data: { childId, char } }),
     onSuccess: (out) => {
       void qc.setQueryData(["study", childId, char], (prev: typeof studyQ.data) =>
-        prev ? { ...prev, progress: out.progress } : prev,
+        prev ? { ...prev, progress: out.progress, nextArrival: out.nextArrival } : prev,
       );
     },
   });
@@ -76,6 +76,7 @@ function KanjiStudy() {
       key={char}
       char={char}
       progress={study.progress}
+      nextArrival={study.nextArrival}
       grade={getKanji(char)?.grade ?? study.child.grade}
       lookMode={lookMode}
       echoOn={!lookMode && study.echoOn}

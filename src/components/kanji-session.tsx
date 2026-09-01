@@ -20,7 +20,6 @@ import {
   shouldAnnounce,
   writeLastStation,
 } from "@/lib/announcements";
-import { echoArrivalWhen } from "@/lib/echo-arrival";
 import { markEchoTaughtToday, wasEchoTaughtToday } from "@/lib/echo-teach";
 import { justReachedPerfect } from "@/lib/stamps";
 import {
@@ -42,6 +41,7 @@ import {
   requiredLights,
   suggestBeat,
   type BeatId,
+  type NextArrival,
   type ProgressState,
 } from "@/lib/progress-eval";
 import { useDwell } from "@/lib/use-dwell";
@@ -83,6 +83,7 @@ export function KanjiSession({
   onUnderstand,
   onAnswer,
   onEchoStart,
+  nextArrival: nextArrivalProp,
 }: {
   char: string;
   progress: ProgressState;
@@ -93,16 +94,23 @@ export function KanjiSession({
   childName?: string;
   hrefHome: "/demo" | "/app";
   busy?: boolean;
-  onEncounter: () => void | Promise<unknown>;
-  onUnderstand: () => void | Promise<unknown>;
+  onEncounter: () => unknown | Promise<unknown>;
+  onUnderstand: () => unknown | Promise<unknown>;
   onAnswer: (input: {
     itemId: string;
     choiceId: string;
     isEcho: boolean;
     echoBatchDone: boolean;
     sessionId: string;
-  }) => Promise<{ correct: boolean; label: string; progress: ProgressState; gradePerfect?: number }>;
+  }) => Promise<{
+    correct: boolean;
+    label: string;
+    progress: ProgressState;
+    nextArrival?: NextArrival | null;
+    gradePerfect?: number;
+  }>;
   onEchoStart?: () => void;
+  nextArrival?: NextArrival | null;
 }) {
   const { t } = useI18n();
   const tour = useAutoDemo();
@@ -125,6 +133,10 @@ export function KanjiSession({
       computed,
     }),
   );
+  const [engineArrival, setEngineArrival] = useState<NextArrival | null>(nextArrivalProp ?? null);
+  useEffect(() => {
+    setEngineArrival(nextArrivalProp ?? null);
+  }, [nextArrivalProp]);
   const [readingsOpen, setReadingsOpen] = useState(progress.understandCompleted);
   const [placed, setPlaced] = useState(progress.understandCompleted);
   const [heard, setHeard] = useState(false);
@@ -269,11 +281,18 @@ export function KanjiSession({
   const item = items[index] ?? null;
 
   function applyAnswer(
-    out: { correct: boolean; label: string; progress: ProgressState; gradePerfect?: number },
+    out: {
+      correct: boolean;
+      label: string;
+      progress: ProgressState;
+      nextArrival?: NextArrival | null;
+      gradePerfect?: number;
+    },
     itemId: string,
     kind: PracticeKind,
   ) {
     setResult({ correct: out.correct, label: out.label });
+    if (out.nextArrival !== undefined) setEngineArrival(out.nextArrival);
     if (!out.correct) {
       setLastWrongByKind((prev) => ({ ...prev, [kind]: itemId }));
       setRepairCount((c) => c + 1);
@@ -315,9 +334,7 @@ export function KanjiSession({
   const rideReady = encounterDwell.ready && !busy;
   const understandReady =
     understandDwell.ready && canFinishUnderstand && listenOk && !busy;
-  const arrivalWhen = progress.echoDueAt
-    ? echoArrivalWhen(progress.echoDueAt, now, t)
-    : "";
+  const arrivalWhen = engineArrival?.label ?? "";
 
   const kicker = (
     <p
@@ -368,7 +385,12 @@ export function KanjiSession({
         data-dwell-ready={encounterDwell.ready ? "1" : "0"}
         disabled={!rideReady}
         onClick={() => {
-          void Promise.resolve(onEncounter()).then(() => setLocalBeat("understand"));
+          void Promise.resolve(onEncounter()).then((out) => {
+            if (out && typeof out === "object" && "nextArrival" in out) {
+              setEngineArrival((out as { nextArrival: NextArrival | null }).nextArrival);
+            }
+            setLocalBeat("understand");
+          });
         }}
       >
         {encounterDwell.ready ? t("rideOn") : `${t("rideOn")} ${encounterDwell.remainSec}`}
@@ -497,7 +519,10 @@ export function KanjiSession({
               setLocalBeat(nextBeat);
               return;
             }
-            void Promise.resolve(onUnderstand()).then(() => {
+            void Promise.resolve(onUnderstand()).then((out) => {
+              if (out && typeof out === "object" && "nextArrival" in out) {
+                setEngineArrival((out as { nextArrival: NextArrival | null }).nextArrival);
+              }
               setLocalBeat("practice");
             });
           }}
@@ -679,7 +704,7 @@ export function KanjiSession({
                   ? t("feedbackLost")
                   : t("feedbackFix")}
         </p>
-        {status === "almost" && progress.echoDueAt ? (
+        {status === "almost" && arrivalWhen ? (
           <p className="text-xs text-fg-subtle" data-echo-arrival={kanji.char}>
             {t("echoArrival", { when: arrivalWhen })}
           </p>
