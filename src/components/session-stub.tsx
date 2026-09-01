@@ -1,4 +1,5 @@
 import { TICKET_QR_HREF, TICKET_QR_MATRIX } from "@/lib/ticket-qr";
+import { useI18n } from "@/lib/i18n/i18n";
 import { cn } from "@/lib/utils";
 
 function TicketQrMark() {
@@ -40,7 +41,7 @@ export function SessionStub({
   issueDay,
   domain = "kanji-densha",
   status = "almost",
-  title = "だいたい",
+  title,
   qrHref = TICKET_QR_HREF,
 }: {
   glyphs: string[];
@@ -48,13 +49,14 @@ export function SessionStub({
   serial: string;
   issueDay: string;
   domain?: string;
-  /** Even if perfect is passed, copy stays だいたい. */
+  /** Even if perfect is passed, copy stays だいたい / whatever stubTitle translates to. */
   status?: string;
   title?: string;
   qrHref?: string;
 }) {
+  const { t } = useI18n();
   const toneFix = status === "fix";
-  const heading = title || "だいたい";
+  const heading = title || t("stubTitle");
   return (
     <article
       data-session-stub
@@ -82,7 +84,7 @@ export function SessionStub({
           <p className="font-display text-3xl leading-none tracking-wide">{glyphs.join(" ")}</p>
           <p className="mt-3 font-display text-4xl leading-none">{returnLabel}</p>
           <p className="mt-3 max-h-12 overflow-hidden text-sm leading-6 text-fg-muted">
-            {heading}の きっぷ。つぎの とうちゃくは うえ。
+            {t("stubCaption", { heading })}
           </p>
         </div>
         <TicketQrMark />

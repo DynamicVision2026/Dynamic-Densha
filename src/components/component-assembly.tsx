@@ -26,13 +26,17 @@ function shuffle<T>(items: T[], seed: string): T[] {
   return a;
 }
 
-function pieceName(data: ComponentAssembly, id: string): string {
+function pieceName(
+  data: ComponentAssembly,
+  id: string,
+  t: (key: "piecePosition", vars: Record<string, string | number>) => string,
+): string {
   const piece = data.components.find((c) => c.id === id);
   if (!piece) return id;
   const same = data.components.filter((c) => c.label === piece.label);
   if (same.length <= 1) return piece.label;
   const n = same.findIndex((c) => c.id === id) + 1;
-  return `${n}つ目の${piece.label}`;
+  return t("piecePosition", { n, label: piece.label });
 }
 
 export function ComponentAssemblyBoard({
@@ -197,7 +201,7 @@ export function ComponentAssemblyBoard({
               type="button"
               data-tour={isNext ? "component-next" : undefined}
               disabled={locked || complete}
-              aria-label={pieceName(data, s.id)}
+              aria-label={pieceName(data, s.id, t)}
               onClick={() => tryPlace(s.id)}
               className={cn(
                 "grid size-16 min-h-11 place-items-center rounded-md border border-border bg-surface font-display text-3xl shadow-soft",

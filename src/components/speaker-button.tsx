@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { lookupReadingAudio } from "@/data/reading-audio";
 import { hasAudioFailed, playFixedAudio, playingAudioUrl } from "@/lib/fixed-audio";
 import { isRideMuted, writeRideMuted } from "@/lib/arrival-audio";
+import { useI18n } from "@/lib/i18n/i18n";
 import { cn } from "@/lib/utils";
 
 function SpeakerGlyph({ crossed }: { crossed?: boolean }) {
@@ -28,6 +29,7 @@ export function SpeakerButton({
   className?: string;
   onHeard?: () => void;
 }) {
+  const { t } = useI18n();
   const entry = lookupReadingAudio(text);
   const [failed, setFailed] = useState(() => (entry ? hasAudioFailed(entry.url) : true));
   const [playing, setPlaying] = useState(false);
@@ -43,7 +45,7 @@ export function SpeakerButton({
     <button
       type="button"
       data-tour="speaker"
-      aria-label={label ?? `${text} を聞く`}
+      aria-label={label ?? t("speakerListen", { text })}
       className={cn(
         "inline-grid size-11 shrink-0 place-items-center rounded-full border border-border bg-surface text-fg shadow-soft",
         "hover:bg-bg-warm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
