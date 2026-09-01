@@ -24,7 +24,11 @@ function mergeSurfaceTables(
   const out: Record<string, EchoSurfaceDraft[]> = {};
   for (const table of tables) {
     for (const [char, rows] of Object.entries(table)) {
-      out[char] = [...(out[char] ?? []), ...rows];
+      const stamped = rows.map((row) => ({
+        ...row,
+        targetChar: row.targetChar ?? char,
+      }));
+      out[char] = [...(out[char] ?? []), ...stamped];
     }
   }
   return out;
