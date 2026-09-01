@@ -105,7 +105,13 @@ test("ride shell is 100dvh with a stable action zone; parent door holds 1.5s", (
 
 test("index launches child 発車標, not a marketing wall", () => {
   const index = readFileSync("src/routes/index.tsx", "utf8");
-  assert.match(index, /Navigate to="\/demo"/);
+  assert.match(index, /data-welcome-landing/);
+  assert.match(index, /data-door-try/);
+  assert.match(index, /data-door-parents/);
+  assert.match(index, /data-door-login/);
+  assert.match(index, /hasGuestRidden/);
+  assert.match(index, /GuestChildHome/);
+  assert.match(index, /ChildHome/);
   assert.equal(/ctaRide/.test(index), false);
 });
 

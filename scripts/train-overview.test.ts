@@ -92,7 +92,7 @@ test("overview is UI state on child home, not a peer route", () => {
   assert.match(home, /WelcomeOverview/);
   assert.match(home, /HubPlate/);
   assert.match(hub, /data-open-overview/);
-  assert.match(home, /landscape:w-\[40%\]/);
+  assert.match(home, /DepartureTicket/);
   assert.equal(/createFileRoute/.test(overview), false);
   assert.equal(/WatchDemoButton|loginParent|workshopTry/.test(home), false);
   assert.match(session, /CoupleBeat/);

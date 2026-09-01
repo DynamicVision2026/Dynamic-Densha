@@ -19,16 +19,17 @@ test("child ride components have no ほぞんする", () => {
 });
 
 test("PR #6 child ほぞんする must not return on this branch", () => {
-  assert.equal(
-    readFileSync("src/components/kanji-session.tsx", "utf8").includes("ほぞんする"),
-    false,
-  );
-  let guestRide = false;
+  const session = readFileSync("src/components/kanji-session.tsx", "utf8");
+  assert.equal(session.includes("ほぞんする"), false);
+  assert.equal(/guestSave|savePrompt|markGuestSavePrompted/.test(session), false);
+  let guestRide = "";
   try {
-    readFileSync("src/lib/guest-ride.ts", "utf8");
-    guestRide = true;
+    guestRide = readFileSync("src/lib/guest-ride.ts", "utf8");
   } catch {
-    guestRide = false;
+    guestRide = "";
   }
-  assert.equal(guestRide, false);
+  if (guestRide) {
+    assert.match(guestRide, /markGuestRidden/);
+    assert.equal(/ほぞんする/.test(guestRide), false);
+  }
 });
