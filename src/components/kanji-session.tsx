@@ -36,6 +36,7 @@ import {
 } from "@/lib/session-almost";
 import { claimTicketPng } from "@/lib/ticket-png";
 import { playArrivalBeat } from "@/lib/arrival-audio";
+import { markGuestRidden } from "@/lib/guest-ride";
 import {
   pushCouplePending,
   takeCouplePending,
@@ -128,6 +129,9 @@ export function KanjiSession({
 }) {
   const { t } = useI18n();
   const tour = useAutoDemo();
+  useEffect(() => {
+    if (hrefHome === "/demo") markGuestRidden();
+  }, [hrefHome]);
   const kanji = getKanji(char);
   const params = getGradeParams(grade);
   const shape = shapeSurfaceAvailable(char);
