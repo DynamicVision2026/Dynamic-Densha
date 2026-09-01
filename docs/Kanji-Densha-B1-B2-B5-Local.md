@@ -103,3 +103,5 @@ After login, when the parent first has a child id, `importGuestProgress` runs on
 - 到着 at first だいたい: `SessionStub` (mint, never かんぺき) + きっぷを もらう / あとで. ボードへ / れっしゃを みる stay. PNG only after tap. No ほぞんする.
 - Ticket cars stay blue for だいたい. No gold かんぺき ticket.
 
+P1–P5: QR is `https://kanji-densha.app/` only. No packages tree. T3 path-guard check is in `npm test`. See `docs/ticket-mechanism.md`.
+

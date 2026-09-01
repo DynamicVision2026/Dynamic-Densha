@@ -77,3 +77,18 @@ test("no hrefHome demo wrap around ticket components; no ほぞんする", () =>
   assert.match(session, /toBoard/);
   assert.match(session, /seeTrain/);
 });
+
+test("stub QR is a static public URL with no identity", () => {
+  const src = readFileSync("src/lib/ticket-qr.ts", "utf8");
+  const m = src.match(/export const TICKET_QR_HREF = "([^"]+)"/);
+  assert.equal(m?.[1], "https://kanji-densha.app/");
+  assert.equal(m?.[1]?.includes("?"), false);
+  const stub = readFileSync("src/components/session-stub.tsx", "utf8");
+  const png = readFileSync("src/lib/ticket-png.ts", "utf8");
+  const qr = src;
+  const blob = stub + png + qr;
+  assert.equal(/childId|userId|nickname|childName|\bemail\b/.test(blob), false);
+  assert.equal(/\blocalStorage\b/.test(blob), false);
+  assert.match(stub, /data-qr-href=\{/);
+  assert.match(png, /drawTicketQr/);
+});

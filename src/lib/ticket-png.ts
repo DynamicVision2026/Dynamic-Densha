@@ -1,4 +1,6 @@
-/** Draw the だいたい stub to PNG. Call only from a user tap. */
+/** Draw the だいたい stub to PNG. Call only from a user tap. Fridge-safe: no identity. */
+
+import { drawTicketQr } from "./ticket-qr.ts";
 
 export type TicketPngInput = {
   glyphs: string[];
@@ -60,6 +62,8 @@ export function drawTicketCanvas(input: TicketPngInput): HTMLCanvasElement {
   ctx.fillStyle = "#5c574e";
   ctx.font = "600 18px 'Zen Kaku Gothic New', sans-serif";
   ctx.fillText(`${input.domain}  ${input.issueDay}`, 64, 350);
+
+  drawTicketQr(ctx, 560, 250, 96);
 
   ctx.fillStyle = "#f4efe4";
   ctx.beginPath();
