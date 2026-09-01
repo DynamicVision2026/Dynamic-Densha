@@ -182,6 +182,12 @@ export function selectEchoSurface(input: {
   const fromAny = pickFromPool(all, last, lastSurfaceId, seen);
   if (fromAny) return fromAny;
 
+  // `all` itself has nothing but `last` to offer: this kanji+kind has exactly
+  // one legal surface in total, so there is no variation left to fall back to
+  // and this genuinely does repeat it. Content, not a selection bug — see
+  // hasEchoBundle's doc comment and the 媛/達 exemption in scale-g4.test.ts,
+  // the only two characters this applies to (onyomi-only, no elementary kun,
+  // no elementary-level second word to build a reading surface from).
   return last ?? pool[0] ?? soloSurface(char);
 }
 
@@ -199,6 +205,14 @@ export function isLegalEchoTransition(char: string, fromId: string, toId: string
  * simulating every legal reading/meaning starting draw through the real
  * selection function, not by an aggregate reading-coverage count (which can
  * report "clean" while a specific starting surface still has no alternative).
+ *
+ * Returns false for a kanji whose only taught reading has no elementary-level
+ * word to pair it with — e.g. 媛/達, onyomi-only with no elementary kunyomi
+ * and no elementary-level second word, so the bare solo character is the one
+ * and only legal reading surface. `selectEchoSurface` has nothing to widen to
+ * there and does repeat it; that is content, not a selection bug (see its own
+ * comment). Exempted explicitly, by name, in scale-g4.test.ts rather than
+ * silently excluded here.
  */
 export function hasEchoBundle(char: string): boolean {
   for (const kind of ["reading", "meaning"] as const) {

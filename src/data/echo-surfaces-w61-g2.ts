@@ -52,6 +52,12 @@ export const ECHO_SURFACES_W61_G2: Record<string, SurfaceRow[]> = {
   行: [w("銀行", "コウ", "ぎんこう", "ぎんこう"), w("行動", "コウ", "こうどう", "こうどう")],
   高: [w("高校", "コウ", "こうこう", "こうこう"), w("最高", "コウ", "さいこう", "さいこう")],
   黄: [w("黄緑", "き", "きみどり", "きみどり")],
+  // 試合's あい is 合's taught kunyomi あう used as a noun (合う → 合い), a
+  // regular but untaught inflected form — isElementaryReading only matches
+  // dictionary-form kunyomi verbatim, so it can't recognize あい as あう.
+  // Tagged wIrregular (not a genuine jukujikun like 明日, but the same safe
+  // treatment: never credit or quiz a reading this word doesn't literally
+  // spell out); ゴウ is kept only as a valid, harmless grouping tag.
   合: [w("合計", "ゴウ", "ごうけい", "ごうけい"), wIrregular("試合", "ゴウ", "しあい", "しあい")],
   谷: [w("谷川", "たに", "たにがわ", "たにがわ")],
   国: [w("外国", "コク", "がいこく", "がいこく"), w("国民", "コク", "こくみん", "こくみん")],

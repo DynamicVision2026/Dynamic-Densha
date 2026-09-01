@@ -79,6 +79,19 @@ test("echo drawer prefers a different word with the same reading", () => {
   assert.equal(next.reading, solo.reading);
 });
 
+test("CR-2: 媛/達 have exactly one legal reading surface and selectEchoSurface knowingly repeats it", () => {
+  for (const char of ["媛", "達"]) {
+    const readingSurfaces = echoSurfacesFor(char).filter((s) =>
+      (s.used_for_lights ?? ["reading", "meaning"]).includes("reading"),
+    );
+    assert.equal(readingSurfaces.length, 1, `${char} should have exactly one reading surface`);
+    const only = readingSurfaces[0]!;
+    const next = selectEchoSurface({ char, kind: "reading", lastSurfaceId: only.id, seenIds: [only.id] });
+    assert.ok(next);
+    assert.equal(next.id, only.id, `${char} has no alternative to widen to — repeat is the documented floor`);
+  }
+});
+
 test("echo published item reading stays inside elementary_readings", () => {
   const items = drawPublishedItems({
     kanji: "生",
