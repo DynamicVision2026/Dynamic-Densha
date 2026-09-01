@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { lookupReadingAudio } from "@/data/reading-audio";
 import { hasAudioFailed, playFixedAudio, playingAudioUrl } from "@/lib/fixed-audio";
-import { readRideMuted, writeRideMuted } from "@/lib/arrival-audio";
+import { isRideMuted, writeRideMuted } from "@/lib/arrival-audio";
 import { cn } from "@/lib/utils";
 
 function SpeakerGlyph({ crossed }: { crossed?: boolean }) {
@@ -76,7 +76,7 @@ export function RideMuteToggle({
   mutedLabel: string;
   soundLabel: string;
 }) {
-  const [muted, setMuted] = useState(() => readRideMuted());
+  const [muted, setMuted] = useState(() => isRideMuted());
   return (
     <button
       type="button"

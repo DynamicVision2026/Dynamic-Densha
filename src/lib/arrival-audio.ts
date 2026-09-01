@@ -1,4 +1,5 @@
-/** One coupling clack + one 発車ベル per 到着 beat. Never loops. Cap < 2s. */
+/** One coupling clack + one 発車ベル per 到着 beat. Never loops. Cap < 2s.
+ * 結合クラック then 発車ベル. Exactly one each. */
 
 export const ARRIVAL_AUDIO_MAX_MS = 1800;
 export const MUTE_KEY = "densha.audio.muted.v1";
@@ -15,6 +16,11 @@ export function readRideMuted(): boolean {
   } catch {
     return false;
   }
+}
+
+/** Spec name. Same flag the speaker writes: densha.audio.muted.v1 */
+export function isRideMuted(): boolean {
+  return readRideMuted();
 }
 
 export function writeRideMuted(muted: boolean) {
@@ -54,6 +60,7 @@ function tone(
   osc.stop(at + dur + 0.02);
 }
 
+/** 結合クラック */
 function clack(ctx: AudioContext, at: number) {
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
@@ -68,9 +75,15 @@ function clack(ctx: AudioContext, at: number) {
   osc.stop(at + 0.08);
 }
 
+/** 発車ベル */
+function bell(ctx: AudioContext, at: number) {
+  tone(ctx, at, 880, 0.28, 0.09);
+  tone(ctx, at + 0.26, 659, 0.55, 0.07);
+}
+
 /** Returns a stop fn. Primary CTAs stay live — do not wait on this. */
 export function playArrivalBeat(): () => void {
-  if (!shouldPlayArrivalSounds({ muted: readRideMuted(), reducedMotion: prefersReducedMotion() })) {
+  if (!shouldPlayArrivalSounds({ muted: isRideMuted(), reducedMotion: prefersReducedMotion() })) {
     return () => {};
   }
   if (typeof window === "undefined") return () => {};
@@ -81,8 +94,7 @@ export function playArrivalBeat(): () => void {
   const ctx = new AC();
   const t0 = ctx.currentTime;
   clack(ctx, t0);
-  tone(ctx, t0 + 0.16, 880, 0.28, 0.09);
-  tone(ctx, t0 + 0.42, 659, 0.55, 0.07);
+  bell(ctx, t0 + 0.16);
   let stopped = false;
   const stop = () => {
     if (stopped) return;
