@@ -97,6 +97,7 @@ export function WelcomeOverview({
   onFocusGrade,
   variant = "overview",
   ctaLabel,
+  carCap = CAR_CAP,
 }: {
   rings: GradeRingView[];
   profileGrade: Grade;
@@ -110,6 +111,13 @@ export function WelcomeOverview({
   variant?: "overview" | "landing";
   /** Overrides the default board-return label, e.g. a child-friendly "ride the train" CTA. */
   ctaLabel?: string;
+  /**
+   * Max cars rendered at once. Defaults to CAR_CAP (the real per-grade
+   * overview's tuned rendering/perf ceiling) — pass a different value only
+   * for a decorative, non-learner-record consist (e.g. the landing door's
+   * fixed 26-car picture-book train), never for a real progress consist.
+   */
+  carCap?: number;
 }) {
   const { t } = useI18n();
   const [linesOn, setLinesOn] = useState(false);
@@ -119,7 +127,7 @@ export function WelcomeOverview({
   const radials = useMemo(() => (linesOn ? familyRadials(rings) : []), [linesOn, rings]);
   const complete = Boolean(focused?.complete);
   const hub = hubCounts(rings, focusGrade);
-  const consist = (focused?.consist ?? []).slice(Math.max(0, (focused?.consist.length ?? 0) - CAR_CAP));
+  const consist = (focused?.consist ?? []).slice(Math.max(0, (focused?.consist.length ?? 0) - carCap));
   const idle = consist.length === 0;
   const paused = glowOn || reduced || idle;
 

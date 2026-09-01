@@ -7,7 +7,7 @@ import { WelcomeOverview } from "@/components/welcome-overview";
 import { resolveActiveGrade, usePersistActiveGrade } from "@/lib/active-grade";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type { Grade } from "@/data/kyoiku";
-import { doorRings } from "@/lib/door-scene";
+import { DOOR_CONSIST, doorRings } from "@/lib/door-scene";
 import { DEMO_CHILD, getDemoHome, getDemoMap } from "@/lib/demo-progress";
 import { hasGuestRidden } from "@/lib/guest-ride";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -123,6 +123,7 @@ function WelcomeLanding() {
             focusGrade={focusGrade}
             hrefBase="/demo"
             variant="landing"
+            carCap={DOOR_CONSIST.length}
             onBack={() => undefined}
             onFocusGrade={setFocusGrade}
           />
