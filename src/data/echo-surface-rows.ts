@@ -9,6 +9,8 @@ export type SurfaceRow = {
   frame?: string;
   kind?: "word" | "same_word_new_frame";
   used_for_lights?: Array<"reading" | "meaning">;
+  targetChar?: string;
+  creditsReading?: boolean;
 };
 
 const LIGHTS = ["reading", "meaning"] as const;
@@ -30,6 +32,7 @@ export function r(
     id,
     kind: frame ? "same_word_new_frame" : "word",
     used_for_lights: [...LIGHTS],
+    creditsReading: true,
   };
 }
 
@@ -51,5 +54,6 @@ export function w(
     id,
     kind: "word",
     used_for_lights: [...LIGHTS],
+    creditsReading: true,
   };
 }

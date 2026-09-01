@@ -11,7 +11,12 @@ import { ECHO_SURFACES_W61_G2 } from "./echo-surfaces-w61-g2.ts";
 import { ECHO_SURFACES_W61_G3G6 } from "./echo-surfaces-w61-g3g6.ts";
 
 /** Editorial echo surfaces. `reading` must be in that kanji's elementary_readings. */
-export type EchoSurfaceDraft = Omit<EchoSurface, "char" | "id"> & { id?: string; char?: string };
+export type EchoSurfaceDraft = Omit<EchoSurface, "char" | "id" | "targetChar" | "creditsReading"> & {
+  id?: string;
+  char?: string;
+  targetChar?: string;
+  creditsReading?: boolean;
+};
 
 function mergeSurfaceTables(
   ...tables: Array<Record<string, EchoSurfaceDraft[]>>

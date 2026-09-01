@@ -23,10 +23,23 @@ export type EchoSurface = {
   frame?: string;
   kind?: EchoSurfaceKind;
   used_for_lights?: Array<"reading" | "meaning">;
+  /** Glyph in the word being taught (花 in 花火). Content field, not U2. */
+  targetChar: string;
+  /** This face may light the よみ lamp. Content field, not U2. */
+  creditsReading: boolean;
 };
 
 export function surfaceIdentity(s: { char: string; text: string; frame?: string }): string {
   return s.frame ? `${s.char}:${s.text}:${s.frame}` : `${s.char}:${s.text}`;
+}
+
+function creditsReadingFromLights(
+  used?: Array<"reading" | "meaning">,
+  explicit?: boolean,
+): boolean {
+  if (typeof explicit === "boolean") return explicit;
+  if (!used || used.length === 0) return true;
+  return used.includes("reading");
 }
 
 export function soloSurface(char: string): EchoSurface | null {
@@ -41,6 +54,8 @@ export function soloSurface(char: string): EchoSurface | null {
     meaningJa: k?.meaningJa,
     kind: "word",
     used_for_lights: ["reading", "meaning"],
+    targetChar: char,
+    creditsReading: true,
   };
 }
 
@@ -48,9 +63,12 @@ export function echoSurfacesFor(char: string): EchoSurface[] {
   const solo = soloSurface(char);
   const extra = (ECHO_SURFACE_TABLE[char] ?? []).map((row) => {
     const chared = { ...row, char };
+    const used = row.used_for_lights;
     return {
       ...chared,
       id: row.id ?? surfaceIdentity(chared),
+      targetChar: row.targetChar ?? char,
+      creditsReading: creditsReadingFromLights(used, row.creditsReading),
     };
   });
   const byText = new Map<string, number>();
