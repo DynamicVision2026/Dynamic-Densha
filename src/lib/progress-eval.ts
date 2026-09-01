@@ -1,4 +1,6 @@
 import type { MasteryStatus, PracticeKind } from "./mastery";
+import type { MessageKey } from "./i18n/messages.ts";
+import { echoArrival, echoArrivalWhen, ymdInZone } from "./echo-arrival.ts";
 
 /**
  * Timestamps are ISO-8601 UTC. Echo due is an absolute delay from `almost_at`
@@ -298,12 +300,15 @@ export function evaluateProgress(
 
   const { kind, correct, nowIso, shapeAvailable, surfaceId, gentle } = event;
   const novelSurface = Boolean(surfaceId) && !prev.surfacesSeenSuccess.includes(surfaceId!);
+  const u2Shield = novelSurface && (prev.status === "almost" || prev.status === "perfect");
   const echoEligible = echoIsDue(prev, nowIso);
 
   if (prev.status === "perfect") {
     const decayed = maybeDecay(prev, nowIso, params);
     if (decayed.status !== "perfect") return decayed;
-    return { ...prev, lastPracticeAt: nowIso, attempts: prev.attempts + 1 };
+    if (correct) {
+      return { ...prev, lastPracticeAt: nowIso, attempts: prev.attempts + 1 };
+    }
   }
 
   let next: ProgressState = {
@@ -331,7 +336,7 @@ export function evaluateProgress(
   } else {
     next.lights[kind] = false;
     next.repairRequiredKinds = uniqueKinds([...next.repairRequiredKinds, kind]);
-    if (!novelSurface && !gentle) {
+    if (!u2Shield && !gentle) {
       next.wrongCountByKind[kind] = (next.wrongCountByKind[kind] ?? 0) + 1;
       next.consecutiveWrongByKind[kind] = (next.consecutiveWrongByKind[kind] ?? 0) + 1;
       next = applyFailureStatus(next, kind, params);
@@ -367,7 +372,7 @@ export function evaluateProgress(
       };
     }
     if (!correct) {
-      if (novelSurface || gentle) return next;
+      if (u2Shield || gentle) return next;
       return { ...next, status: "fix", echoSuccessCount: 0 };
     }
     return next;
@@ -394,4 +399,49 @@ export function suggestBeat(
 
 export function utcDay(iso: string): string {
   return iso.slice(0, 10);
+}
+
+export type NextArrival = {
+  label: string;
+  days: number;
+  dueLocalDate: string | null;
+  dueIso: string | null;
+};
+
+type ArrivalT = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+/**
+ * Next 残響 copy. UI prints `label` only — no second calendar.
+ * new / fix / lost / perfect → null. Overdue Tokyo day is still きょう.
+ */
+export function nextArrivalFrom(
+  state: ProgressState,
+  nowIso: string,
+  t: ArrivalT,
+): NextArrival | null {
+  if (state.status !== "almost" || !state.echoDueAt) return null;
+  const dueIso = state.echoDueAt;
+  const { n } = echoArrival(dueIso, nowIso);
+  return {
+    label: echoArrivalWhen(dueIso, nowIso, t),
+    days: n,
+    dueLocalDate: ymdInZone(dueIso),
+    dueIso,
+  };
+}
+
+/** Schedule 残響 from server now. Import uses this — never the device clock. */
+export function scheduleEchoFromNow(
+  nowIso: string,
+  params: Pick<EvalParams, "echo_delay_hours" | "echo_second_delay_hours">,
+  echoSuccessCount: number,
+): { almostAt: string; echoDueAt: string } {
+  const delayH =
+    echoSuccessCount >= 1
+      ? (params.echo_second_delay_hours ?? DEFAULT_SECOND_ECHO_HOURS)
+      : params.echo_delay_hours;
+  return {
+    almostAt: nowIso,
+    echoDueAt: new Date(Date.parse(nowIso) + delayH * 3600 * 1000).toISOString(),
+  };
 }

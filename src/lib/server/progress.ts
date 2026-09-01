@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
 import type { Grade } from "@/data/kyoiku";
 import { getKanji } from "@/data/kyoiku";
 import { decorateTrains, type TrainView } from "@/lib/trains";
@@ -13,9 +13,11 @@ import {
   emptyProgress,
   evaluateProgress,
   hydrateProgress,
+  nextArrivalFrom,
   utcDay,
   type ProgressState,
 } from "@/lib/progress-eval";
+import { jaArrivalT } from "@/lib/echo-arrival";
 import { getItem, gradeChoice, shapeSurfaceAvailable } from "@/lib/items";
 import { mapLinesFor } from "@/lib/lines";
 import { justReachedPerfect, stampFromPerfect, type Stamp } from "@/lib/stamps";
@@ -34,6 +36,13 @@ import {
   loadInspections,
   maybeRecordInspection,
 } from "@/lib/server/grade-route";
+import {
+  backfillSurfaceSeenFromProgress,
+  insertMissingSurfaceSeen,
+  loadSurfaceSeenByKanji,
+  parseStringList,
+  unionSurfaceIds,
+} from "@/lib/server/surface-seen";
 
 export type { TrainView } from "@/lib/trains";
 export type { ProgressState } from "@/lib/progress-eval";
@@ -61,20 +70,6 @@ function parseCountMap(raw: unknown): ProgressState["wrongCountByKind"] {
     };
   } catch {
     return { ...zero };
-  }
-}
-
-function parseStringList(raw: unknown): string[] {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return raw.map(String);
-  try {
-    const v = JSON.parse(String(raw));
-    return Array.isArray(v) ? v.map(String) : [];
-  } catch {
-    return String(raw)
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
   }
 }
 
@@ -132,14 +127,16 @@ function rowToState(r: Record<string, unknown>): ProgressState {
   });
 }
 
-export async function loadProgress(userId: string, childId: string) {
-  const sql = await getSql();
+export async function loadProgress(userId: string, childId: string, sqlClient?: Sql) {
+  const sql = sqlClient ?? (await getSql());
   const owned = await sql<{ id: string; grade: number; name: string }>`
     select id, grade, name from children
     where id = ${childId} and user_id = ${userId}
   `;
   const child = owned[0];
   if (!child) throw new Error("こどもが見つかりません");
+  await backfillSurfaceSeenFromProgress(sql, userId, childId);
+  const seenByKanji = await loadSurfaceSeenByKanji(sql, userId, childId);
   const rows = await sql.query<Record<string, unknown>>(
     `select * from kanji_progress where child_id = $1 and user_id = $2`,
     [childId, userId],
@@ -147,6 +144,10 @@ export async function loadProgress(userId: string, childId: string) {
   const map = new Map<string, ProgressState>();
   for (const r of rows) {
     const state = rowToState(r);
+    state.surfacesSeenSuccess = unionSurfaceIds(
+      state.surfacesSeenSuccess,
+      seenByKanji.get(state.kanji) ?? [],
+    );
     map.set(state.kanji, state);
   }
   return {
@@ -155,8 +156,13 @@ export async function loadProgress(userId: string, childId: string) {
   };
 }
 
-async function saveProgress(userId: string, childId: string, state: ProgressState) {
-  const sql = await getSql();
+export async function saveProgress(
+  userId: string,
+  childId: string,
+  state: ProgressState,
+  sqlClient?: Sql,
+) {
+  const sql = sqlClient ?? (await getSql());
   const kinds = completedKindsOf(state);
   await sql.query(
     `insert into kanji_progress (
@@ -231,6 +237,13 @@ async function saveProgress(userId: string, childId: string, state: ProgressStat
       JSON.stringify(state.lastSuccessByKind ?? {}),
       state.echoSuccessCount ?? 0,
     ],
+  );
+  await insertMissingSurfaceSeen(
+    sql,
+    userId,
+    childId,
+    state.kanji,
+    state.surfacesSeenSuccess ?? [],
   );
 }
 
@@ -366,6 +379,7 @@ export const getKanjiStudy = createServerFn({ method: "GET" })
     return {
       child,
       progress,
+      nextArrival: nextArrivalFrom(progress, now, jaArrivalT),
       unlocked: true,
       echoOn: echoAvailable(progress, now, started, p),
       gradePerfect: rings.find((r) => r.grade === charGrade)?.perfect ?? 0,
@@ -384,7 +398,7 @@ export const completeEncounter = createServerFn({ method: "POST" })
       paramsForChar(data.char, child.grade),
     );
     await saveProgress(context.userId, data.childId, next);
-    return { progress: next };
+    return { progress: next, nextArrival: nextArrivalFrom(next, now, jaArrivalT) };
   });
 
 export const completeUnderstand = createServerFn({ method: "POST" })
@@ -399,7 +413,7 @@ export const completeUnderstand = createServerFn({ method: "POST" })
       paramsForChar(data.char, child.grade),
     );
     await saveProgress(context.userId, data.childId, next);
-    return { progress: next };
+    return { progress: next, nextArrival: nextArrivalFrom(next, now, jaArrivalT) };
   });
 
 export const submitPractice = createServerFn({ method: "POST" })
@@ -465,6 +479,7 @@ export const submitPractice = createServerFn({ method: "POST" })
       correct: graded.correct,
       label: graded.label,
       progress: next,
+      nextArrival: nextArrivalFrom(next, now, jaArrivalT),
       gradePerfect: buildGradeRings({
         progress: (() => {
           const nextMap = new Map(map);

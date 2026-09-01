@@ -1,19 +1,18 @@
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useAutoDemo } from "@/components/auto-demo";
 import { ChildShell } from "@/components/child-shell";
+import { DepartureTicket } from "@/components/departure-ticket";
 import { HomeLineStrip } from "@/components/home-line-strip";
 import { HubPlate } from "@/components/hub-plate";
 import { MapOverlay } from "@/components/map-overlay";
 import { ParentDoor } from "@/components/parent-door";
 import { WelcomeOverview } from "@/components/welcome-overview";
 import type { MapLineView } from "@/components/route-map";
-import { STATUS_META } from "@/lib/mastery";
 import type { DepartureBoard } from "@/lib/departure-board";
 import {
   boardStageCards,
   pickDeparture,
-  type StageCard,
   type StripCar,
 } from "@/lib/pick-departure";
 import {
@@ -25,7 +24,6 @@ import {
 } from "@/lib/train-overview";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { Grade } from "@/data/kyoiku";
-import { cn } from "@/lib/utils";
 
 export function ChildHome({
   hrefBase,
@@ -49,6 +47,7 @@ export function ChildHome({
   rings: GradeRingView[];
 }) {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const tour = useAutoDemo();
   const [mapOpen, setMapOpen] = useState(false);
   const [overview, setOverview] = useState(false);
@@ -96,8 +95,20 @@ export function ChildHome({
     setOverview(true);
   }
 
-  const kindLabel = (kind: StageCard["kind"]) =>
-    kind === "return" ? t("boardReturn") : kind === "new" ? t("boardNew") : t("boardInspect");
+  const nextLabel =
+    board?.today.find((c) => c.label)?.label ??
+    board?.tomorrow[0]?.label ??
+    null;
+  const echoDue = cards.some((c) => c.echoDue);
+  const glyphs = cards.map((c) => c.kanji);
+
+  function rideFromTicket() {
+    void navigate({
+      to: rideTo,
+      params: { char: depart.kanji },
+      search,
+    });
+  }
 
   return (
     <ChildShell>
@@ -149,66 +160,21 @@ export function ChildHome({
 
           <section
             data-child-stage
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3"
+            className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto overscroll-contain px-4 py-3"
           >
-            {depart.empty ? (
-              <div
-                className="rounded-lg border border-border bg-surface px-4 py-6 text-center"
-                data-empty-board
-              >
-                <p className="text-sm leading-7 text-fg-muted">{t("emptyBoard")}</p>
-                {board?.tomorrow[0] ? (
-                  <p className="mt-2 text-xs text-fg-subtle">
-                    {t("echoArrival", {
-                      when:
-                        board.tomorrow[0].when === "dayAfter"
-                          ? t("echoArrivalDayAfter")
-                          : t("echoArrivalTomorrow"),
-                    })}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-            <div className="grid grid-cols-1 gap-4 landscape:grid-cols-2">
-              {cards.map((card) => (
-                <Link
-                  key={`${card.kind}-${card.kanji}`}
-                  to={rideTo}
-                  params={{ char: card.kanji }}
-                  search={search}
-                  data-board-car={card.kanji}
-                  data-tour={card.kind === "return" ? `echo-${card.kanji}` : undefined}
-                  className="flex min-h-[88px] items-center gap-4 rounded-xl border border-border bg-surface px-4 py-3"
-                >
-                  <span
-                    className={cn(
-                      "grid size-14 place-items-center rounded-md font-display text-3xl",
-                      STATUS_META[card.status].className,
-                    )}
-                  >
-                    {card.kanji}
-                  </span>
-                  <span className="text-sm text-fg-muted">{kindLabel(card.kind)}</span>
-                </Link>
-              ))}
-            </div>
+            <DepartureTicket
+              glyphs={glyphs}
+              empty={depart.empty}
+              nextArrivalLabel={nextLabel}
+              echoDue={echoDue}
+              onRide={rideFromTicket}
+              ariaName={t("ticketAria")}
+              stationLabel={t("ticketStation")}
+              rideLabel={depart.empty ? t("freeRide") : t("ticketRide")}
+              emptyLead={t("ticketEmpty")}
+              countLabel={t("ticketCount", { n: glyphs.length })}
+            />
           </section>
-
-          <footer
-            data-child-action
-            className="flex h-[160px] shrink-0 items-center justify-center px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] landscape:h-[120px] max-sm:h-[132px]"
-          >
-            <Link
-              to={rideTo}
-              params={{ char: depart.kanji }}
-              search={search}
-              data-depart
-              data-free-ride={depart.empty || undefined}
-              className="inline-flex h-[88px] min-w-[88px] w-full max-w-md items-center justify-center rounded-xl bg-primary px-8 font-display text-2xl tracking-wide text-primary-fg landscape:w-[40%]"
-            >
-              {depart.empty ? t("freeRide") : t("depart")}
-            </Link>
-          </footer>
         </div>
       )}
 
