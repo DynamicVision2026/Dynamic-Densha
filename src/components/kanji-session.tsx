@@ -10,6 +10,7 @@ import { QuizPanel } from "@/components/quiz-panel";
 import { ReadingLine } from "@/components/speaker-button";
 import { RideShell } from "@/components/ride-shell";
 import { CoupleBeat } from "@/components/couple-beat";
+import { SessionStub } from "@/components/session-stub";
 import { TrainAnnounce } from "@/components/train-announce";
 import { Button } from "@/components/ui/button";
 import { getKanji, GRADE_COUNTS, type Grade } from "@/data/kyoiku";
@@ -20,14 +21,21 @@ import {
   shouldAnnounce,
   writeLastStation,
 } from "@/lib/announcements";
-import { echoArrivalWhen } from "@/lib/echo-arrival";
 import { markEchoTaughtToday, wasEchoTaughtToday } from "@/lib/echo-teach";
+import { justReachedAlmost, justReachedPerfect } from "@/lib/stamps";
 import {
-  guestSavePromptedThisSession,
-  markGuestRidden,
-  markGuestSavePrompted,
-} from "@/lib/guest-ride";
-import { justReachedPerfect } from "@/lib/stamps";
+  earliestArrival,
+  readSessionAlmost,
+  rememberAlmost,
+  rememberSessionPerfect,
+  retireStub,
+  sessionHasPerfect,
+  shouldShowSessionStub,
+  stubRetired,
+  type SessionAlmostRow,
+} from "@/lib/session-almost";
+import { claimTicketPng } from "@/lib/ticket-png";
+import { playArrivalBeat } from "@/lib/arrival-audio";
 import {
   pushCouplePending,
   takeCouplePending,
@@ -47,6 +55,7 @@ import {
   requiredLights,
   suggestBeat,
   type BeatId,
+  type NextArrival,
   type ProgressState,
 } from "@/lib/progress-eval";
 import { useDwell } from "@/lib/use-dwell";
@@ -88,6 +97,7 @@ export function KanjiSession({
   onUnderstand,
   onAnswer,
   onEchoStart,
+  nextArrival: nextArrivalProp,
 }: {
   char: string;
   progress: ProgressState;
@@ -98,26 +108,26 @@ export function KanjiSession({
   childName?: string;
   hrefHome: "/demo" | "/app";
   busy?: boolean;
-  onEncounter: () => void | Promise<unknown>;
-  onUnderstand: () => void | Promise<unknown>;
+  onEncounter: () => unknown | Promise<unknown>;
+  onUnderstand: () => unknown | Promise<unknown>;
   onAnswer: (input: {
     itemId: string;
     choiceId: string;
     isEcho: boolean;
     echoBatchDone: boolean;
     sessionId: string;
-  }) => Promise<{ correct: boolean; label: string; progress: ProgressState; gradePerfect?: number }>;
+  }) => Promise<{
+    correct: boolean;
+    label: string;
+    progress: ProgressState;
+    nextArrival?: NextArrival | null;
+    gradePerfect?: number;
+  }>;
   onEchoStart?: () => void;
+  nextArrival?: NextArrival | null;
 }) {
   const { t } = useI18n();
   const tour = useAutoDemo();
-  useEffect(() => {
-    if (hrefHome === "/demo") markGuestRidden();
-  }, [hrefHome]);
-  const [showGuestSave] = useState(
-    () => hrefHome === "/demo" && !guestSavePromptedThisSession(),
-  );
-  const [saveDismissed, setSaveDismissed] = useState(false);
   const kanji = getKanji(char);
   const params = getGradeParams(grade);
   const shape = shapeSurfaceAvailable(char);
@@ -137,11 +147,10 @@ export function KanjiSession({
       computed,
     }),
   );
+  const [engineArrival, setEngineArrival] = useState<NextArrival | null>(nextArrivalProp ?? null);
   useEffect(() => {
-    if (showGuestSave && !lookMode && localBeat === "feedback" && progress.status === "almost") {
-      markGuestSavePrompted();
-    }
-  }, [showGuestSave, lookMode, localBeat, progress.status]);
+    setEngineArrival(nextArrivalProp ?? null);
+  }, [nextArrivalProp]);
   const [readingsOpen, setReadingsOpen] = useState(progress.understandCompleted);
   const [placed, setPlaced] = useState(progress.understandCompleted);
   const [heard, setHeard] = useState(false);
@@ -161,10 +170,13 @@ export function KanjiSession({
   const [lastWrongByKind, setLastWrongByKind] = useState<Partial<Record<PracticeKind, string>>>(
     {},
   );
+  const [sessionRows, setSessionRows] = useState<SessionAlmostRow[]>(() => readSessionAlmost());
+  const [stubOn, setStubOn] = useState(false);
   const echoArmed = useRef(false);
   const itemsArmed = useRef(false);
   const answering = useRef(false);
   const afterReteach = useRef<BeatId>("practice");
+  const arrivalAudioPlayed = useRef(false);
   const echoDue = echoIsDue(progress, now);
   const staleEcho = echoIsStale(progress, now, params);
   const [announce, setAnnounce] = useState<ReturnType<typeof announcementFor> | null>(() =>
@@ -199,6 +211,29 @@ export function KanjiSession({
   useEffect(() => {
     return () => stopFixedAudio();
   }, [char, localBeat]);
+
+  useEffect(() => {
+    arrivalAudioPlayed.current = false;
+  }, [char]);
+
+  useEffect(() => {
+    if (localBeat !== "feedback" || lookMode) return;
+    if (arrivalAudioPlayed.current) return;
+    const pending = takeCouplePendingPeek();
+    const coupleNow =
+      progress.status === "perfect" && (Boolean(couple) || pending.includes(char));
+    const rows = sessionRows.length ? sessionRows : readSessionAlmost();
+    const showStub = shouldShowSessionStub({
+      reachedAlmostThisSession: stubOn,
+      retired: stubRetired(),
+      currentStatus: progress.status,
+      sessionHasPerfect: sessionHasPerfect() || Boolean(couple) || pending.includes(char),
+      glyphCount: rows.length,
+    });
+    if (!coupleNow && !showStub) return;
+    arrivalAudioPlayed.current = true;
+    return playArrivalBeat();
+  }, [localBeat, lookMode, progress.status, stubOn, couple, char, sessionRows]);
 
   useEffect(() => {
     echoArmed.current = false;
@@ -286,16 +321,35 @@ export function KanjiSession({
   const item = items[index] ?? null;
 
   function applyAnswer(
-    out: { correct: boolean; label: string; progress: ProgressState; gradePerfect?: number },
+    out: {
+      correct: boolean;
+      label: string;
+      progress: ProgressState;
+      nextArrival?: NextArrival | null;
+      gradePerfect?: number;
+    },
     itemId: string,
     kind: PracticeKind,
   ) {
     setResult({ correct: out.correct, label: out.label });
+    if (out.nextArrival !== undefined) setEngineArrival(out.nextArrival);
     if (!out.correct) {
       setLastWrongByKind((prev) => ({ ...prev, [kind]: itemId }));
       setRepairCount((c) => c + 1);
     }
+    if (justReachedAlmost(progress, out.progress)) {
+      const arrival = out.nextArrival;
+      const rows = rememberAlmost({
+        kanji: char,
+        label: arrival?.label ?? engineArrival?.label ?? "",
+        dueIso: arrival?.dueIso ?? engineArrival?.dueIso ?? null,
+        dueLocalDate: arrival?.dueLocalDate ?? engineArrival?.dueLocalDate ?? null,
+      });
+      setSessionRows(rows);
+      if (!stubRetired()) setStubOn(true);
+    }
     if (justReachedPerfect(progress, out.progress)) {
+      rememberSessionPerfect(char);
       pushCouplePending(char);
       const pending = takeCouplePendingPeek();
       setCouple({
@@ -332,9 +386,7 @@ export function KanjiSession({
   const rideReady = encounterDwell.ready && !busy;
   const understandReady =
     understandDwell.ready && canFinishUnderstand && listenOk && !busy;
-  const arrivalWhen = progress.echoDueAt
-    ? echoArrivalWhen(progress.echoDueAt, now, t)
-    : "";
+  const arrivalWhen = engineArrival?.label ?? "";
 
   const kicker = (
     <p
@@ -385,7 +437,12 @@ export function KanjiSession({
         data-dwell-ready={encounterDwell.ready ? "1" : "0"}
         disabled={!rideReady}
         onClick={() => {
-          void Promise.resolve(onEncounter()).then(() => setLocalBeat("understand"));
+          void Promise.resolve(onEncounter()).then((out) => {
+            if (out && typeof out === "object" && "nextArrival" in out) {
+              setEngineArrival((out as { nextArrival: NextArrival | null }).nextArrival);
+            }
+            setLocalBeat("understand");
+          });
         }}
       >
         {encounterDwell.ready ? t("rideOn") : `${t("rideOn")} ${encounterDwell.remainSec}`}
@@ -514,7 +571,10 @@ export function KanjiSession({
               setLocalBeat(nextBeat);
               return;
             }
-            void Promise.resolve(onUnderstand()).then(() => {
+            void Promise.resolve(onUnderstand()).then((out) => {
+              if (out && typeof out === "object" && "nextArrival" in out) {
+                setEngineArrival((out as { nextArrival: NextArrival | null }).nextArrival);
+              }
               setLocalBeat("practice");
             });
           }}
@@ -670,18 +730,44 @@ export function KanjiSession({
             to={hrefHome}
             search={homeSearch}
             data-couple-next
+            data-to-board
             onClick={() => {
               takeCouplePending();
               writeOverviewIntent({ open: false, glow: coupleChars });
             }}
             className="inline-flex h-[88px] w-full items-center justify-center rounded-xl border border-border bg-surface font-display text-xl text-fg-muted"
           >
-            {t("next")}
+            {t("toBoard")}
           </Link>
         </div>
       );
     } else {
-    stage = (
+    const rows = sessionRows.length ? sessionRows : readSessionAlmost();
+    const arrival = earliestArrival(rows);
+    const stubGlyphs = rows.map((r) => r.kanji);
+    const showStub = shouldShowSessionStub({
+      reachedAlmostThisSession: stubOn,
+      retired: stubRetired(),
+      currentStatus: progress.status,
+      sessionHasPerfect: sessionHasPerfect() || Boolean(couple) || pending.includes(char),
+      glyphCount: stubGlyphs.length,
+    });
+    const serial = `KD-${stubGlyphs.join("") || kanji.char}`;
+    function dismissStub() {
+      retireStub();
+      setStubOn(false);
+    }
+    stage = showStub ? (
+      <SessionStub
+        glyphs={stubGlyphs}
+        returnLabel={arrival?.label || arrivalWhen || t("echoArrivalToday")}
+        serial={serial}
+        issueDay={arrival?.dueLocalDate || ""}
+        domain={t("stubDomain")}
+        status="almost"
+        title={t("stubTitle")}
+      />
+    ) : (
       <section className="flex min-h-0 flex-1 flex-col items-center justify-center space-y-4 text-center" data-tour="feedback">
         <h1 className="font-display text-7xl leading-none">{kanji.char}</h1>
         <MasteryLights lights={progress.lights} ui={params.lights_ui} />
@@ -696,7 +782,7 @@ export function KanjiSession({
                   ? t("feedbackLost")
                   : t("feedbackFix")}
         </p>
-        {status === "almost" && progress.echoDueAt ? (
+        {status === "almost" && arrivalWhen ? (
           <p className="text-xs text-fg-subtle" data-echo-arrival={kanji.char}>
             {t("echoArrival", { when: arrivalWhen })}
           </p>
@@ -724,40 +810,55 @@ export function KanjiSession({
           </Button>
         ) : (
           <>
-            {showGuestSave && !saveDismissed && status === "almost" ? (
-              <div
-                data-guest-save
-                className="space-y-3 rounded-xl border border-border bg-surface px-4 py-4 text-left"
-              >
-                <p className="font-display text-xl leading-snug">{t("guestSaveTitle")}</p>
-                <p className="text-sm leading-7 text-fg-muted">{t("guestSaveReason")}</p>
-                <Link
-                  to="/login"
-                  data-guest-save-confirm
-                  onClick={() => markGuestSavePrompted()}
-                  className="inline-flex h-14 w-full items-center justify-center rounded-xl bg-primary font-display text-lg text-primary-fg"
-                >
-                  {t("guestSaveConfirm")}
-                </Link>
-                <button
+            {showStub ? (
+              <>
+                <Button
                   type="button"
-                  data-guest-save-later
+                  className="h-[88px] w-full"
+                  data-stub-claim
                   onClick={() => {
-                    markGuestSavePrompted();
-                    setSaveDismissed(true);
+                    void claimTicketPng({
+                      glyphs: stubGlyphs,
+                      returnLabel: arrival?.label || arrivalWhen || t("echoArrivalToday"),
+                      serial,
+                      issueDay: arrival?.dueLocalDate || "",
+                      domain: t("stubDomain"),
+                      title: t("stubTitle"),
+                    }).finally(dismissStub);
                   }}
-                  className="inline-flex h-12 w-full items-center justify-center rounded-xl border-2 border-fg bg-transparent font-display text-lg text-fg"
                 >
-                  {t("guestSaveLater")}
-                </button>
-              </div>
+                  {t("stubClaim")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-14 w-full"
+                  data-stub-later
+                  onClick={dismissStub}
+                >
+                  {t("stubLater")}
+                </Button>
+              </>
             ) : null}
             <Link
               to={hrefHome}
               search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
+              data-to-board
+              onClick={() => writeOverviewIntent({ open: false })}
               className="inline-flex h-[88px] w-full items-center justify-center rounded-xl bg-primary font-display text-xl text-primary-fg"
             >
-              {t("next")}
+              {t("toBoard")}
+            </Link>
+            <Link
+              to={hrefHome}
+              search={{ grade: readStoredActiveGrade() ?? kanji.grade }}
+              data-see-train
+              onClick={() =>
+                writeOverviewIntent({ open: true, focusChar: kanji.char })
+              }
+              className="inline-flex h-[88px] w-full items-center justify-center rounded-xl border border-border bg-surface font-display text-xl text-fg-muted"
+            >
+              {t("seeTrain")}
             </Link>
           </>
         )}

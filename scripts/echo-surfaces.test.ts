@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { getComponentAssembly } from "../src/data/component-assembly.ts";
 import { getStrokeAssembly } from "../src/data/stroke-assembly.ts";
@@ -22,6 +23,21 @@ test("echo surfaces only keep elementary readings", () => {
   for (const s of echoSurfacesFor("生")) {
     assert.equal(isElementaryReading("生", s.reading), true, s.id);
   }
+});
+
+test("published surfaces carry targetChar and creditsReading (content, not U2)", () => {
+  const right = echoSurfacesFor("右");
+  assert.ok(right.length > 0);
+  for (const s of right) {
+    assert.equal(s.targetChar, "右", s.id);
+    assert.equal(typeof s.creditsReading, "boolean", s.id);
+  }
+  const word = right.find((s) => s.text !== "右") ?? right[0]!;
+  assert.equal(word.creditsReading, true);
+  const evalSrc = readFileSync("src/lib/progress-eval.ts", "utf8");
+  assert.equal(/targetChar|creditsReading/.test(evalSrc), false);
+  const mig = readFileSync("migrations/0008_surface_seen.sql", "utf8");
+  assert.equal(/target_char|credits_reading/.test(mig), false);
 });
 
 test("echo never switches せい to う", () => {
@@ -228,7 +244,7 @@ test("wrong component does not snap; matching label on next slot does", () => {
   assert.equal(canPlaceComponent(明, ["明-0"], "明-1"), true);
 });
 
-test("three novel failures do not send G1 to まよい", () => {
+test("three novel failures on new are not U2-shielded; almost novel misses stay almost", () => {
   let s = emptyProgress("花");
   s = evaluateProgress(s, { type: "completeEncounter", nowIso: NOW }, G1);
   s = evaluateProgress(s, { type: "completeUnderstand", nowIso: NOW }, G1);
@@ -248,9 +264,36 @@ test("three novel failures do not send G1 to まよい", () => {
       G1,
     );
   }
-  assert.notEqual(s.status, "lost");
-  assert.equal(s.wrongCountByKind.reading, 0);
-  assert.equal(s.lights.reading, false);
+  assert.equal(s.status, "lost");
+
+  let a = emptyProgress("花");
+  a = {
+    ...a,
+    status: "almost",
+    encounterCompleted: true,
+    understandCompleted: true,
+    lights: { reading: true, meaning: true, shape: true },
+    echoDueAt: NOW,
+  };
+  for (let i = 0; i < 3; i++) {
+    a = evaluateProgress(
+      a,
+      {
+        type: "answer",
+        kind: "reading",
+        correct: false,
+        isEcho: false,
+        echoBatchDone: false,
+        nowIso: NOW,
+        shapeAvailable: true,
+        surfaceId: "花:花火",
+      },
+      G1,
+    );
+  }
+  assert.equal(a.status, "almost");
+  assert.equal(a.wrongCountByKind.reading, 0);
+  assert.equal(a.lights.reading, false);
 });
 
 test("known surface in surfacesSeenSuccess + wrong uses fix/lost counters", () => {

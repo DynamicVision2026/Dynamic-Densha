@@ -8,12 +8,16 @@ import {
   emptyProgress,
   evaluateProgress,
   hydrateProgress,
+  nextArrivalFrom,
   requiredLights,
   suggestBeat,
   utcDay,
   type BeatId,
+  type NextArrival,
+  type ProgressEvent,
   type ProgressState,
 } from "@/lib/progress-eval";
+import { jaArrivalT } from "@/lib/echo-arrival";
 import {
   drawPublishedItems,
   getItem,
@@ -319,30 +323,50 @@ export function getDemoStudy(char: string): ProgressState {
   return hydrateProgress(readAll()[char] ?? emptyProgress(char));
 }
 
-export function openDemoKanji(char: string): ProgressState {
-  const now = new Date().toISOString();
-  const next = evaluateProgress(getDemoStudy(char), { type: "open", nowIso: now }, paramsFor(char));
-  return persist(char, next);
+export function applyEvent(
+  prev: ProgressState,
+  event: ProgressEvent,
+  t: typeof jaArrivalT = jaArrivalT,
+): { progress: ProgressState; nextArrival: NextArrival | null } {
+  const next = evaluateProgress(prev, event, paramsFor(prev.kanji));
+  const nowIso =
+    event.type === "answer" ||
+    event.type === "open" ||
+    event.type === "completeEncounter" ||
+    event.type === "completeUnderstand"
+      ? event.nowIso
+      : new Date().toISOString();
+  return { progress: next, nextArrival: nextArrivalFrom(next, nowIso, t) };
 }
 
-export function completeDemoEncounter(char: string): ProgressState {
+export function openDemoKanji(char: string): {
+  progress: ProgressState;
+  nextArrival: NextArrival | null;
+} {
   const now = new Date().toISOString();
-  const next = evaluateProgress(
-    getDemoStudy(char),
-    { type: "completeEncounter", nowIso: now },
-    paramsFor(char),
-  );
-  return persist(char, next);
+  const out = applyEvent(getDemoStudy(char), { type: "open", nowIso: now });
+  persist(char, out.progress);
+  return out;
 }
 
-export function completeDemoUnderstand(char: string): ProgressState {
+export function completeDemoEncounter(char: string): {
+  progress: ProgressState;
+  nextArrival: NextArrival | null;
+} {
   const now = new Date().toISOString();
-  const next = evaluateProgress(
-    getDemoStudy(char),
-    { type: "completeUnderstand", nowIso: now },
-    paramsFor(char),
-  );
-  return persist(char, next);
+  const out = applyEvent(getDemoStudy(char), { type: "completeEncounter", nowIso: now });
+  persist(char, out.progress);
+  return out;
+}
+
+export function completeDemoUnderstand(char: string): {
+  progress: ProgressState;
+  nextArrival: NextArrival | null;
+} {
+  const now = new Date().toISOString();
+  const out = applyEvent(getDemoStudy(char), { type: "completeUnderstand", nowIso: now });
+  persist(char, out.progress);
+  return out;
 }
 
 export function demoBeat(char: string): BeatId {
@@ -387,7 +411,7 @@ export function submitDemoAnswer(input: {
   isEcho: boolean;
   echoBatchDone: boolean;
   sessionId: string;
-}): { correct: boolean; label: string; progress: ProgressState; gradePerfect?: number } {
+}): { correct: boolean; label: string; progress: ProgressState; nextArrival: NextArrival | null; gradePerfect?: number } {
   const item = getItem(input.itemId, true);
   if (!item || item.kanji !== input.char) {
     throw new Error("unknown item");
@@ -396,21 +420,17 @@ export function submitDemoAnswer(input: {
   const now = new Date().toISOString();
   const prev = getDemoStudy(input.char);
   const scoringEcho = echoIsDue(prev, now);
-  const next = evaluateProgress(
-    prev,
-    {
-      type: "answer",
-      kind: item.kind,
-      correct: graded.correct,
-      isEcho: scoringEcho,
-      echoBatchDone: scoringEcho,
-      nowIso: now,
-      shapeAvailable: shapeSurfaceAvailable(input.char),
-      surfaceId: item.surfaceId ?? item.payload.surface?.id ?? `${item.kanji}:solo`,
-      gentle: Boolean(item.payload.confusable || item.payload.phoneticFamily || item.payload.cloze),
-    },
-    paramsFor(input.char),
-  );
+  const { progress: next, nextArrival } = applyEvent(prev, {
+    type: "answer",
+    kind: item.kind,
+    correct: graded.correct,
+    isEcho: scoringEcho,
+    echoBatchDone: scoringEcho,
+    nowIso: now,
+    shapeAvailable: shapeSurfaceAvailable(input.char),
+    surfaceId: item.surfaceId ?? item.payload.surface?.id ?? `${item.kanji}:solo`,
+    gentle: Boolean(item.payload.confusable || item.payload.phoneticFamily || item.payload.cloze),
+  });
   persist(input.char, next);
   if (
     prev.status === "perfect" &&
@@ -434,7 +454,7 @@ export function submitDemoAnswer(input: {
   const rings = buildGradeRings({ progress: readAll(), profileGrade: DEMO_CHILD.grade });
   const g = (getKanji(input.char)?.grade ?? DEMO_CHILD.grade) as Grade;
   const gradePerfect = rings.find((r) => r.grade === g)?.perfect ?? 0;
-  return { correct: graded.correct, label: graded.label, progress: next, gradePerfect };
+  return { correct: graded.correct, label: graded.label, progress: next, nextArrival, gradePerfect };
 }
 
 /** Workshop: UI-only 当たり / 半分当たり. Never writes mastery. */

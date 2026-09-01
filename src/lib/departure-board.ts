@@ -1,5 +1,5 @@
-import { echoIsDue, type ProgressState } from "./progress-eval.ts";
-import { echoArrival } from "./echo-arrival.ts";
+import { echoIsDue, nextArrivalFrom, type ProgressState } from "./progress-eval.ts";
+import { echoArrival, jaArrivalT } from "./echo-arrival.ts";
 import { dueInspections, INSPECTION_DAILY_CAP, type InspectionRow } from "./inspection.ts";
 import type { WeeklyPlan } from "./weekly-plan.ts";
 
@@ -9,6 +9,7 @@ export type BoardCar = {
   kanji: string;
   kind: BoardKind;
   when?: "today" | "tomorrow" | "dayAfter";
+  label?: string;
 };
 
 export type DepartureBoard = {
@@ -35,17 +36,25 @@ export function buildDepartureBoard(input: {
 
   for (const row of rows) {
     if (echoIsDue(row, input.nowIso)) {
-      today.push({ kanji: row.kanji, kind: "echo", when: "today" });
+      const arrival = nextArrivalFrom(row, input.nowIso, jaArrivalT);
+      today.push({
+        kanji: row.kanji,
+        kind: "echo",
+        when: "today",
+        label: arrival?.label ?? jaArrivalT("echoArrivalToday"),
+      });
       seen.add(row.kanji);
       continue;
     }
     if (row.status === "almost" && row.echoDueAt) {
+      const arrival = nextArrivalFrom(row, input.nowIso, jaArrivalT);
       const kind = echoArrival(row.echoDueAt, input.nowIso).kind;
       if (kind === "tomorrow" || kind === "dayAfter") {
         tomorrow.push({
           kanji: row.kanji,
           kind: "echo",
           when: kind === "dayAfter" ? "dayAfter" : "tomorrow",
+          label: arrival?.label,
         });
       }
     }

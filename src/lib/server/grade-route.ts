@@ -10,8 +10,9 @@ import {
 } from "@/lib/grade-route";
 import { planRollover } from "@/lib/grade-rollover";
 import type { InspectionRow } from "@/lib/inspection";
-import { markInspectionPass } from "@/lib/inspection";
+import { markInspectionOpened, markInspectionPass } from "@/lib/inspection";
 import { isInspectionDue } from "@/lib/inspection";
+import { justReachedPerfect } from "@/lib/stamps";
 import { rollPlanState, type PlanState } from "@/lib/weekly-plan";
 import type { ProgressState } from "@/lib/progress-eval";
 
@@ -195,15 +196,22 @@ export async function loadInspections(
   childId: string,
 ): Promise<Record<string, InspectionRow>> {
   const sql = await getSql();
-  const rows = await sql<{ kanji: string; last_at: string | Date | null; count: number }>`
-    select kanji, last_at, count from inspections
+  const rows = await sql<{
+    kanji: string;
+    last_at: string | Date | null;
+    count: number;
+    due_at: string | Date | null;
+  }>`
+    select kanji, last_at, count, due_at from inspections
     where child_id = ${childId} and user_id = ${userId}
   `;
   const out: Record<string, InspectionRow> = {};
   for (const r of rows) {
     const lastAt =
       r.last_at instanceof Date ? r.last_at.toISOString() : r.last_at ? String(r.last_at) : null;
-    out[r.kanji] = { kanji: r.kanji, lastAt, count: Number(r.count) || 0 };
+    const dueAt =
+      r.due_at instanceof Date ? r.due_at.toISOString() : r.due_at ? String(r.due_at) : null;
+    out[r.kanji] = { kanji: r.kanji, lastAt, count: Number(r.count) || 0, dueAt };
   }
   return out;
 }
@@ -218,12 +226,30 @@ export async function recordInspectionPass(
   const existing = await loadInspections(userId, childId);
   const next = markInspectionPass(existing, kanji, nowIso)[kanji]!;
   await sql.query(
-    `insert into inspections (user_id, child_id, kanji, last_at, count)
-     values ($1,$2,$3,$4,$5)
+    `insert into inspections (user_id, child_id, kanji, last_at, count, due_at)
+     values ($1,$2,$3,$4,$5,$6)
      on conflict (child_id, kanji)
-     do update set last_at = excluded.last_at, count = excluded.count
+     do update set last_at = excluded.last_at, count = excluded.count, due_at = excluded.due_at
      where inspections.user_id = $1`,
-    [userId, childId, kanji, next.lastAt, next.count],
+    [userId, childId, kanji, next.lastAt, next.count, next.dueAt ?? null],
+  );
+}
+
+export async function seedInspectionDue(
+  userId: string,
+  childId: string,
+  kanji: string,
+  nowIso: string,
+) {
+  const sql = await getSql();
+  const row = markInspectionOpened(kanji, nowIso);
+  await sql.query(
+    `insert into inspections (user_id, child_id, kanji, last_at, count, due_at)
+     values ($1,$2,$3,$4,$5,$6)
+     on conflict (child_id, kanji)
+     do update set due_at = coalesce(inspections.due_at, excluded.due_at)
+     where inspections.user_id = $1`,
+    [userId, childId, kanji, row.lastAt, row.count, row.dueAt ?? null],
   );
 }
 
@@ -235,8 +261,13 @@ export async function maybeRecordInspection(input: {
   next: ProgressState;
   nowIso: string;
 }) {
-  if (input.prev.status !== "perfect" || input.next.status !== "perfect") return;
+  if (input.next.status !== "perfect") return;
   const rows = await loadInspections(input.userId, input.childId);
+  if (justReachedPerfect(input.prev, input.next) && !rows[input.kanji]) {
+    await seedInspectionDue(input.userId, input.childId, input.kanji, input.nowIso);
+    return;
+  }
+  if (input.prev.status !== "perfect") return;
   if (!isInspectionDue(input.prev, rows[input.kanji], input.nowIso)) return;
   await recordInspectionPass(input.userId, input.childId, input.kanji, input.nowIso);
 }

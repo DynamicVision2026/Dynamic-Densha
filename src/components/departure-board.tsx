@@ -66,7 +66,7 @@ export function DepartureBoardView({
             kind="today"
             chars={board.today.map((c) => ({
               kanji: c.kanji,
-              label: c.kind === "inspect" ? t("boardInspect") : t("echoArrivalToday"),
+              label: c.kind === "inspect" ? t("boardInspect") : (c.label ?? t("echoArrivalToday")),
             }))}
           />
         </div>
@@ -76,7 +76,7 @@ export function DepartureBoardView({
             kind="tomorrow"
             chars={board.tomorrow.map((c) => ({
               kanji: c.kanji,
-              label: c.when === "dayAfter" ? t("echoArrivalDayAfter") : t("echoArrivalTomorrow"),
+              label: c.label ?? t("echoArrivalTomorrow"),
             }))}
           />
         </div>

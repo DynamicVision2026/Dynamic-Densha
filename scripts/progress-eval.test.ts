@@ -373,3 +373,92 @@ test("P0-1 server and demo derive echo from stored progress, ignore client flags
   assert.equal(/[0-9a-f]{64}/.test(preview), false);
   assert.match(authServer, /GROK_PREVIEW_CLIENT_SECRET/);
 });
+
+function missMeaning(
+  state: ProgressState,
+  surfaceId: string,
+  nowIso = NOW,
+  params: EvalParams = G1,
+): ProgressState {
+  return evaluateProgress(
+    state,
+    {
+      type: "answer",
+      kind: "meaning",
+      correct: false,
+      isEcho: false,
+      echoBatchDone: false,
+      nowIso,
+      shapeAvailable: true,
+      surfaceId,
+    },
+    params,
+  );
+}
+
+test("U2: new + meaning miss on novel surface → fix, lamp off", () => {
+  let s = taught("右");
+  assert.equal(s.status, "new");
+  s = missMeaning(s, "右:family");
+  assert.equal(s.status, "fix");
+  assert.equal(s.lights.meaning, false);
+});
+
+test("U2: new + meaning miss on known surface → fix", () => {
+  let s = taught("右");
+  s = evaluateProgress(
+    s,
+    {
+      type: "answer",
+      kind: "meaning",
+      correct: true,
+      isEcho: false,
+      echoBatchDone: false,
+      nowIso: NOW,
+      shapeAvailable: true,
+      surfaceId: "右:solo",
+    },
+    G1,
+  );
+  assert.equal(s.status, "new");
+  assert.ok(s.surfacesSeenSuccess.includes("右:solo"));
+  s = missMeaning(s, "右:solo");
+  assert.equal(s.status, "fix");
+});
+
+test("U2: almost + meaning miss on novel surface stays almost", () => {
+  let s = passKinds(taught("円"), ["reading", "meaning", "shape"]);
+  assert.equal(s.status, "almost");
+  const echoes = s.echoSuccessCount;
+  s = missMeaning(s, "円:family");
+  assert.equal(s.status, "almost");
+  assert.equal(s.lights.meaning, false);
+  assert.equal(s.echoSuccessCount, echoes);
+  assert.equal(s.wrongCountByKind.meaning, 0);
+  assert.equal(s.consecutiveWrongByKind.meaning, 0);
+});
+
+test("U2: almost + meaning miss on known surface → fix", () => {
+  let s = passKinds(taught("円"), ["reading", "meaning", "shape"]);
+  assert.equal(s.status, "almost");
+  s = missMeaning(s, "円:solo");
+  assert.equal(s.status, "fix");
+});
+
+test("U2: perfect + meaning miss on novel surface stays perfect", () => {
+  let s = twoEchoes(passKinds(taught("右"), ["reading", "meaning", "shape"]));
+  assert.equal(s.status, "perfect");
+  s = missMeaning(s, "右:family");
+  assert.equal(s.status, "perfect");
+});
+
+test("U2: dual echo first pass stays almost; second is perfect", () => {
+  let s = passKinds(taught("円"), ["reading", "meaning", "shape"]);
+  s = echoOnce(s, s.echoDueAt ?? NOW);
+  assert.equal(s.status, "almost");
+  assert.equal(s.echoSuccessCount, 1);
+  s = echoOnce(s, s.echoDueAt ?? NOW);
+  assert.equal(s.status, "perfect");
+  assert.equal(s.echoSuccessCount, 2);
+});
+

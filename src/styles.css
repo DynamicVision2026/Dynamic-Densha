@@ -27,6 +27,9 @@
   --color-status-almost-fg: #f3f7fb;
   --color-status-perfect: #B7CDA0;
   --color-status-perfect-fg: #1C2B1E;
+  --color-ticket-mint: #d7ebe0;
+  --color-ticket-amber: #f0e0b8;
+  --color-ticket-ink: #1c1916;
   --color-ring: #c45c48;
   --color-car: #B7CDA0;
   --color-car-strong: #8FA97A;
@@ -343,6 +346,17 @@
   inset: 0;
   background: linear-gradient(to bottom, transparent 70%, rgb(244 239 228 / 0.9) 100%);
   pointer-events: none;
+}
+
+@keyframes return-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(61 122 90 / 0); }
+  40% { box-shadow: 0 0 12px 3px rgb(61 122 90 / 0.5); }
+}
+.return-glow {
+  animation: return-glow 1000ms ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .return-glow { animation: none; }
 }
 
 

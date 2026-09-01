@@ -11,10 +11,16 @@ export type InspectionRow = {
   kanji: string;
   lastAt: string | null;
   count: number;
+  /** When set, this is the 点検 due instant. Missing = compute from lastAt / green date. */
+  dueAt?: string | null;
 };
 
 function daysBetween(fromIso: string, toIso: string): number {
   return (Date.parse(toIso) - Date.parse(fromIso)) / 86_400_000;
+}
+
+function addUtcDays(iso: string, days: number): string {
+  return new Date(Date.parse(iso) + days * 86_400_000).toISOString();
 }
 
 /**
@@ -27,6 +33,9 @@ export function isInspectionDue(
   nowIso: string,
 ): boolean {
   if (!progress || progress.status !== "perfect") return false;
+  if (inspection?.dueAt) {
+    return Date.parse(nowIso) >= Date.parse(inspection.dueAt);
+  }
   const count = inspection?.count ?? 0;
   if (count > 0 && inspection?.lastAt) {
     return daysBetween(inspection.lastAt, nowIso) >= INSPECTION_NEXT_DAYS;
@@ -64,6 +73,17 @@ export function markInspectionPass(
       kanji,
       lastAt: nowIso,
       count: (row?.count ?? 0) + 1,
+      dueAt: addUtcDays(nowIso, INSPECTION_NEXT_DAYS),
     },
+  };
+}
+
+/** First green: schedule 点検 from now. Does not increment count. */
+export function markInspectionOpened(kanji: string, nowIso: string): InspectionRow {
+  return {
+    kanji,
+    lastAt: null,
+    count: 0,
+    dueAt: addUtcDays(nowIso, INSPECTION_FIRST_DAYS),
   };
 }
