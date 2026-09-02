@@ -58,6 +58,7 @@ const TS_TESTS = [
   "scripts/next-arrival.test.ts",
   "scripts/ticket-path-guard.test.ts",
   "scripts/i18n-locale-parity.test.ts",
+  "scripts/door-scene.test.ts",
 ];
 
 const stages = [
