@@ -12,6 +12,56 @@ with an owner, each with its own clock.
 | 3 | Business fields for `draft/pricing.html` and `draft/tokushoho.html` | Founder | Price (tax-included), payment method/timing, contract term & auto-renewal, cancellation method & deadline, refund policy. These are the only placeholders (`［…］`) left in either file — everything else (operator, representative, address, contact, phone-on-request) is already filled in and correct. |
 | 4 | Shopify account + checkout link (now unblocked — domains are live, ready to test return URLs) | Founder | Configure the subscription product in the Shopify merchant backend, then drop the real checkout URL into `draft/pricing.html`'s one remaining `［Shopify チェックアウト URL］` placeholder. **Use a plain permalink or Payment Link URL, not a Buy Button embed** — a Buy Button is JavaScript, and the landing site must stay inert (`check-inert.mjs` fails on any `<script>`, including inside `draft/`). Shopify's return/redirect URL should point at `https://app.kanji-ai.jp/` (or a specific post-checkout route there, if one gets built) now that the app domain is live. Also verify Shopify's own final confirmation screen shows all six 特商法-required items (contract terms, renewal timing, price, cancellation method, cancellation deadline) — the default checkout doesn't necessarily satisfy this, and that screen is Shopify's, not ours. |
 
+## Production verification, now that both domains are live
+
+Five checks, cheapest to run now before real families exist. **None of these
+are runnable from the environment that built this checklist** — outbound
+HTTPS to arbitrary internet hosts is blocked by that sandbox's egress policy
+(confirmed again during this pass: `gateway answered 403 to CONNECT`, same
+block that stopped every reachability attempt throughout this build,
+unrelated to whether the domains are actually live). Run them from a machine
+with real network access.
+
+1. **Routing contract + landing CTAs — automated.** `node
+   scripts/smoke-production.mjs` checks `app.kanji-ai.jp/`, `/parents`,
+   `/app/parent` all return 2xx; `kanji-ai.jp/` returns 2xx and
+   `www.kanji-ai.jp/` 301/308s to the apex; and reads the deployed
+   `index.html` to confirm its two CTA hrefs actually point at
+   `https://app.kanji-ai.jp/` and `/parents` — stronger evidence than a
+   manual click, since it checks the shipped href rather than trusting how
+   the click behaved once.
+2. **R1 — sign-in survives a redeploy.** Manual, can only be proven in
+   production: sign in on `app.kanji-ai.jp`, trigger a redeploy of the app
+   Cloud Run service (traffic-serving, not the `--no-traffic`-tagged preview
+   workflow in this repo), reload, confirm the session is still valid. Do
+   this before anyone has real progress to lose — session-cookie or
+   auth-secret misconfiguration surviving a single deploy but not a second
+   one is exactly the kind of bug that only shows up here.
+3. **Parity capture at the deployed SHA** — guest and account home screens,
+   one frame, both labelled. Couldn't locate a commit `42c4915` in this
+   repo's history to confirm what "inherited through the entire
+   remediation" refers to — if it's from a different repo or an artifact
+   outside this checkout, point me at it and I'll fold it in; otherwise this
+   is a fresh capture against the live site.
+4. **One guest ride and one account ride on an actual phone**, Safari, with
+   the toolbar showing. Requires a physical device — can't be simulated
+   from here even with network access.
+5. **Origin change, noted, no action taken.** A `*.run.app` preview origin's
+   `localStorage` doesn't follow to `app.kanji-ai.jp` — fine now with no
+   real families, since nothing of real value is stranded. **Do not move
+   origins again after the first real signup** — from that point on, an
+   origin change stops being a no-op and starts being real data loss for a
+   real family.
+
+## Sequencing the rest
+
+- **Legal review (item 2) can start in parallel with everything else** — it
+  has the longest external clock of the four remaining blockers.
+- **Start the Shopify final-confirmation-screen check (item 4) early.** A
+  default Shopify checkout doesn't necessarily show all six 特商法-required
+  items — this is the item most likely to surprise you, so verify it with
+  enough runway to reconfigure before that's a day-9 problem.
+
 ## Expected, not a regression: the placeholder gate goes red at promotion
 
 `check-placeholders.mjs` currently exempts `draft/` on purpose — the two
