@@ -23,6 +23,27 @@ filled. That is the gate doing its job, not a build regression introduced by
 moving the files — expect it, and don't stop the launch to investigate it as
 a bug.
 
+## Day-8 safety valve (first cohort only)
+
+If Shopify checkout isn't fully verified by day 8 of the first cohort, extend
+trials by 14 days rather than rushing an untested checkout live — this was
+the pre-authorized fallback (spec §8, `admin_action`), but until now there
+was no way to actually pull that lever short of hand-writing SQL against
+production. `scripts/extend-trial.mjs` is that lever:
+
+```bash
+DATABASE_URL=<production Neon URL> node scripts/extend-trial.mjs \
+  --household hh_xxxxxxxx --days 14 --reason "checkout not verified by day 8" --actor "founder"
+```
+
+It inserts one row into the append-only `admin_action` table and nothing
+else — `recomputeSubscription` folds that in fresh on every real read
+(home load, parent dashboard), so the extension takes effect the next time
+that household opens the app, no restart or redeploy involved. It refuses
+to run without `DATABASE_URL` set, so it can't silently target the local
+PGLite dev fallback and look like it worked. One household at a time by
+design — a first cohort is small enough that this is a feature, not friction.
+
 ## What's already done
 
 - Household/subscription/entitlement model, trial clock, webhook signature
