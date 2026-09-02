@@ -16,7 +16,7 @@ const ja = {
   language: "言語",
   loginParent: "保護者ログイン",
   continueWith: "{label} で続ける",
-  heroKicker: "KANJI-KUSOU · 文部科学省 1026字",
+  heroKicker: "KANJI-DENSHA · 文部科学省 1026字",
   heroTitle1: "1026字を、",
   heroTitle2: "列車に乗せて。",
   heroLead:
@@ -422,7 +422,7 @@ const en: Record<MessageKey, string> = {
   language: "Language",
   loginParent: "Parent sign-in",
   continueWith: "Continue with {label}",
-  heroKicker: "KANJI-KUSOU · MEXT 1,026 characters",
+  heroKicker: "KANJI-DENSHA · MEXT 1,026 characters",
   heroTitle1: "1,026 kanji,",
   heroTitle2: "one train at a time.",
   heroLead:
@@ -826,7 +826,7 @@ const zhHans: Record<MessageKey, string> = {
   language: "语言",
   loginParent: "家长登录",
   continueWith: "用 {label} 继续",
-  heroKicker: "KANJI-KUSOU · MEXT 1026字",
+  heroKicker: "KANJI-DENSHA · MEXT 1026字",
   heroTitle1: "1026个字，",
   heroTitle2: "坐上列车。",
   heroLead:
@@ -1229,7 +1229,7 @@ const zhHant: Record<MessageKey, string> = {
   language: "語言",
   loginParent: "家長登入",
   continueWith: "以 {label} 繼續",
-  heroKicker: "KANJI-KUSOU · MEXT 1026字",
+  heroKicker: "KANJI-DENSHA · MEXT 1026字",
   heroTitle1: "1026個字，",
   heroTitle2: "坐上列車。",
   heroLead:
