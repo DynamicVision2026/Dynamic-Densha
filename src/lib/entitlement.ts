@@ -39,16 +39,21 @@ export type SubscriptionSnapshot = {
  * that by comparing against the clock, not trust the cached label. Every
  * other transition (active/lapsed/cancelled) is written by a webhook or an
  * admin action and is trusted as-is.
+ *
+ * Shared by entitlement() and parentTrialBanner() below so this comparison
+ * exists exactly once (the class of bug check-echo-eligibility-single-source
+ * / check-single-entitlement.mjs exist to catch elsewhere in this project).
  */
-export function entitlement(sub: SubscriptionSnapshot, nowIso: string): Entitlement {
+function effectiveStateOf(sub: SubscriptionSnapshot, nowIso: string): SubscriptionState {
   const trialExpired =
     sub.state === "trial" &&
     sub.effectiveTrialEnd != null &&
     Date.parse(nowIso) > Date.parse(sub.effectiveTrialEnd);
+  return trialExpired ? "lapsed" : sub.state;
+}
 
-  const effectiveState: SubscriptionState = trialExpired ? "lapsed" : sub.state;
-
-  switch (effectiveState) {
+export function entitlement(sub: SubscriptionSnapshot, nowIso: string): Entitlement {
+  switch (effectiveStateOf(sub, nowIso)) {
     case "guest":
     case "trial":
     case "active":
@@ -56,5 +61,42 @@ export function entitlement(sub: SubscriptionSnapshot, nowIso: string): Entitlem
     case "lapsed":
     case "cancelled":
       return { canRide: false, canView: true };
+  }
+}
+
+/**
+ * Parent-dashboard-only display info. Never used for gating (canRide/
+ * canView don't need to know "why") and never rendered on the child
+ * surface -- no price, no lock icon, no upgrade prompt there, entitled or
+ * not (see departure-ticket.tsx).
+ *
+ * "trialEnded" covers both a trial that ran its normal ten days and one
+ * backdated to `now` at household creation because this email already
+ * spent a trial (spec §2.2, src/lib/server/household.ts) -- the two are
+ * indistinguishable in `subscription` once expired, and the copy doesn't
+ * need to tell them apart: either way, this email's free trial is over.
+ * Shown from a household's very first visit onward when trialing, not just
+ * near the end, so a parent who checks in occasionally already knows the
+ * date before it arrives.
+ */
+export type ParentTrialBanner =
+  | { kind: "trialing"; trialEndsAt: string }
+  | { kind: "trialEnded" }
+  | { kind: "cancelled" }
+  | { kind: "none" };
+
+export function parentTrialBanner(sub: SubscriptionSnapshot, nowIso: string): ParentTrialBanner {
+  switch (effectiveStateOf(sub, nowIso)) {
+    case "trial":
+      return sub.effectiveTrialEnd
+        ? { kind: "trialing", trialEndsAt: sub.effectiveTrialEnd }
+        : { kind: "none" };
+    case "lapsed":
+      return { kind: "trialEnded" };
+    case "cancelled":
+      return { kind: "cancelled" };
+    case "guest":
+    case "active":
+      return { kind: "none" };
   }
 }

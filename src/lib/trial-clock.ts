@@ -22,3 +22,17 @@ export function trialEndsAtFrom(nowIso: string, days: number): string {
   const jstTargetDayEnd = jstTodayStart + days * DAY_MS + DAY_MS - 1;
   return new Date(jstTargetDayEnd - JST_OFFSET_MS).toISOString();
 }
+
+/**
+ * "Trial ends {month} {day}" in the parent's own locale, on the Asia/Tokyo
+ * calendar day trialEndsAtFrom() targeted -- Intl.DateTimeFormat handles
+ * per-locale month/day ordering and script (ja/zh "9月14日" vs en
+ * "September 14") so this doesn't need four hand-written formatters.
+ */
+export function trialEndDateLabel(trialEndsAtIso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "Asia/Tokyo",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(trialEndsAtIso));
+}

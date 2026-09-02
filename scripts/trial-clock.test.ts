@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { trialEndsAtFrom } from "../src/lib/trial-clock.ts";
+import { trialEndsAtFrom, trialEndDateLabel } from "../src/lib/trial-clock.ts";
 import { ymdInZone } from "../src/lib/echo-arrival.ts";
 
 test("trial ends at 23:59:59 JST, ten full calendar days later", () => {
@@ -39,4 +39,16 @@ test("day-7 grace check reads naturally off the same function", () => {
   const day7 = trialEndsAtFrom(start, 7);
   const day10 = trialEndsAtFrom(start, 10);
   assert.ok(Date.parse(day7) < Date.parse(day10));
+});
+
+test("trialEndDateLabel formats the JST calendar day per locale", () => {
+  const end = trialEndsAtFrom("2026-09-01T03:00:00.000Z", 10); // 2026-09-11 JST
+  assert.equal(trialEndDateLabel(end, "ja"), "9月11日");
+  assert.equal(trialEndDateLabel(end, "en"), "September 11");
+});
+
+test("trialEndDateLabel reads the JST day, not the UTC day, near the boundary", () => {
+  // 14:59:59.999Z is still 23:59:59.999 JST on the same JST calendar day.
+  const end = "2026-09-11T14:59:59.999Z";
+  assert.equal(trialEndDateLabel(end, "ja"), "9月11日");
 });

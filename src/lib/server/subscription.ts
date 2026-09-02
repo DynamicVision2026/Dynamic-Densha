@@ -10,7 +10,7 @@ import {
   type AdminActionInput,
   type BillingEventInput,
 } from "@/lib/subscription-derive";
-import { entitlement, type Entitlement } from "@/lib/entitlement";
+import { entitlement, parentTrialBanner, type Entitlement, type ParentTrialBanner } from "@/lib/entitlement";
 import { resolveHouseholdId } from "@/lib/server/household";
 
 type Sql = {
@@ -79,6 +79,16 @@ export async function getEntitlementForHousehold(
 ): Promise<Entitlement> {
   const derived = await recomputeSubscription(sql, householdId, nowIso);
   return entitlement({ state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd }, nowIso);
+}
+
+/** Parent-dashboard-only companion to getEntitlementForHousehold — see parentTrialBanner's own comment. */
+export async function getParentTrialBanner(
+  sql: Sql,
+  householdId: string,
+  nowIso: string = new Date().toISOString(),
+): Promise<ParentTrialBanner> {
+  const derived = await recomputeSubscription(sql, householdId, nowIso);
+  return parentTrialBanner({ state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd }, nowIso);
 }
 
 /**

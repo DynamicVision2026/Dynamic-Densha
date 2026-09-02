@@ -2,7 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { resolveHouseholdId } from "@/lib/server/household";
-import { assertCanRide, getEntitlementForHousehold } from "@/lib/server/subscription";
+import {
+  assertCanRide,
+  getEntitlementForHousehold,
+  getParentTrialBanner,
+} from "@/lib/server/subscription";
 import type { Grade } from "@/data/kyoiku";
 import { getKanji } from "@/data/kyoiku";
 import { decorateTrains, type TrainView } from "@/lib/trains";
@@ -617,8 +621,11 @@ export const getParentOverview = createServerFn({ method: "GET" })
     });
     const allRoutes = await listChildRoutes(context.userId, childId);
     const history = allRoutes.filter((r) => r.id !== ensured.route.id);
+    const householdId = await resolveHouseholdId(sql, context.userId, nowIso);
+    const trialBanner = await getParentTrialBanner(sql, householdId, nowIso);
     return {
       child: { ...child, startBand: routeRow.startBand },
+      trialBanner,
       trains,
       counts: report.counts,
       total,

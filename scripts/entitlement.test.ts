@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { entitlement, type SubscriptionSnapshot, type SubscriptionState } from "../src/lib/entitlement.ts";
+import { entitlement, parentTrialBanner, type SubscriptionSnapshot, type SubscriptionState } from "../src/lib/entitlement.ts";
 
 const NOW = "2026-09-05T12:00:00.000Z";
 
@@ -49,4 +49,29 @@ test("active is trusted as-is regardless of any date field -- its lapse is alway
   // charge-failed webhook + grace period, not by a client-side date check.
   const e = entitlement(snap("active", null), "2099-01-01T00:00:00.000Z");
   assert.equal(e.canRide, true);
+});
+
+test("parentTrialBanner shows the trial end date while trialing", () => {
+  const b = parentTrialBanner(snap("trial", "2026-09-10T14:59:59.999Z"), NOW);
+  assert.deepEqual(b, { kind: "trialing", trialEndsAt: "2026-09-10T14:59:59.999Z" });
+});
+
+test("parentTrialBanner reads a naturally-expired trial the same as one backdated at creation -- both are just 'trialEnded'", () => {
+  // A trial that ran its normal ten days and one backdated to `now` at
+  // household creation (spec §2.2 trial_spent) are indistinguishable in
+  // `subscription` once expired -- the banner doesn't need to tell them
+  // apart, it's the same dead-end-with-an-exit copy either way.
+  const naturallyExpired = parentTrialBanner(snap("trial", "2026-09-01T00:00:00.000Z"), NOW);
+  // Household created moments ago with trial_ends_at backdated to that
+  // instant (resolveHouseholdId's repeat-email branch) -- checked here one
+  // second later, as the very next request always will be in practice.
+  const backdatedAtCreation = parentTrialBanner(snap("trial", "2026-09-05T11:59:59.000Z"), NOW);
+  assert.deepEqual(naturallyExpired, { kind: "trialEnded" });
+  assert.deepEqual(backdatedAtCreation, { kind: "trialEnded" });
+});
+
+test("parentTrialBanner is 'cancelled' for a cancelled subscription, 'none' for guest/active", () => {
+  assert.deepEqual(parentTrialBanner(snap("cancelled"), NOW), { kind: "cancelled" });
+  assert.deepEqual(parentTrialBanner(snap("active"), NOW), { kind: "none" });
+  assert.deepEqual(parentTrialBanner(snap("guest"), NOW), { kind: "none" });
 });
