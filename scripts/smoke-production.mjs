@@ -26,9 +26,15 @@
  * docs/commerce-launch-checklist.md.
  */
 
-const APP_ORIGIN = "https://app.kanji-ai.jp";
+// APP_ORIGIN override lets the deploy pipeline point this at a 0%-traffic
+// candidate revision's tagged URL (real database, no real users) before any
+// traffic moves; SKIP_LANDING=1 limits it to the app's own routes then,
+// since the landing site is a separate service with its own deploy.
+const APP_ORIGIN = (process.env.APP_ORIGIN || "https://app.kanji-ai.jp").replace(/\/+$/, "");
 const APEX_ORIGIN = "https://kanji-ai.jp";
 const WWW_ORIGIN = "https://www.kanji-ai.jp";
+const SKIP_LANDING = process.env.SKIP_LANDING === "1";
+console.log(`smoke target: ${APP_ORIGIN}${SKIP_LANDING ? " (app routes only)" : " + landing"}`);
 
 const failures = [];
 
@@ -64,10 +70,9 @@ async function checkRoute(url, { expectRedirectTo } = {}) {
 await checkRoute(`${APP_ORIGIN}/`);
 await checkRoute(`${APP_ORIGIN}/parents`);
 await checkRoute(`${APP_ORIGIN}/app/parent`);
-await checkRoute(`${APEX_ORIGIN}/`);
-await checkRoute(`${WWW_ORIGIN}/`, { expectRedirectTo: APEX_ORIGIN });
+if (!SKIP_LANDING) await checkRoute(`${WWW_ORIGIN}/`, { expectRedirectTo: APEX_ORIGIN });
 
-const indexRes = await checkRoute(`${APEX_ORIGIN}/`);
+const indexRes = SKIP_LANDING ? null : await checkRoute(`${APEX_ORIGIN}/`);
 if (indexRes) {
   const html = await indexRes.text().catch(() => "");
   const hasAppCta = /href=["']https:\/\/app\.kanji-ai\.jp\/["']/.test(html);

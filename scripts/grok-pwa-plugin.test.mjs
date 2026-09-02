@@ -134,7 +134,14 @@ test("baked identity does not need a workspace filesystem", () => {
   assert.doesNotMatch(out, /og\.grok\.me/);
 });
 
-test("explicit site without card=custom is not overridden by a cwd card file", () => {
+test("a cwd card file wins over an explicit site without card=custom", () => {
+  // normalizeHeadContext() deliberately re-checks the workspace even when
+  // the middleware passes a baked `site`, so a public/og.jpg generated
+  // after that snapshot (or missed by a wrong cwd) beats the og.grok.me
+  // placeholder -- see its own comment. This test previously asserted the
+  // opposite (a stale contract from before that decision) and was the one
+  // permanently-red stage in `npm test`; it now pins the documented
+  // behaviour so the whole suite can be a hard deploy gate.
   const root = mkdtempSync(join(tmpdir(), "grok-og-card-"));
   mkdirSync(join(root, "public"));
   writeFileSync(join(root, "public/og.jpg"), "x");
@@ -143,8 +150,8 @@ test("explicit site without card=custom is not overridden by a cwd card file", (
     cwd: root,
     site: {},
   });
-  assert.match(out, /og\.grok\.me\/v1\/card\.png/);
-  assert.doesNotMatch(out, /wild-race\.grok\.me\/og\.jpg/);
+  assert.match(out, /wild-race\.grok\.me\/og\.jpg/);
+  assert.doesNotMatch(out, /og\.grok\.me\/v1\/card\.png/);
 });
 
 test("snapshotOgIdentity stamps card=custom from a public card file", () => {

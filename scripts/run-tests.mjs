@@ -72,6 +72,7 @@ const stages = [
   { name: "single entitlement", cmd: process.execPath, args: ["scripts/check-single-entitlement.mjs"] },
   { name: "derived subscription", cmd: process.execPath, args: ["scripts/check-derived-subscription.mjs"] },
   { name: "webhook-only entitlement", cmd: process.execPath, args: ["scripts/check-webhook-only-entitlement.mjs"] },
+  { name: "additive migrations", cmd: process.execPath, args: ["scripts/check-migrations-additive.mjs"] },
   { name: "*.test.mjs (node:test)", cmd: process.execPath, args: ["--test", "scripts/**/*.test.mjs"] },
   { name: "*.test.ts (node:test)", cmd: process.execPath, args: ["--experimental-strip-types", "--test", ...TS_TESTS] },
 ];

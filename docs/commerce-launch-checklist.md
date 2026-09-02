@@ -114,3 +114,32 @@ design — a first cohort is small enough that this is a feature, not friction.
   address, contact email, and phone-disclosure-on-request are filled in and
   correct. Price, payment terms, cancellation, and the checkout link are
   intentionally still bracketed pending items 3 and 4 above.
+
+## How deploys work now (supersedes the manual steps above)
+
+`merge to main` **is** the production deploy — `.github/workflows/deploy-production.yml`:
+
+1. typecheck + full `npm test` (all gates, including additive-migration check)
+2. migrations applied to Neon from CI, transactionally, before any traffic moves
+   (fails closed if the `DATABASE_URL` secret is missing — never "skips")
+3. candidate revision built at 0% traffic → `smoke-production.mjs` against its
+   tagged URL on the real database → promote to 100% only on green → smoke the
+   live domain → automatic traffic rollback to the previous revision on failure
+
+So the "run this SQL in Neon" and "trigger the preview, then merge, then switch
+traffic" loops above are gone. The manual production checks that remain
+manual are the ones that need a human or a phone: R1 (sign-in survives a
+redeploy — now trivially testable, since every merge is a redeploy), the
+parity capture, and the real-device Safari ride.
+
+**One-time setup, once, by a repo admin:**
+
+| Repo | Secret | Why |
+|---|---|---|
+| `Dynamic-Densha` | `DATABASE_URL` | CI migrate step. Without it the deploy refuses to run (by design). |
+| `landingpage-densha` | `GCP_SA_KEY` | Same service-account JSON `Dynamic-Densha` already has. Until added, landing deploys stay manual and the workflow only runs the gates. |
+
+The very first run of `deploy-production.yml` will apply migration 0010 and
+ship the whole commerce module in one go — expected, and the additive gate
+plus the 0%-traffic candidate smoke are exactly what make that safe to do
+without a hand-run SQL step first.

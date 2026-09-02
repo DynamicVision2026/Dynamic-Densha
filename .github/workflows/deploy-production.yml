@@ -1,0 +1,173 @@
+name: Deploy to production
+
+# Gated, reversible production deploy for app.kanji-ai.jp. Runs on every push
+# to main (and on demand). Order matters and each step is a gate:
+#
+#   gates    typecheck + the full test battery (incl. the additive-migration
+#            check) -- nothing reaches the database or Cloud Run if this is red.
+#   migrate  apply pending migrations/*.sql to Neon, transactionally and
+#            ledgered (scripts/migrate.mjs), from ONE runner -- never from
+#            container startup, so scaling instances can't race each other.
+#            Fails closed if DATABASE_URL is missing: migrate.mjs would
+#            otherwise log "skipping" and exit 0, and the revision built from
+#            this commit would then hit a schema it never got.
+#   deploy   build + deploy the candidate revision at 0% traffic, smoke-test
+#            it on its tagged URL against the real database with no real
+#            users, and only then move 100% traffic to it. Smoke the live
+#            domain afterward; if that fails, traffic goes back to the
+#            revision that was serving before this run touched anything.
+#
+# Additive-only migrations (enforced by scripts/check-migrations-additive.mjs)
+# are what make the migrate-before-traffic ordering safe: the previous
+# revision keeps serving on the new schema until the candidate proves itself.
+#
+# Secrets (Settings > Secrets and variables > Actions):
+#   GCP_SA_KEY    service-account JSON (already used by cloud-run-preview.yml)
+#   DATABASE_URL  the production Neon connection string
+# Neither is ever visible to an AI agent working in this repo.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_ID: dynamic-densha
+  REGION: asia-northeast1
+  SERVICE: dynamic-densha-web
+  APP_ORIGIN: https://app.kanji-ai.jp
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # npm install, not npm ci: the committed lockfile has documented drift
+      # (see Dockerfile). Same choice the container build makes.
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+
+  migrate:
+    needs: gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Refuse to continue without a migration target
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL// }" ]; then
+            echo "::error::DATABASE_URL secret is not set. Without it migrate.mjs silently skips, and the revision built from this commit would run against a schema it never received. Add it under Settings > Secrets and variables > Actions, then re-run."
+            exit 1
+          fi
+      - name: Apply pending migrations (one transaction per file, ledgered in _migrations)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run db:migrate
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    env:
+      TAG: cand-${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Shorten candidate tag
+        # Cloud Run tags: lowercase alphanumerics and dashes, <= 63 chars.
+        run: echo "TAG=cand-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Record the revision currently serving traffic (rollback target)
+        id: before
+        run: |
+          REV=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format=json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); t=[x for x in d['status'].get('traffic',[]) if x.get('percent')]; t.sort(key=lambda x:-x['percent']); print(t[0].get('revisionName','') if t else '')")
+          echo "revision=$REV" >> "$GITHUB_OUTPUT"
+          echo "Serving before this run: ${REV:-<none>}"
+
+      - name: Build and deploy candidate at 0% traffic
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --no-traffic \
+            --tag "$TAG" \
+            --allow-unauthenticated
+
+      - name: Resolve candidate URL
+        id: cand
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format=json \
+            | python3 -c "import json,sys,os; d=json.load(sys.stdin); print(next((t.get('url') for t in d['status']['traffic'] if t.get('tag')==os.environ['TAG']), ''))")
+          if [ -z "$URL" ]; then echo "::error::could not resolve the candidate's tagged URL"; exit 1; fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Candidate: $URL"
+
+      - name: Smoke-test the candidate against the real database, before any traffic moves
+        env:
+          APP_ORIGIN: ${{ steps.cand.outputs.url }}
+          SKIP_LANDING: "1"
+        run: node scripts/smoke-production.mjs
+
+      - name: Promote candidate to 100% traffic
+        run: |
+          gcloud run services update-traffic "$SERVICE" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --to-tags "$TAG=100"
+
+      - name: Smoke-test the live domain
+        env:
+          SKIP_LANDING: "1"
+        run: node scripts/smoke-production.mjs
+
+      - name: Roll traffic back to the previously serving revision
+        if: failure() && steps.before.outputs.revision != ''
+        run: |
+          echo "::warning::Rolling traffic back to ${{ steps.before.outputs.revision }}"
+          gcloud run services update-traffic "$SERVICE" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --to-revisions "${{ steps.before.outputs.revision }}=100"
+
+      - name: Show latest Cloud Build log on failure
+        if: failure()
+        run: |
+          BUILD_ID=$(gcloud builds list --project "$PROJECT_ID" --region "$REGION" --limit=1 --sort-by=~createTime --format='value(id)')
+          echo "Latest build: $BUILD_ID"
+          gcloud builds log "$BUILD_ID" --project "$PROJECT_ID" --region "$REGION" || true
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            echo "### Deployed \`${GITHUB_SHA::7}\` to $APP_ORIGIN"
+            echo ""
+            echo "- candidate (still reachable, 0% traffic): ${{ steps.cand.outputs.url }}"
+            echo "- previous revision (rollback target): \`${{ steps.before.outputs.revision }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
