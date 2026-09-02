@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { resolveHouseholdId } from "@/lib/server/household";
-import { getEntitlementForHousehold } from "@/lib/server/subscription";
+import { assertCanRide, getEntitlementForHousehold } from "@/lib/server/subscription";
 import type { Grade } from "@/data/kyoiku";
 import { getKanji } from "@/data/kyoiku";
 import { decorateTrains, type TrainView } from "@/lib/trains";
@@ -375,6 +375,11 @@ export const getKanjiStudy = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator((input: { childId: string; char: string }) => input)
   .handler(async ({ context, data }) => {
+    // Commerce spec §3.1/§13 rule 4: a lapsed household must not be able to
+    // open a ride at all, not merely fail to write progress at the end of
+    // one. This is the study payload the session mounts with, so it's
+    // gated here, not just at the final answer.
+    await assertCanRide(await getSql(), context.userId);
     const { child, map } = await loadProgress(context.userId, data.childId);
     const now = new Date().toISOString();
     const p = paramsForChar(data.char, child.grade);
@@ -396,6 +401,7 @@ export const completeEncounter = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string; char: string }) => input)
   .handler(async ({ context, data }) => {
+    await assertCanRide(await getSql(), context.userId);
     const { child, map } = await loadProgress(context.userId, data.childId);
     const now = new Date().toISOString();
     const next = evaluateProgress(
@@ -411,6 +417,7 @@ export const completeUnderstand = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string; char: string }) => input)
   .handler(async ({ context, data }) => {
+    await assertCanRide(await getSql(), context.userId);
     const { child, map } = await loadProgress(context.userId, data.childId);
     const now = new Date().toISOString();
     const next = evaluateProgress(
@@ -434,14 +441,12 @@ export const submitPractice = createServerFn({ method: "POST" })
     sessionId: string;
   }) => input)
   .handler(async ({ context, data }) => {
-    const sqlForEntitlement = await getSql();
-    const householdId = await resolveHouseholdId(sqlForEntitlement, context.userId);
-    const gate = await getEntitlementForHousehold(sqlForEntitlement, householdId);
-    // Commerce spec §3.1/§13 rule 4: entitlement is evaluated server-side for
-    // any action that writes progress. A lapsed/cancelled household still
-    // sees its train (canView) but this is the one place riding itself is
-    // actually gated -- not a client-side hint, the real enforcement.
-    if (!gate.canRide) throw new Error("この列車は いま のれません");
+    // Commerce spec §3.1/§13 rule 4: entitlement is evaluated server-side,
+    // not just as a client-side hint. This is one of four gated entry
+    // points (getKanjiStudy/completeEncounter/completeUnderstand are the
+    // other three) -- see assertCanRide's own comment for why there's one
+    // shared throw site instead of four copies of the same check.
+    await assertCanRide(await getSql(), context.userId);
 
     const item = getItem(data.itemId, true);
     if (!item || item.kanji !== data.char) throw new Error("unknown item");

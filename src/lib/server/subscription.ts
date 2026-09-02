@@ -11,6 +11,7 @@ import {
   type BillingEventInput,
 } from "@/lib/subscription-derive";
 import { entitlement, type Entitlement } from "@/lib/entitlement";
+import { resolveHouseholdId } from "@/lib/server/household";
 
 type Sql = {
   <T = Record<string, unknown>>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T[]>;
@@ -78,4 +79,23 @@ export async function getEntitlementForHousehold(
 ): Promise<Entitlement> {
   const derived = await recomputeSubscription(sql, householdId, nowIso);
   return entitlement({ state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd }, nowIso);
+}
+
+/**
+ * Riding itself is what's gated, not just the write at the end of one
+ * (spec §3.1/§13 rule 4) -- a lapsed/cancelled household can view its train
+ * (canView is never false) but must not be able to open a session at all:
+ * not the study payload, not encounter/understand, not the graded answer.
+ * Every server function reachable once a ride starts calls this first, so
+ * there's one throw site and one error string, not four copies of the same
+ * three lines.
+ */
+export async function assertCanRide(
+  sql: Sql,
+  userId: string,
+  nowIso: string = new Date().toISOString(),
+): Promise<void> {
+  const householdId = await resolveHouseholdId(sql, userId, nowIso);
+  const gate = await getEntitlementForHousehold(sql, householdId, nowIso);
+  if (!gate.canRide) throw new Error("この列車は いま のれません");
 }

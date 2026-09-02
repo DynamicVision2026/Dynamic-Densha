@@ -14,12 +14,54 @@
  */
 import { randomUUID } from "node:crypto";
 import { trialEndsAtFrom } from "@/lib/trial-clock";
+import { hashEmail } from "@/lib/trial-spent";
 
 type Sql = {
   <T = Record<string, unknown>>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T[]>;
 };
 
 const TRIAL_DAYS = 10;
+
+/**
+ * One trial per parent email, ever (spec §2.2) -- trial_spent survives
+ * account/household deletion (it has no foreign key to either, by design,
+ * so nothing can cascade-delete it) and is checked here, the only place a
+ * fresh trial is granted. A repeat email gets its household (so the app
+ * still functions and a child profile can still be created) but with
+ * trial_ends_at backdated to `nowIso`: entitlement() sees an
+ * already-expired trial on the very next read, so canRide is false from
+ * the start instead of another free ten days.
+ *
+ * Looks up email straight from better-auth's own "user" table rather than
+ * threading it through every resolveHouseholdId caller -- this is the one
+ * place that needs it. A userId with no email on record (the
+ * VITE_AUTH_ENABLED=false dev-fallback user, "dev-user") has nothing to key
+ * trial_spent on and gets the full trial: that path never runs against a
+ * real signup.
+ */
+async function trialEndsAtForNewHousehold(
+  sql: Sql,
+  userId: string,
+  nowIso: string,
+): Promise<string> {
+  const userRows = await sql<{ email: string | null }>`
+    select email from "user" where id = ${userId}
+  `;
+  const email = userRows[0]?.email;
+  if (!email) return trialEndsAtFrom(nowIso, TRIAL_DAYS);
+
+  const emailHash = hashEmail(email);
+  const spent = await sql<{ email_hash: string }>`
+    select email_hash from trial_spent where email_hash = ${emailHash}
+  `;
+  if (spent[0]) return nowIso;
+
+  await sql`
+    insert into trial_spent (email_hash) values (${emailHash})
+    on conflict (email_hash) do nothing
+  `;
+  return trialEndsAtFrom(nowIso, TRIAL_DAYS);
+}
 
 export type HouseholdRole = "owner" | "member";
 
@@ -58,7 +100,7 @@ export async function resolveHouseholdId(
   // — that would send the literal text "$1 days" to Postgres, not a bound
   // value. trial_ends_at is written once here and never recomputed (spec
   // §4 / §7.1), so an absolute timestamp is exactly what's wanted anyway.
-  const trialEndsAt = trialEndsAtFrom(nowIso, TRIAL_DAYS);
+  const trialEndsAt = await trialEndsAtForNewHousehold(sql, userId, nowIso);
   await sql`
     insert into subscription (household_id, state, trial_ends_at)
     values (${winningId}, 'trial', ${trialEndsAt})
