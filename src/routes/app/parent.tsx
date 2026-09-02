@@ -16,6 +16,7 @@ import {
 import { ParentForwardView } from "@/components/parent-forward";
 import { GradeRolloverCard } from "@/components/grade-rollover";
 import { StartBandPicker } from "@/components/start-band-picker";
+import { TrialBanner } from "@/components/trial-banner";
 import type { StartBand } from "@/lib/grade-route";
 import { requestInsight } from "@/lib/server/insights";
 import { getParentOverview } from "@/lib/server/progress";
@@ -93,6 +94,10 @@ function ParentPage() {
       <main data-parent-doc className="mx-auto max-w-[900px] px-5 py-8">
         <p className="text-xs tracking-[0.2em] text-fg-subtle">{t("parentPage")}</p>
         <h1 className="mt-1 font-display text-3xl">{t("parentTitle")}</h1>
+
+        <div className="mt-4">
+          <TrialBanner banner={data.trialBanner} />
+        </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
           {childrenQ.data?.map((c) => (

@@ -148,7 +148,7 @@ test("parent door holds 1.5s for pointer and exposes immediate a11y control", ()
   assert.match(door, /aria-hidden/);
 });
 
-test("empty boarding pass stays live as 自由乗車", () => {
+test("empty boarding pass stays live as 自由乗車 when entitled", () => {
   const home = readFileSync("src/components/child-home.tsx", "utf8");
   const ticket = readFileSync("src/components/departure-ticket.tsx", "utf8");
   assert.match(ticket, /data-ticket-empty/);
@@ -156,8 +156,14 @@ test("empty boarding pass stays live as 自由乗車", () => {
   assert.match(home, /ticketEmpty/);
   assert.match(home, /freeRide/);
   assert.match(home, /depart\.kanji/);
-  assert.equal(/aria-disabled/.test(ticket), false);
-  assert.equal(/\bdisabled\b/.test(ticket), false);
+  // An entitled household's empty day (canRide: true) renders with no
+  // disabled/aria-disabled attribute set — child-home passes
+  // disabled={!canRide}, which is falsy here. The `disabled` prop and
+  // aria-disabled wiring itself is now legitimate (commerce spec §3.3,
+  // lapsed household), so this only checks the entitled call path, not a
+  // blanket absence of the word "disabled" in the file.
+  assert.match(home, /entitlement\?\.canRide \?\? true/);
+  assert.match(ticket, /aria-disabled=\{disabled \|\| undefined\}/);
 });
 
 test("parent document is sticky + 900px; sitemap order progress → week → attention → paper", () => {

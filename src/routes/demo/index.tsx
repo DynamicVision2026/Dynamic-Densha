@@ -41,6 +41,7 @@ function DemoHome() {
       profileGrade={DEMO_CHILD.grade}
       cars={cars}
       board={home.board}
+      entitlement={home.entitlement}
       echoQueue={home.echoQueue}
       lines={map.lines}
       rings={home.rings}

@@ -59,11 +59,20 @@ const TS_TESTS = [
   "scripts/ticket-path-guard.test.ts",
   "scripts/i18n-locale-parity.test.ts",
   "scripts/door-scene.test.ts",
+  "scripts/trial-clock.test.ts",
+  "scripts/entitlement.test.ts",
+  "scripts/subscription-derive.test.ts",
+  "scripts/webhooks.test.ts",
+  "scripts/trial-spent.test.ts",
 ];
 
 const stages = [
   { name: "ticket path guard", cmd: process.execPath, args: ["scripts/check-ticket-path-guard.mjs"] },
   { name: "echo eligibility single source", cmd: process.execPath, args: ["scripts/check-echo-eligibility-single-source.mjs"] },
+  { name: "single entitlement", cmd: process.execPath, args: ["scripts/check-single-entitlement.mjs"] },
+  { name: "derived subscription", cmd: process.execPath, args: ["scripts/check-derived-subscription.mjs"] },
+  { name: "webhook-only entitlement", cmd: process.execPath, args: ["scripts/check-webhook-only-entitlement.mjs"] },
+  { name: "additive migrations", cmd: process.execPath, args: ["scripts/check-migrations-additive.mjs"] },
   { name: "*.test.mjs (node:test)", cmd: process.execPath, args: ["--test", "scripts/**/*.test.mjs"] },
   { name: "*.test.ts (node:test)", cmd: process.execPath, args: ["--experimental-strip-types", "--test", ...TS_TESTS] },
 ];

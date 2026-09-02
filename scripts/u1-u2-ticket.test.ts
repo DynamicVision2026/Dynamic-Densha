@@ -17,14 +17,19 @@ test("DepartureTicket is a button with accessible name", () => {
   assert.match(src, /きょうの きっぷ、のる/);
 });
 
-test("empty ticket is a button, click handler fires, no disabled attribute", () => {
+test("empty ticket is a button, click handler is unconditional, disabling is entitlement-driven", () => {
   const src = readFileSync("src/components/departure-ticket.tsx", "utf8");
   const home = readFileSync("src/components/child-home.tsx", "utf8");
   assert.match(src, /<button/);
   assert.match(src, /type="button"/);
+  // onClick is always onRide, never conditional on `disabled` — the native
+  // `disabled` HTML attribute (below) blocks the click itself, and
+  // rideFromTicket's own `if (!canRide) return;` in child-home.tsx is the
+  // defense-in-depth. This is the commerce spec §3.3 lapsed-child gate, not
+  // a regression back to an always-live ticket.
   assert.match(src, /onClick=\{onRide\}/);
   assert.match(src, /data-ticket-empty/);
-  assert.equal(/disabled/.test(src), false);
+  assert.match(src, /disabled=\{disabled\}/);
   assert.match(home, /params: \{ char: depart\.kanji \}/);
   assert.match(home, /freeRide/);
 });

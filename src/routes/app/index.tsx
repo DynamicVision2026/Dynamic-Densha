@@ -102,6 +102,7 @@ function AppHome() {
       profileGrade={childGrade}
       cars={cars}
       board={home.board}
+      entitlement={home.entitlement}
       echoQueue={home.echoQueue}
       lines={mapQ.data?.lines ?? []}
       rings={home.rings ?? []}

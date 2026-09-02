@@ -54,6 +54,7 @@ function GuestChildHome() {
       profileGrade={DEMO_CHILD.grade}
       cars={cars}
       board={home.board}
+      entitlement={home.entitlement}
       echoQueue={home.echoQueue}
       lines={map.lines}
       rings={home.rings}
@@ -69,10 +70,10 @@ function WelcomeLanding() {
   return (
     <main
       data-welcome-landing
-      className="paper-wash fixed inset-0 flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none"
+      className="paper-wash relative min-h-dvh overflow-y-auto overscroll-none md:fixed md:inset-0 md:flex md:h-dvh md:max-h-dvh md:flex-col md:overflow-hidden"
     >
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-[1440px] flex-col md:flex-row">
-        <div className="relative z-[3] flex shrink-0 flex-col gap-3 overflow-y-auto px-5 pt-[max(1.15rem,env(safe-area-inset-top))] pb-3 md:min-w-[320px] md:max-w-[420px] md:shrink md:justify-center md:gap-5 md:px-10 md:pb-0 lg:max-w-[480px] lg:px-14">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-col md:h-full md:min-h-0 md:flex-row">
+        <div className="relative z-[3] flex shrink-0 flex-col gap-3 px-5 pt-[max(1.15rem,env(safe-area-inset-top))] pb-3 md:overflow-y-auto md:min-w-[320px] md:max-w-[420px] md:shrink md:justify-center md:gap-5 md:px-10 md:pb-0 lg:max-w-[480px] lg:px-14">
           <div className="flex items-start justify-between gap-3">
             <p className="text-[11px] font-medium tracking-[0.22em] text-fg-subtle">{t("heroKicker")}</p>
             <LanguageSwitcher />
@@ -116,7 +117,7 @@ function WelcomeLanding() {
           <p className="-mt-2 text-sm leading-6 text-fg">{t("doorTrustPrice")}</p>
         </div>
 
-        <div className="relative flex min-h-0 flex-1 [@media(max-height:480px)]:hidden">
+        <div className="relative flex min-h-[260px] flex-1 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:min-h-0 md:pb-0 md:[@media(max-height:480px)]:hidden">
           <WelcomeOverview
             rings={rings}
             profileGrade={1}

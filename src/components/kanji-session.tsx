@@ -433,7 +433,7 @@ export function KanjiSession({
     stage = (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {kicker}
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <EncounterCard
             char={kanji.char}
             encounter={getEncounter(kanji.char)}
@@ -476,7 +476,7 @@ export function KanjiSession({
           <h1 className="font-display text-6xl leading-none landscape:text-7xl">{kanji.char}</h1>
           <p className="mt-2 text-sm text-fg-muted">{kanji.imagery}</p>
         </div>
-        <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-2">
           <div className="rounded-lg border border-border bg-surface p-3">
             <p className="text-xs text-fg-subtle">{t("meaning")}</p>
             <p className="mt-1 text-base">{kanji.meaningJa}</p>
@@ -639,7 +639,7 @@ export function KanjiSession({
       </div>
     );
     action = (
-      <div className="max-h-full min-h-0 overflow-hidden">
+      <div className="max-h-full min-h-0 overflow-y-auto overscroll-contain">
         <QuizPanel
           quiz={item.payload}
           selected={selected}
