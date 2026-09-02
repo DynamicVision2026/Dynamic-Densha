@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
+import { resolveHouseholdId } from "@/lib/server/household";
+import { getEntitlementForHousehold } from "@/lib/server/subscription";
 import type { Grade } from "@/data/kyoiku";
 import { getKanji } from "@/data/kyoiku";
 import { decorateTrains, type TrainView } from "@/lib/trains";
@@ -350,6 +352,9 @@ export const getHomeState = createServerFn({ method: "GET" })
         ? buildDepartureBoard({ progress: map, inspections, plan: weekly, nowIso: now })
         : null;
     const rings = buildGradeRings({ progress: map, profileGrade: child.grade });
+    const sqlForEntitlement = await getSql();
+    const householdId = await resolveHouseholdId(sqlForEntitlement, context.userId);
+    const entitlement = await getEntitlementForHousehold(sqlForEntitlement, householdId, now);
     return {
       child,
       viewGrade,
@@ -362,6 +367,7 @@ export const getHomeState = createServerFn({ method: "GET" })
       peek: pickWeekPeek({ progress: map, grade: viewGrade }),
       board,
       rings,
+      entitlement,
     };
   });
 
@@ -428,6 +434,15 @@ export const submitPractice = createServerFn({ method: "POST" })
     sessionId: string;
   }) => input)
   .handler(async ({ context, data }) => {
+    const sqlForEntitlement = await getSql();
+    const householdId = await resolveHouseholdId(sqlForEntitlement, context.userId);
+    const gate = await getEntitlementForHousehold(sqlForEntitlement, householdId);
+    // Commerce spec §3.1/§13 rule 4: entitlement is evaluated server-side for
+    // any action that writes progress. A lapsed/cancelled household still
+    // sees its train (canView) but this is the one place riding itself is
+    // actually gated -- not a client-side hint, the real enforcement.
+    if (!gate.canRide) throw new Error("この列車は いま のれません");
+
     const item = getItem(data.itemId, true);
     if (!item || item.kanji !== data.char) throw new Error("unknown item");
     const graded = gradeChoice(item, data.choiceId);

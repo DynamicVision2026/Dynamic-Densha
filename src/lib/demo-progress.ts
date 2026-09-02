@@ -512,6 +512,10 @@ export function getDemoHome(viewGrade: Grade = DEMO_CHILD.grade) {
     peek: pickWeekPeek({ progress: map, grade: viewGrade }),
     board: demoBoardAndForward({ progress: map, events: readEvents(), nowIso: now }).board,
     rings,
+    // Guest is local-only and unenforceable by design (commerce spec §4.3) —
+    // always the "guest" row of the entitlement table (canRide/canView both
+    // true), never a real household lookup.
+    entitlement: { canRide: true, canView: true },
   };
 }
 

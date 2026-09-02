@@ -42,6 +42,7 @@ export function ChildHome({
   echoQueue,
   lines,
   rings,
+  entitlement,
 }: {
   hrefBase: "/demo" | "/app";
   childId?: string;
@@ -52,7 +53,10 @@ export function ChildHome({
   echoQueue: { kanji: string }[];
   lines: MapLineView[];
   rings: GradeRingView[];
+  /** Commerce spec §3.1/§3.3. Defaults to guest's always-true row so every existing call site keeps working unchanged. */
+  entitlement?: { canRide: boolean; canView: boolean };
 }) {
+  const canRide = entitlement?.canRide ?? true;
   const { t } = useI18n();
   const navigate = useNavigate();
   const tour = useAutoDemo();
@@ -137,6 +141,7 @@ export function ChildHome({
   const glyphs = cards.map((c) => c.kanji);
 
   function rideFromTicket() {
+    if (!canRide) return;
     skipReturnGlow();
     void navigate({
       to: rideTo,
@@ -209,6 +214,7 @@ export function ChildHome({
               rideLabel={depart.empty ? t("freeRide") : t("ticketRide")}
               emptyLead={t("ticketEmpty")}
               countLabel={t("ticketCount", { n: glyphs.length })}
+              disabled={!canRide}
             />
           </section>
         </div>
