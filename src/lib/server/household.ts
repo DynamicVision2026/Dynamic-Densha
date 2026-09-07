@@ -82,7 +82,10 @@ export async function resolveHouseholdId(
   if (existing[0]) return existing[0].household_id;
 
   const householdId = `hh_${randomUUID()}`;
-  await sql`insert into household (id) values (${householdId})`;
+  // checkout_token: an opaque, per-household id safe to hand to a browser
+  // (unlike household_id itself) -- see getOrCreateCheckoutToken below for
+  // why this needs a lazy-backfill path too.
+  await sql`insert into household (id, checkout_token) values (${householdId}, ${randomUUID()})`;
   // ON CONFLICT: a concurrent caller may have just won the race and inserted
   // this user's membership first. Re-select rather than assume we won.
   await sql`
@@ -107,6 +110,53 @@ export async function resolveHouseholdId(
     on conflict (household_id) do nothing
   `;
   return winningId;
+}
+
+/**
+ * checkout_token exists so a Stripe Payment Link can carry
+ * ?client_reference_id=<token> instead of the raw household_id -- the token
+ * is meaningless outside this one lookup, so a leaked link (browser history,
+ * a forwarded email) can't be used to look up or target a household any
+ * other way household_id itself could be used for.
+ *
+ * Every household created via resolveHouseholdId above already gets one at
+ * insert time. This function exists for the households that predate that:
+ * 0010_commerce.sql's migration-time backfill and, going forward, any row
+ * where the token is somehow still null. Generating it here rather than in
+ * SQL keeps id generation in exactly one place (crypto.randomUUID(), never a
+ * migration -- see 0010_commerce.sql's and 0011_stripe_billing.sql's own
+ * header comments on this).
+ */
+export async function getOrCreateCheckoutToken(sql: Sql, householdId: string): Promise<string> {
+  const existing = await sql<{ checkout_token: string | null }>`
+    select checkout_token from household where id = ${householdId}
+  `;
+  const current = existing[0]?.checkout_token;
+  if (current) return current;
+
+  const token = randomUUID();
+  await sql`
+    update household set checkout_token = ${token}
+    where id = ${householdId} and checkout_token is null
+  `;
+  // Re-select rather than assume the update above won any race: a
+  // concurrent caller for the same household may have set a different token
+  // first, and the unique index would make our own update a no-op then.
+  const row = await sql<{ checkout_token: string | null }>`
+    select checkout_token from household where id = ${householdId}
+  `;
+  return row[0]?.checkout_token ?? token;
+}
+
+/**
+ * The Stripe webhook route's checkout.session.completed handler resolves a
+ * household this way -- Stripe's own client_reference_id round-tripped back
+ * to us, never an email lookup. Null on a stale or forged token (the
+ * session was never issued a real one, or the household was deleted since).
+ */
+export async function getHouseholdIdByCheckoutToken(sql: Sql, token: string): Promise<string | null> {
+  const rows = await sql<{ id: string }>`select id from household where checkout_token = ${token}`;
+  return rows[0]?.id ?? null;
 }
 
 /** Every parent account (user_id) currently in this household. */

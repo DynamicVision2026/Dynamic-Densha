@@ -62,7 +62,7 @@ const TS_TESTS = [
   "scripts/trial-clock.test.ts",
   "scripts/entitlement.test.ts",
   "scripts/subscription-derive.test.ts",
-  "scripts/webhooks.test.ts",
+  "scripts/stripe-signature.test.ts",
   "scripts/trial-spent.test.ts",
 ];
 

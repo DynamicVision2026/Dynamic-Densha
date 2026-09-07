@@ -22,7 +22,8 @@ export type BillingEventType =
   | "subscription_charge_succeeded"
   | "subscription_charge_failed"
   | "subscription_cancelled"
-  | "refund";
+  | "refund"
+  | "plan_changed";
 
 export type Plan = "monthly" | "yearly";
 
@@ -30,6 +31,15 @@ export type BillingEventInput = {
   type: BillingEventType;
   receivedAt: string;
   plan?: Plan;
+  /**
+   * Only ever present on the event that first links this household to a
+   * Stripe customer/subscription (checkout.session.completed) -- every other
+   * event type resolves its household by looking up one of these two ids
+   * against the already-cached subscription row (never by email), so the
+   * fold just carries whatever it's already holding forward unchanged.
+   */
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
 };
 
 export type AdminActionInput =
@@ -41,6 +51,8 @@ export type DerivedSubscription = {
   effectiveTrialEnd: string | null;
   paidUntil: string | null;
   plan: Plan | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
 };
 
 export const GRACE_DAYS = 3;
@@ -73,6 +85,8 @@ export function deriveSubscription(input: {
   let state: SubscriptionState = effectiveTrialEnd ? "trial" : "guest";
   let paidUntil: string | null = null;
   let plan: Plan | null = null;
+  let stripeCustomerId: string | null = null;
+  let stripeSubscriptionId: string | null = null;
   let graceUntil: string | null = null;
   let cancelPending = false;
 
@@ -87,10 +101,20 @@ export function deriveSubscription(input: {
             ? effectiveTrialEnd
             : ev.receivedAt;
         plan = ev.plan ?? plan;
+        stripeCustomerId = ev.stripeCustomerId ?? stripeCustomerId;
+        stripeSubscriptionId = ev.stripeSubscriptionId ?? stripeSubscriptionId;
         paidUntil = addPeriod(base, plan);
         state = "active";
         graceUntil = null;
         cancelPending = false;
+        break;
+      }
+      case "plan_changed": {
+        // Stripe's customer.subscription.updated for a plan/tier change
+        // alone -- no charge accompanies this event (the next invoice bills
+        // the new amount at the next renewal), so only `plan` moves; state
+        // and paid_until are untouched.
+        plan = ev.plan ?? plan;
         break;
       }
       case "subscription_charge_succeeded": {
@@ -131,5 +155,5 @@ export function deriveSubscription(input: {
     state = "cancelled";
   }
 
-  return { state, effectiveTrialEnd, paidUntil, plan };
+  return { state, effectiveTrialEnd, paidUntil, plan, stripeCustomerId, stripeSubscriptionId };
 }

@@ -126,6 +126,42 @@ test("yearly plan renews on the same calendar day a year later, not +365 raw day
   assert.equal(d.paidUntil, "2029-03-01T00:00:00.000Z"); // JS Date's own Feb-29-plus-1-year rollover, not a bug in this function
 });
 
+test("subscription_created folds stripeCustomerId/stripeSubscriptionId into the derived row", () => {
+  const d = deriveSubscription({
+    baseTrialEndsAt: null,
+    events: [
+      {
+        type: "subscription_created",
+        receivedAt: "2026-08-01T00:00:00Z",
+        plan: "monthly",
+        stripeCustomerId: "cus_abc",
+        stripeSubscriptionId: "sub_abc",
+      },
+    ],
+    adminActions: [],
+    nowIso: "2026-08-01T00:00:01Z",
+  });
+  assert.equal(d.stripeCustomerId, "cus_abc");
+  assert.equal(d.stripeSubscriptionId, "sub_abc");
+});
+
+test("a household with no subscription_created event has null Stripe ids", () => {
+  const d = deriveSubscription({ baseTrialEndsAt: null, events: [], adminActions: [], nowIso: "2026-08-01T00:00:00Z" });
+  assert.equal(d.stripeCustomerId, null);
+  assert.equal(d.stripeSubscriptionId, null);
+});
+
+test("plan_changed (customer.subscription.updated for a tier switch) moves plan but not state or paid_until", () => {
+  const events = [
+    { type: "subscription_created" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "monthly" as const },
+    { type: "plan_changed" as const, receivedAt: "2026-08-15T00:00:00Z", plan: "yearly" as const },
+  ];
+  const d = deriveSubscription({ baseTrialEndsAt: null, events, adminActions: [], nowIso: "2026-08-16T00:00:00Z" });
+  assert.equal(d.plan, "yearly");
+  assert.equal(d.state, "active");
+  assert.equal(d.paidUntil, "2026-09-01T00:00:00.000Z"); // unchanged from subscription_created's monthly period
+});
+
 test("event replay is order-sensitive and idempotent: the same log folded twice gives the same answer", () => {
   const events = [
     { type: "subscription_created" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "monthly" as const },

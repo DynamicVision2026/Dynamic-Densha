@@ -45,7 +45,7 @@ test("a trial whose real deadline has already passed cannot ride, even though th
 
 test("active is trusted as-is regardless of any date field -- its lapse is always webhook-driven", () => {
   // active has no effectiveTrialEnd at all; nothing about `now` should be
-  // able to flip it, since paid_until expiry is handled by Shopify firing a
+  // able to flip it, since paid_until expiry is handled by Stripe firing a
   // charge-failed webhook + grace period, not by a client-side date check.
   const e = entitlement(snap("active", null), "2099-01-01T00:00:00.000Z");
   assert.equal(e.canRide, true);

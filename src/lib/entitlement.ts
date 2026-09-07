@@ -32,7 +32,7 @@ export type SubscriptionSnapshot = {
 
 /**
  * `now` matters only for `trial`: unlike active -> lapsed (always driven by
- * a Shopify webhook after the grace period), a trial's expiry has no
+ * a Stripe webhook after the grace period), a trial's expiry has no
  * external signal at all -- nothing "tells" the app a trial ran out. The
  * cached `subscription.state` can therefore say 'trial' after the real
  * deadline has already passed, and this is the one place that must catch

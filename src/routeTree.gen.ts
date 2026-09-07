@@ -29,6 +29,7 @@ import { Route as DemoParentRouteImport } from './routes/demo/parent'
 import { Route as DemoStampsRouteImport } from './routes/demo/stamps'
 import { Route as DemoWorkshopRouteImport } from './routes/demo/workshop'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AppKanjiCharRouteImport } from './routes/app/kanji.$char'
 import { Route as DemoKanjiCharRouteImport } from './routes/demo/kanji.$char'
 
@@ -132,6 +133,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
+  id: '/api/webhooks/stripe',
+  path: '/api/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppKanjiCharRoute = AppKanjiCharRouteImport.update({
   id: '/kanji/$char',
   path: '/kanji/$char',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/demo/': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
 }
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/demo': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
 }
@@ -212,6 +220,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/demo/': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
 }
@@ -238,6 +247,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/demo/'
     | '/api/auth/$'
+    | '/api/webhooks/stripe'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
   fileRoutesByTo: FileRoutesByTo
@@ -261,6 +271,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/demo'
     | '/api/auth/$'
+    | '/api/webhooks/stripe'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
   id:
@@ -285,6 +296,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/demo/'
     | '/api/auth/$'
+    | '/api/webhooks/stripe'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
   fileRoutesById: FileRoutesById
@@ -303,6 +315,7 @@ export interface RootRouteChildren {
   DemoWorkshopRoute: typeof DemoWorkshopRoute
   DemoIndexRoute: typeof DemoIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   DemoKanjiCharRoute: typeof DemoKanjiCharRoute
 }
 
@@ -448,6 +461,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/stripe': {
+      id: '/api/webhooks/stripe'
+      path: '/api/webhooks/stripe'
+      fullPath: '/api/webhooks/stripe'
+      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app/kanji/$char': {
       id: '/app/kanji/$char'
       path: '/kanji/$char'
@@ -505,6 +525,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoWorkshopRoute: DemoWorkshopRoute,
   DemoIndexRoute: DemoIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   DemoKanjiCharRoute: DemoKanjiCharRoute,
 }
 export const routeTree = rootRouteImport

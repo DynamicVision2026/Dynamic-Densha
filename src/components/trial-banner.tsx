@@ -1,5 +1,5 @@
 import { trialEndDateLabel } from "@/lib/trial-clock";
-import { SUBSCRIBE_HREF } from "@/lib/subscribe-link";
+import { monthlyCheckoutUrl, yearlyCheckoutUrl } from "@/lib/checkout-link";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { ParentTrialBanner } from "@/lib/entitlement";
 
@@ -10,8 +10,14 @@ import type { ParentTrialBanner } from "@/lib/entitlement";
  * whether that trial ran its normal course or was backdated to zero
  * because this email already spent one (spec §2.2). Never rendered on the
  * child surface.
+ *
+ * `checkoutToken` is this household's opaque checkout_token (see
+ * src/lib/server/household.ts) -- both buttons below append it as
+ * ?client_reference_id so a completed Stripe checkout can be attributed
+ * back to this household without ever exposing household_id itself or
+ * resolving anything by email.
  */
-export function TrialBanner({ banner }: { banner: ParentTrialBanner }) {
+export function TrialBanner({ banner }: { banner: ParentTrialBanner & { checkoutToken: string } }) {
   const { t, locale } = useI18n();
 
   if (banner.kind === "none") return null;
@@ -39,12 +45,20 @@ export function TrialBanner({ banner }: { banner: ParentTrialBanner }) {
     >
       <p className="font-display text-base">{t(title)}</p>
       <p className="mt-1 text-fg-muted">{t(body)}</p>
-      <a
-        href={SUBSCRIBE_HREF}
-        className="mt-3 inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm text-primary-fg"
-      >
-        {t("trialBannerSubscribeCta")}
-      </a>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a
+          href={monthlyCheckoutUrl(banner.checkoutToken)}
+          className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm text-primary-fg"
+        >
+          {t("trialBannerSubscribeMonthly")}
+        </a>
+        <a
+          href={yearlyCheckoutUrl(banner.checkoutToken)}
+          className="inline-flex h-10 items-center rounded-lg border border-primary px-4 text-sm text-primary"
+        >
+          {t("trialBannerSubscribeYearly")}
+        </a>
+      </div>
     </section>
   );
 }
