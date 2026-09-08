@@ -37,8 +37,14 @@ export const authClient = createAuthClient({
  */
 export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
 
-/** The upstream providers to render sign-in buttons for. */
-export { GROK_PROVIDERS };
+/**
+ * This app's own provider id for the broker's Google upstream (see
+ * `providers.ts`) -- used only by `signInWithGoogle`'s live-preview
+ * delegation below. Production doesn't go through the broker at all
+ * anymore, so nothing else needs `GROK_PROVIDERS` client-side.
+ */
+const GROK_GOOGLE_PROVIDER_ID =
+  GROK_PROVIDERS.find((p) => p.idp === "google")?.providerId ?? "grok-google";
 
 // ── Live-preview bearer token ────────────────────────────────────────────────
 // The embedded preview iframe has partitioned cookies, so we keep the session's
@@ -150,6 +156,40 @@ export async function signIn(
   });
   if (error) throw new Error(error.message ?? "Sign-in failed");
   if (data?.url) window.location.href = data.url;
+}
+
+/**
+ * The Google sign-in button, specifically. Unlike `signIn()` above (the
+ * broker path, used for whatever other upstreams get added later), this one
+ * has two genuinely different mechanisms depending on environment:
+ *
+ * - **Live preview**: only the broker's popup flow solves the iframe's
+ *   partitioned cookies, so this delegates straight to `signIn("grok-google",
+ *   opts)` — same as before this app had its own Google credentials at all.
+ * - **Deployed / local dev**: this app's own registered Google OAuth client
+ *   (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `auth/server.ts`) via Better
+ *   Auth's native `signIn.social` — a normal full-page redirect to Google and
+ *   back, no broker involved at all.
+ */
+export async function signInWithGoogle(
+  opts: { callbackURL?: string; errorCallbackURL?: string } = {},
+): Promise<void> {
+  if (inLivePreview()) return signIn(GROK_GOOGLE_PROVIDER_ID, opts);
+
+  const callbackURL = opts.callbackURL ?? "/";
+  const errorCallbackURL = opts.errorCallbackURL ?? "/";
+
+  // Same "drop any prior session first" step signIn() does for the broker
+  // path, so switching accounts here behaves the same way.
+  await runPreSignInSignOut({
+    livePreview: false,
+    hasBearer: Boolean(getBearerToken()),
+    requestSignOut: () => authClient.signOut(),
+    clearToken: () => setBearerToken(null),
+  });
+
+  const { error } = await authClient.signIn.social({ provider: "google", callbackURL, errorCallbackURL });
+  if (error) throw new Error(error.message ?? "Sign-in failed");
 }
 
 /**

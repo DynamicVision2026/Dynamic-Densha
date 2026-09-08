@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import { authClient, authEnabled, signInWithGoogle } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,8 +39,8 @@ function Login() {
   // be threaded through is there, not here.
   const onboardNext = `/onboard?next=${encodeURIComponent(resolvePostAuthNext(search.next))}`;
 
-  // Federated sign-in (signIn() -> authClient.signIn.oauth2) is a full-page
-  // round trip through the broker, not a promise this tab can catch a
+  // signInWithGoogle() (production: native Google; live preview: the
+  // broker) is a full-page round trip, not a promise this tab can catch a
   // rejection from -- a cancelled or failed sign-in comes back as a
   // navigation to `errorCallbackURL`, not a thrown error here. Without one,
   // that lands on Better Auth's own default error page, which is not a page
@@ -53,16 +53,16 @@ function Login() {
     return `/login?${params.toString()}`;
   })();
 
-  // signIn() itself can reject synchronously (popup blocked, preview
-  // cancel/timeout, or an immediate error from the broker) before any
-  // navigation happens -- that promise was previously fire-and-forget here,
-  // so a parent tapping "Continue with Google" and hitting one of those saw
-  // nothing at all happen. Surfaced through the same error banner the email
-  // form already uses.
-  async function onOAuthClick(providerId: string) {
+  // signInWithGoogle() itself can reject synchronously (popup blocked,
+  // preview cancel/timeout, or an immediate error from Google/the broker)
+  // before any navigation happens -- that promise was previously
+  // fire-and-forget here, so a parent tapping "Continue with Google" and
+  // hitting one of those saw nothing at all happen. Surfaced through the
+  // same error banner the email form already uses.
+  async function onGoogleClick() {
     setError(null);
     try {
-      await signIn(providerId, { callbackURL: onboardNext, errorCallbackURL: oauthErrorHref });
+      await signInWithGoogle({ callbackURL: onboardNext, errorCallbackURL: oauthErrorHref });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("loginFailed"));
     }
@@ -125,17 +125,9 @@ function Login() {
 
         {authEnabled ? (
           <div className="mt-6 space-y-3">
-            {GROK_PROVIDERS.map((p) => (
-              <Button
-                key={p.providerId}
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => onOAuthClick(p.providerId)}
-              >
-                {t("continueWith", { label: p.label })}
-              </Button>
-            ))}
+            <Button type="button" variant="outline" className="w-full" onClick={onGoogleClick}>
+              {t("continueWith", { label: "Google" })}
+            </Button>
           </div>
         ) : (
           <p className="mt-6 text-sm text-fg-muted">{t("signInDisabled")}</p>

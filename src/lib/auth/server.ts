@@ -83,6 +83,20 @@ const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? env("GROK_PREVIEW_CLI
 export const authConfigured =
   !authDisabled && Boolean(grokClientId && grokClientSecret);
 
+// Native Google sign-in, independent of the broker above: this app's own
+// direct Google OAuth client, registered with a redirect URI of
+// `${BETTER_AUTH_URL}/api/auth/callback/google` (Better Auth's fixed path
+// for a `socialProviders` entry -- NOT the broker's `/oauth2/callback/
+// <providerId>`, which only applies to the `genericOAuth` plugin above).
+// Used for the real production Google button (`signInWithGoogle` in
+// `client.ts`); the live-preview sandbox keeps using the broker instead,
+// since only the broker's shared preview client solves that iframe's
+// partitioned-cookie problem without every preview needing its own
+// registered Google app.
+const googleClientId = env("GOOGLE_CLIENT_ID");
+const googleClientSecret = env("GOOGLE_CLIENT_SECRET");
+const googleConfigured = Boolean(googleClientId && googleClientSecret);
+
 // This app's own Better Auth origin. When deployed the deployer injects the
 // public URL. In the sandbox live preview there's no fixed URL (each preview gets
 // a dynamic `*.grok-sandbox.com` host), so we hand Better Auth a dynamic baseURL:
@@ -183,16 +197,18 @@ export const auth = betterAuth({
   trustedOrigins,
 
   // Encrypt broker-issued OAuth tokens at rest, and treat the broker's upstreams
-  // as trusted first-party identities. The broker owns identity and X emails are
-  // synthetic/unverified, so WITHOUT this a login can fail with
-  // `account_not_linked` (Better Auth refuses to attach an untrusted, unverified
-  // identity to an existing user). Google and X carry DISTINCT emails, so this
-  // never merges them into one user — they stay separate identities.
+  // (plus native Google below) as trusted first-party identities. The broker
+  // owns identity there and X emails are synthetic/unverified, so WITHOUT this
+  // a login can fail with `account_not_linked` (Better Auth refuses to attach
+  // an untrusted, unverified identity to an existing user). Native Google's
+  // email IS independently verified by Google itself, but is included here too
+  // so an account created by email/password can still link a later native
+  // Google sign-in on the same address without hitting the same error.
   account: {
     encryptOAuthTokens: true,
     accountLinking: {
       enabled: true,
-      trustedProviders: GROK_PROVIDERS.map((p) => p.providerId),
+      trustedProviders: [...GROK_PROVIDERS.map((p) => p.providerId), "google"],
       // X's synthetic email is never "verified", so don't gate linking on the
       // local user's email-verified state.
       requireLocalEmailVerified: false,
@@ -207,6 +223,14 @@ export const auth = betterAuth({
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),
+
+  // Native Google sign-in for production (see the googleConfigured comment
+  // above) -- absent entirely, not merely disabled, when the two env vars
+  // aren't both set, so an unconfigured deploy never renders a Google button
+  // that can't actually complete a sign-in.
+  ...(googleConfigured
+    ? { socialProviders: { google: { clientId: googleClientId as string, clientSecret: googleClientSecret as string } } }
+    : {}),
 
   // `__Host-` prefixed cookies: the browser REFUSES any same-named cookie that
   // carries a `Domain` attribute, so a sibling `*.grok.me` app cannot "toss" a
