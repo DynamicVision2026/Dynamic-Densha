@@ -9,13 +9,14 @@ import { useI18n } from "@/lib/i18n/i18n";
 import { inFramedPreview } from "@/lib/in-preview";
 import { resolvePostAuthNext } from "@/lib/post-auth-redirect";
 
-type Search = { next?: string; mode?: "signup" };
+type Search = { next?: string; mode?: "signup"; error?: "oauth" };
 
 export const Route = createFileRoute("/login")({
   component: Login,
   validateSearch: (s: Record<string, unknown>): Search => ({
     next: typeof s.next === "string" ? s.next : undefined,
     mode: s.mode === "signup" ? "signup" : undefined,
+    error: s.error === "oauth" ? "oauth" : undefined,
   }),
 });
 
@@ -37,6 +38,35 @@ function Login() {
   // the one place `next` (allow-listed, see post-auth-redirect.ts) needs to
   // be threaded through is there, not here.
   const onboardNext = `/onboard?next=${encodeURIComponent(resolvePostAuthNext(search.next))}`;
+
+  // Federated sign-in (signIn() -> authClient.signIn.oauth2) is a full-page
+  // round trip through the broker, not a promise this tab can catch a
+  // rejection from -- a cancelled or failed sign-in comes back as a
+  // navigation to `errorCallbackURL`, not a thrown error here. Without one,
+  // that lands on Better Auth's own default error page, which is not a page
+  // a parent should ever see. Preserves `next`/`mode` so a retry doesn't lose
+  // the original destination or signup/sign-in intent.
+  const oauthErrorHref = (() => {
+    const params = new URLSearchParams({ error: "oauth" });
+    if (search.next) params.set("next", search.next);
+    if (search.mode) params.set("mode", search.mode);
+    return `/login?${params.toString()}`;
+  })();
+
+  // signIn() itself can reject synchronously (popup blocked, preview
+  // cancel/timeout, or an immediate error from the broker) before any
+  // navigation happens -- that promise was previously fire-and-forget here,
+  // so a parent tapping "Continue with Google" and hitting one of those saw
+  // nothing at all happen. Surfaced through the same error banner the email
+  // form already uses.
+  async function onOAuthClick(providerId: string) {
+    setError(null);
+    try {
+      await signIn(providerId, { callbackURL: onboardNext, errorCallbackURL: oauthErrorHref });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("loginFailed"));
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -87,6 +117,11 @@ function Login() {
             {t("cookieBanner")}
           </p>
         ) : null}
+        {search.error === "oauth" ? (
+          <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {t("oauthSignInFailed")}
+          </p>
+        ) : null}
 
         {authEnabled ? (
           <div className="mt-6 space-y-3">
@@ -96,7 +131,7 @@ function Login() {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={() => signIn(p.providerId, { callbackURL: onboardNext })}
+                onClick={() => onOAuthClick(p.providerId)}
               >
                 {t("continueWith", { label: p.label })}
               </Button>

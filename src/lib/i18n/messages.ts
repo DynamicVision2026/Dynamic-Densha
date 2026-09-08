@@ -107,10 +107,11 @@ const ja = {
   startRegister: "登録してはじめる",
   pleaseWait: "少々お待ちください",
   loginFailed: "ログインできませんでした",
+  oauthSignInFailed: "サインインを完了できませんでした。もう一度お試しいただくか、メールでログインしてください。",
   cookieBanner:
-    "横のプレビューでは Cookie が止まることがあります。列車はそのまま乗れます。記録を残すときは Google / X、またはプレビューを新しいタブで開いてください。",
+    "横のプレビューでは Cookie が止まることがあります。列車はそのまま乗れます。記録を残すときは Google、またはプレビューを新しいタブで開いてください。",
   cookieEmailFail:
-    "このプレビューではメールログインが Cookie で止まることがあります。Google / X を使うか、新しいタブで開いてください。",
+    "このプレビューではメールログインが Cookie で止まることがあります。Google を使うか、新しいタブで開いてください。",
   demoBanner: "ログインなし。この画面のまま乗れます。記録はこの端末だけです。",
   demoShapeSample: "かたちの試乗",
   demoShapeHint: "林は第16列車。ここでは先にパーツを組めます。",
@@ -519,10 +520,11 @@ const en: Record<MessageKey, string> = {
   startRegister: "Register and start",
   pleaseWait: "Please wait…",
   loginFailed: "Could not sign in",
+  oauthSignInFailed: "Sign-in couldn't be completed. Please try again, or sign in with email instead.",
   cookieBanner:
-    "This side preview may block cookies. You can still ride the trains here. To save a child’s record, use Google / X, or open the preview in a new tab.",
+    "This side preview may block cookies. You can still ride the trains here. To save a child’s record, use Google, or open the preview in a new tab.",
   cookieEmailFail:
-    "Email login often fails in this preview because cookies are blocked. Use Google / X, or open a new tab.",
+    "Email login often fails in this preview because cookies are blocked. Use Google, or open a new tab.",
   demoBanner: "No login. Ride right here. Progress stays on this device only.",
   demoShapeSample: "Try the shape tools",
   demoShapeHint: "林 is on Train 16. Try the parts here first.",
@@ -929,10 +931,11 @@ const zhHans: Record<MessageKey, string> = {
   startRegister: "注册并开始",
   pleaseWait: "请稍候…",
   loginFailed: "登录失败",
+  oauthSignInFailed: "无法完成登录。请重试，或改用邮箱登录。",
   cookieBanner:
-    "旁边的预览可能会拦截 Cookie。列车仍可直接坐。要真正保存孩子的记录，请用 Google / X，或把预览在新标签打开。",
+    "旁边的预览可能会拦截 Cookie。列车仍可直接坐。要真正保存孩子的记录，请用 Google，或把预览在新标签打开。",
   cookieEmailFail:
-    "这个预览里邮箱登录常被 Cookie 拦住。请用 Google / X，或在新标签打开。",
+    "这个预览里邮箱登录常被 Cookie 拦住。请用 Google，或在新标签打开。",
   demoBanner: "不用登录，就在这边坐。进度只留在这台设备。",
   demoShapeSample: "字形试乘",
   demoShapeHint: "「林」在第16列车。这里可以先拼部件。",
@@ -1338,10 +1341,11 @@ const zhHant: Record<MessageKey, string> = {
   startRegister: "註冊並開始",
   pleaseWait: "請稍候…",
   loginFailed: "登入失敗",
+  oauthSignInFailed: "無法完成登入。請重試，或改用電子郵件登入。",
   cookieBanner:
-    "旁邊的預覽可能會攔截 Cookie。列車仍可直接坐。要真正保存孩子的紀錄，請用 Google / X，或把預覽在新分頁打開。",
+    "旁邊的預覽可能會攔截 Cookie。列車仍可直接坐。要真正保存孩子的紀錄，請用 Google，或把預覽在新分頁打開。",
   cookieEmailFail:
-    "這個預覽裡電子郵件登入常被 Cookie 攔住。請用 Google / X，或在新分頁打開。",
+    "這個預覽裡電子郵件登入常被 Cookie 攔住。請用 Google，或在新分頁打開。",
   demoBanner: "不用登入，就在這邊坐。進度只留在這台裝置。",
   demoShapeSample: "字形試乘",
   demoShapeHint: "「林」在第16列車。這裡可以先拼部件。",
