@@ -63,6 +63,7 @@ const TS_TESTS = [
   "scripts/entitlement.test.ts",
   "scripts/subscription-derive.test.ts",
   "scripts/stripe-signature.test.ts",
+  "scripts/stripe-plan.test.ts",
   "scripts/trial-spent.test.ts",
 ];
 
