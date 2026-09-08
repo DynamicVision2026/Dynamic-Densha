@@ -80,6 +80,26 @@ export async function getSessionUser(
  *   read/write everyone's rows.
  * - Auth disabled + no database -> the shared dev user id.
  */
+/**
+ * Same resolution rules as `requireUserId`, but for callers that already
+ * hold the raw platform `Request` (a `server: { handlers }` route, e.g.
+ * src/routes/subscribe.ts) rather than a `createServerFn` context -- and
+ * that want `null` instead of a thrown `UnauthorizedError` on a signed-out
+ * visitor, since "no session" is one branch of ordinary control flow there,
+ * not a failure. Takes `headers` directly instead of going through
+ * `getRequest()` + a forwarded bearer token: a route handler already has
+ * the exact request Better Auth needs to read the session cookie from, so
+ * there is nothing to reconstruct.
+ */
+export async function resolveUserIdFromHeaders(headers: Headers): Promise<string | null> {
+  if (!authConfigured) {
+    if (databaseConfigured) return null; // fail closed -- see requireUserId's own comment
+    return DEV_USER_ID;
+  }
+  const session = await auth.api.getSession({ headers });
+  return session?.user?.id ?? null;
+}
+
 export async function requireUserId(bearerToken?: string): Promise<string> {
   if (!authConfigured) {
     if (databaseConfigured) {

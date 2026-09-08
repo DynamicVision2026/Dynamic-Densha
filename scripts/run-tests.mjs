@@ -65,6 +65,8 @@ const TS_TESTS = [
   "scripts/stripe-signature.test.ts",
   "scripts/stripe-plan.test.ts",
   "scripts/trial-spent.test.ts",
+  "scripts/subscribe-resolve.test.ts",
+  "scripts/post-auth-redirect.test.ts",
 ];
 
 const stages = [

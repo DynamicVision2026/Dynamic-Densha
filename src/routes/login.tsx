@@ -7,19 +7,36 @@ import { Label } from "@/components/ui/label";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n/i18n";
 import { inFramedPreview } from "@/lib/in-preview";
+import { resolvePostAuthNext } from "@/lib/post-auth-redirect";
 
-export const Route = createFileRoute("/login")({ component: Login });
+type Search = { next?: string; mode?: "signup" };
+
+export const Route = createFileRoute("/login")({
+  component: Login,
+  validateSearch: (s: Record<string, unknown>): Search => ({
+    next: typeof s.next === "string" ? s.next : undefined,
+    mode: s.mode === "signup" ? "signup" : undefined,
+  }),
+});
 
 function Login() {
   const { t } = useI18n();
+  const search = Route.useSearch();
   const [framed, setFramed] = useState(false);
   useEffect(() => setFramed(inFramedPreview()), []);
-  const [mode, setMode] = useState<"in" | "up">("in");
+  const [mode, setMode] = useState<"in" | "up">(search.mode === "signup" ? "up" : "in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Every post-login destination routes through /onboard first: it already
+  // knows how to skip straight past its own form for a visitor who has
+  // children (see onboard.tsx), so this is a single hop either way -- and
+  // the one place `next` (allow-listed, see post-auth-redirect.ts) needs to
+  // be threaded through is there, not here.
+  const onboardNext = `/onboard?next=${encodeURIComponent(resolvePostAuthNext(search.next))}`;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,14 +48,14 @@ function Login() {
           email,
           password,
           name: name || email.split("@")[0] || t("parentDefaultName"),
-          callbackURL: "/app",
+          callbackURL: onboardNext,
         });
         if (err) throw new Error(err.message);
       }
       const { error: err } = await authClient.signIn.email({
         email,
         password,
-        callbackURL: "/app",
+        callbackURL: onboardNext,
       });
       if (err) throw new Error(err.message);
       const session = await authClient.getSession();
@@ -46,7 +63,7 @@ function Login() {
         setError(t("cookieEmailFail"));
         return;
       }
-      window.location.href = "/app";
+      window.location.href = onboardNext;
     } catch (err) {
       setError(err instanceof Error ? err.message : t("loginFailed"));
     } finally {
@@ -79,7 +96,7 @@ function Login() {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={() => signIn(p.providerId, { callbackURL: "/app" })}
+                onClick={() => signIn(p.providerId, { callbackURL: onboardNext })}
               >
                 {t("continueWith", { label: p.label })}
               </Button>

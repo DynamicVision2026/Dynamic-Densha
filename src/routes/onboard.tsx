@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { createChild } from "@/lib/server/children";
+import { createChild, listChildren } from "@/lib/server/children";
 import { writeActiveChildId } from "@/lib/active-child";
 import { writeStoredActiveGrade } from "@/lib/active-grade";
 import { AppShell } from "@/components/app-shell";
@@ -13,20 +14,50 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/lib/i18n/i18n";
 import { StartBandPicker } from "@/components/start-band-picker";
 import type { StartBand } from "@/lib/grade-route";
+import { resolvePostAuthNext } from "@/lib/post-auth-redirect";
 
-export const Route = createFileRoute("/onboard")({ component: Onboard });
+type Search = { next?: string };
+
+export const Route = createFileRoute("/onboard")({
+  component: Onboard,
+  validateSearch: (s: Record<string, unknown>): Search => ({
+    next: typeof s.next === "string" ? s.next : undefined,
+  }),
+});
 
 function Onboard() {
   const { user, isPending } = useCurrentUserState();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const dest = resolvePostAuthNext(search.next);
   const [name, setName] = useState("");
   const [grade, setGrade] = useState(1);
   const [startBand, setStartBand] = useState<StartBand>("beginning");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (isPending) {
+  // /onboard is reachable two ways: /app's own zero-children redirect (no
+  // `next`, always continues to /app once a child exists -- unchanged), and
+  // now the post-login hop every login.tsx sign-in/sign-up goes through
+  // (always carrying `next`, e.g. back to /subscribe). A visitor who
+  // already has a child skips the create-child form entirely and goes
+  // straight to `dest` -- this route only exists to guarantee a household
+  // has at least one child before continuing, not to force a redundant
+  // second child on a returning parent.
+  const childrenQ = useQuery({
+    queryKey: ["children"],
+    queryFn: () => listChildren(),
+    enabled: Boolean(user),
+  });
+  const hasChildren = Boolean(childrenQ.data && childrenQ.data.length > 0);
+  useEffect(() => {
+    if (!hasChildren) return;
+    if (dest === "/app") void navigate({ to: "/app" });
+    else window.location.href = dest;
+  }, [hasChildren, dest, navigate]);
+
+  if (isPending || (user && childrenQ.isLoading) || hasChildren) {
     return (
       <AppShell>
         <div className="mx-auto max-w-md px-5 py-16">
@@ -45,7 +76,8 @@ function Onboard() {
       const child = await createChild({ data: { name, grade, startBand } });
       writeActiveChildId(child.id);
       writeStoredActiveGrade(child.grade, child.id);
-      await navigate({ to: "/app", search: { grade: child.grade } });
+      if (dest === "/app") await navigate({ to: "/app", search: { grade: child.grade } });
+      else window.location.href = dest;
     } catch (err) {
       setError(err instanceof Error ? err.message : t("saveFailed"));
     } finally {

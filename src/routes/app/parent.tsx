@@ -22,13 +22,19 @@ import { requestInsight } from "@/lib/server/insights";
 import { getParentOverview } from "@/lib/server/progress";
 import { useI18n } from "@/lib/i18n/i18n";
 
-type Search = { child?: string };
+type Search = { child?: string; checkout?: "pending"; already?: "active" };
 export const Route = createFileRoute("/app/parent")({
   component: ParentPage,
   validateSearch: (s: Record<string, unknown>): Search => ({
     child: typeof s.child === "string" ? s.child : undefined,
+    checkout: s.checkout === "pending" ? "pending" : undefined,
+    already: s.already === "active" ? "active" : undefined,
   }),
 });
+
+/** src/routes/subscribe.ts's own return_url lands here. See its 30s-timeout note below. */
+const CHECKOUT_POLL_INTERVAL_MS = 2000;
+const CHECKOUT_POLL_TIMEOUT_MS = 30000;
 
 function ParentPage() {
   const { t } = useI18n();
@@ -43,10 +49,26 @@ function ParentPage() {
     }
   }, [childId, childrenQ.data]);
 
+  const isPendingCheckout = search.checkout === "pending";
+  // Fixed at mount, not recomputed -- the 30s window is measured from when
+  // this pending view first appeared, not from each render.
+  const [pendingStartedAt] = useState(() => Date.now());
+
   const overviewQ = useQuery({
     queryKey: ["overview", childId],
     queryFn: () => getParentOverview({ data: childId }),
     enabled: Boolean(childId),
+    // Stripe's webhook can land after the browser already returned here
+    // (src/routes/subscribe.ts hands off to Stripe; entitlement is only
+    // ever granted by src/routes/api/webhooks/stripe.ts). Poll for up to
+    // 30s so the swap to the normal dashboard happens as soon as that
+    // webhook actually lands, without ever claiming success before it does.
+    refetchInterval: (query) => {
+      if (!isPendingCheckout) return false;
+      if (query.state.data?.subscriptionActive) return false;
+      if (Date.now() - pendingStartedAt >= CHECKOUT_POLL_TIMEOUT_MS) return false;
+      return CHECKOUT_POLL_INTERVAL_MS;
+    },
   });
 
   const insight = useMutation({
@@ -89,11 +111,45 @@ function ParentPage() {
   const data = overviewQ.data;
   if (!data) return null;
 
+  // src/routes/subscribe.ts's return_url. Entitlement is granted by the
+  // Stripe webhook (src/routes/api/webhooks/stripe.ts), which can land
+  // after this page does -- so this is a read-only wait for that webhook,
+  // never a claim of success on its own (a return URL is just a browser's
+  // say-so, forgeable by anyone who reads it once). subscriptionActive
+  // flipping true is what ends it, driven entirely by overviewQ's own poll
+  // above; there's nothing else to do here but render the right copy.
+  if (isPendingCheckout && !data.subscriptionActive) {
+    const timedOut = Date.now() - pendingStartedAt >= CHECKOUT_POLL_TIMEOUT_MS;
+    return (
+      <AppShell childName={data.child.name} grade={data.child.grade}>
+        <main className="mx-auto max-w-md px-5 py-16 text-center" data-checkout-pending={timedOut ? "timeout" : "waiting"}>
+          {timedOut ? (
+            <>
+              <p className="font-display text-xl">{t("checkoutTimeoutTitle")}</p>
+              <p className="mt-2 text-sm leading-6 text-fg-muted">{t("checkoutTimeoutBody")}</p>
+            </>
+          ) : (
+            <>
+              <Skeleton className="mx-auto h-10 w-10 rounded-full" />
+              <p className="mt-4 font-display text-xl">{t("checkoutPendingTitle")}</p>
+            </>
+          )}
+        </main>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell childName={data.child.name} grade={data.child.grade}>
       <main data-parent-doc className="mx-auto max-w-[900px] px-5 py-8">
         <p className="text-xs tracking-[0.2em] text-fg-subtle">{t("parentPage")}</p>
         <h1 className="mt-1 font-display text-3xl">{t("parentTitle")}</h1>
+
+        {search.already === "active" ? (
+          <p className="mt-4 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-fg-muted">
+            {t("alreadyActiveNotice")}
+          </p>
+        ) : null}
 
         <div className="mt-4">
           <TrialBanner banner={data.trialBanner} />

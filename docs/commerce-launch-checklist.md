@@ -10,7 +10,108 @@ with an owner, each with its own clock.
 | 1 | ~~Domain mapping~~ — `kanji-ai.jp` → the landing Cloud Run service, `app.kanji-ai.jp` → the app | Founder / infra | **Done** — both domains reported bound and DNS-resolved. Not independently verified from this environment: outbound HTTPS to arbitrary internet hosts is blocked by this sandbox's egress policy (confirmed again just now, `CONNECT tunnel failed, response 403` on both hosts) — this is the same sandbox-level restriction that blocked every reachability check earlier in this build, unrelated to whether the domains are actually live. Worth one real check from outside this environment before relying on it. |
 | 2 | Legal review of `terms.html` / `privacy.html` | Founder + reviewer | Content is complete (10-day trial, monthly/yearly pricing, cancellation/refund and read-only-after-lapse terms all filled in) but has not been independently confirmed as legally reviewed from this environment. |
 | 3 | ~~Business fields for `pricing.html` and `tokushoho.html`~~ | Founder | **Done.** Both files are live at the site root (`landingpage-densha`, no longer in `draft/`): 月額プラン ¥1,280/月, 年額プラン ¥10,800/年, payment method/timing, contract term & auto-renewal, cancellation method & deadline, and refund policy are all filled in — no `［…］` placeholders remain. |
-| 4 | ~~Stripe account + checkout links~~ (superseded Shopify — the account was never opened, no code shipped against it) | Founder | **Mostly done.** Two live Stripe Payment Links (monthly ¥1,280, yearly ¥10,800) are wired into `pricing.html`'s buttons. This repo's webhook endpoint (`src/routes/api/webhooks/stripe.ts`) now ingests `checkout.session.completed`, `invoice.payment_succeeded`/`failed`, `customer.subscription.deleted`/`updated`, and `charge.refunded`, verified via Stripe's own signature scheme. Plan (monthly/yearly) is resolved by matching the purchased subscription's Stripe **Price id** against `STRIPE_PRICE_MONTHLY_ID`/`STRIPE_PRICE_ANNUAL_ID`, not by amount — a price change in the Stripe Dashboard alone can never silently break entitlement or mislabel a plan (`src/lib/stripe-plan.ts`; an unmatched price id is logged and left unset, never guessed). **Still needed, and not done from this environment:** configure `STRIPE_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_MONTHLY_ID`, and `STRIPE_PRICE_ANNUAL_ID` as real env vars on the deployed Cloud Run service (see "One-time setup" below — these are Cloud Run service config, not GitHub Actions secrets, since nothing in the deploy workflow injects Cloud Run env vars today), register the webhook endpoint's URL in the Stripe Dashboard, and run both verification passes described there. Also verify Stripe Checkout's own final confirmation screen shows all six 特商法-required items (contract terms, renewal timing, price, cancellation method, cancellation deadline) — the default screen doesn't necessarily satisfy this, and that screen is Stripe's, not ours. |
+| 4 | ~~Stripe account + checkout links~~ (superseded Shopify — the account was never opened, no code shipped against it) | Founder | **Mostly done, architecture changed since the table below was last written — see "Unified funnel" section.** `pricing.html`'s buttons currently still link straight to the two live Stripe Payment Links (monthly ¥1,280, yearly ¥10,800); those are being replaced with links to `app.kanji-ai.jp/subscribe?plan=…` (`src/routes/subscribe.ts`, this repo), which attaches the household's `checkout_token` server-side instead of the landing page having to know it. The webhook endpoint (`src/routes/api/webhooks/stripe.ts`) is unchanged: it ingests `checkout.session.completed`, `invoice.payment_succeeded`/`failed`, `customer.subscription.deleted`/`updated`, and `charge.refunded`, verified via Stripe's own signature scheme. Plan (monthly/yearly) is resolved by matching the purchased subscription's Stripe **Price id** against `STRIPE_PRICE_MONTHLY_ID`/`STRIPE_PRICE_ANNUAL_ID`, not by amount — a price change in the Stripe Dashboard alone can never silently break entitlement or mislabel a plan (`src/lib/stripe-plan.ts`; an unmatched price id is logged and left unset, never guessed). **Still needed, and not done from this environment:** configure `STRIPE_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_MONTHLY_ID`, and `STRIPE_PRICE_ANNUAL_ID` as real env vars on the deployed Cloud Run service (see "One-time setup" below — these are Cloud Run service config, not GitHub Actions secrets, since nothing in the deploy workflow injects Cloud Run env vars today), register the webhook endpoint's URL in the Stripe Dashboard, run both verification passes described there, and — last, once the resolver below is deployed and verified — update `landingpage-densha`'s CTAs to the four hrefs in the "Unified funnel" section. Also verify Stripe Checkout's own final confirmation screen shows all six 特商法-required items (contract terms, renewal timing, price, cancellation method, cancellation deadline) — the default screen doesn't necessarily satisfy this, and that screen is Stripe's, not ours. |
+
+## Unified funnel — landing page to checkout
+
+`kanji-ai.jp` stays static/inert (no session, no cookies, no auth-aware
+content — `check-inert.mjs` in `landingpage-densha` still enforces this) and
+never links straight to `buy.stripe.com`. Instead every "subscribe" CTA
+points at `app.kanji-ai.jp/subscribe?plan=monthly|annual` — a thin,
+server-side-only resolver (`src/routes/subscribe.ts`) that renders nothing
+and holds no state; its entire job is resolve household → build URL → 302.
+Identity never crosses the origin boundary; a plan name does.
+
+```
+kanji-ai.jp  (static, inert)
+      │  <a href="https://app.kanji-ai.jp/subscribe?plan=monthly">
+      ▼
+app.kanji-ai.jp/subscribe
+      ├─ plan missing/invalid → /app/parent
+      ├─ no session           → /login?next=<encoded self>
+      ├─ session, no household → resolveHouseholdId creates one (idempotent)
+      ├─ household already 'active' → /app/parent?already=active (never double-charge)
+      └─ otherwise            → mint/read checkout_token, 302 to Stripe
+                                 with ?client_reference_id=<token>
+                                        │
+                                        ▼
+                          Stripe checkout → webhook grants entitlement
+                          → return_url → /app/parent?checkout=pending
+```
+
+The branch decision is pure and unit-tested independently of any DB/session
+call (`src/lib/subscribe-resolve.ts`, `scripts/subscribe-resolve.test.ts`) —
+the route itself only supplies the already-resolved `hasSession`/`isActive`
+inputs each branch needs. `isHouseholdActive()`
+(`src/lib/server/subscription.ts`) is the one place that distinguishes
+"trialing" from "actually paying," used by both this resolver (to avoid a
+double charge) and the pending-checkout poll below (to know when a webhook
+has actually landed) — `scripts/check-single-entitlement.mjs` still forbids
+a literal `state === 'active'` comparison anywhere else.
+
+**`next` carry-through + allow-list.** A signed-out visitor hitting
+`/subscribe` is sent to `/login?next=<encoded self>`; `/login` always
+routes through `/onboard?next=…` next (which skips straight past its own
+create-a-child form and forwards `next` immediately if the account already
+has a child — see `src/routes/onboard.tsx`), so the same hop works whether
+this is a brand-new signup or a returning parent who never finished
+onboarding. `next` is attacker-controllable (anyone can hand out a link with
+`?next=https://evil.example`), so it is allow-listed, not sanitized:
+`src/lib/post-auth-redirect.ts` accepts only the three exact same-origin
+paths `/subscribe`, `/app/parent`, `/app` (any query string of their own is
+fine; a scheme anywhere in the value, even inside that query string, is
+rejected outright) — anything else silently falls back to `/app`, never an
+open redirect. Unit-tested branch by branch in
+`scripts/post-auth-redirect.test.ts`.
+
+**Pending/polling return state.** Stripe's webhook can land after the
+browser already returned from checkout, so `/app/parent?checkout=pending`
+never claims success on its own say-so (a return URL is a browser's claim,
+forgeable by anyone who reads it once — entitlement is only ever granted by
+`src/routes/api/webhooks/stripe.ts`). It polls the existing
+`getParentOverview` query every 2s for up to 30s
+(`src/routes/app/parent.tsx`, via `subscriptionActive` — a new field on that
+query's response, computed by `isHouseholdActive()`), swaps to the normal
+dashboard the moment that flips true, and otherwise shows a timeout message
+with the support address after 30s. `?already=active` (branch 4's redirect
+target) shows a small one-line notice on the normal dashboard instead of a
+separate view — there is nothing to wait for there, the household was
+already entitled before the visit.
+
+**Verified from this environment:** typecheck, the full test suite (all 8
+stages, including `single entitlement`/`derived subscription`/`webhook-only
+entitlement`), and a live curl smoke test against the local dev server —
+`/subscribe` with no plan and with a garbage plan both 302 to `/app/parent`;
+`/subscribe?plan=monthly` and `/subscribe?plan=annual` both 302 to the
+correct Stripe Payment Link with the same `client_reference_id` on repeat
+calls (confirming the token is read, not re-minted); `/login`, `/onboard`,
+and `/app/parent` all render (200) with the new search params. **Not
+verifiable from this environment:** the actual signed-out branch of
+`/subscribe` and the client-rendered pending/polling UI, both blocked by
+this sandbox having no real sign-in provider configured (the same category
+of constraint that blocked webhook Pass 1 above) — worth exercising once
+from a real browser against a deployed environment before relying on it,
+the same way R1 below is.
+
+**Landing page CTAs — last, deliberately, once the resolver above is
+deployed and directly verified signed-in and signed-out.** Four anchors in
+`landingpage-densha`, replacing the current direct `buy.stripe.com` links
+and the guest-door hero CTA:
+
+```html
+<!-- index.html hero -->
+<a class="btn"  href="https://app.kanji-ai.jp/login?mode=signup">10日間 無料ではじめる</a>
+<a class="btn2" href="pricing.html">プランを見る</a>
+<!-- pricing.html -->
+<a class="btn"  href="https://app.kanji-ai.jp/subscribe?plan=annual">年額プランに申し込む</a>
+<a class="btn2" href="https://app.kanji-ai.jp/subscribe?plan=monthly">月額プランに申し込む</a>
+```
+
+None of this touches `src/components/trial-banner.tsx` (the parent
+dashboard's own subscribe buttons) — those already run inside an
+authenticated page that knows its household directly, so they keep using
+`src/lib/checkout-link.ts`'s helpers rather than round-tripping through
+`/subscribe`.
 
 ## Production verification, now that both domains are live
 
@@ -124,6 +225,11 @@ design — a first cohort is small enough that this is a feature, not friction.
   operator, representative, address, contact email, phone-disclosure-on-
   request, price, payment terms, and cancellation/refund/read-only-after-
   lapse policy are all filled in and correct — no placeholders remain.
+- The Unified Funnel resolver (`src/routes/subscribe.ts`), its pure decision
+  core (`src/lib/subscribe-resolve.ts`), the `next` allow-list
+  (`src/lib/post-auth-redirect.ts`), and the checkout-pending poll on
+  `/app/parent` — see "Unified funnel" above for the full picture and what
+  has/hasn't been verified live.
 
 ## How deploys work now (supersedes the manual steps above)
 

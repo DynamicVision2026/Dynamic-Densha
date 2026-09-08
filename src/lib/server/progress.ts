@@ -6,6 +6,7 @@ import {
   assertCanRide,
   getEntitlementForHousehold,
   getParentTrialBanner,
+  isHouseholdActive,
 } from "@/lib/server/subscription";
 import type { Grade } from "@/data/kyoiku";
 import { getKanji } from "@/data/kyoiku";
@@ -623,9 +624,15 @@ export const getParentOverview = createServerFn({ method: "GET" })
     const history = allRoutes.filter((r) => r.id !== ensured.route.id);
     const householdId = await resolveHouseholdId(sql, context.userId, nowIso);
     const trialBanner = await getParentTrialBanner(sql, householdId, nowIso);
+    // Powers the /app/parent?checkout=pending poll (src/routes/app/parent.tsx):
+    // it needs to know specifically when a webhook has landed and moved this
+    // household to 'active', which trialBanner's kind alone can't say (kind
+    // "none" covers both "never trialed" and "already active").
+    const subscriptionActive = await isHouseholdActive(sql, householdId, nowIso);
     return {
       child: { ...child, startBand: routeRow.startBand },
       trialBanner,
+      subscriptionActive,
       trains,
       counts: report.counts,
       total,

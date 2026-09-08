@@ -108,6 +108,27 @@ export async function getHouseholdIdByStripeIds(
 }
 
 /**
+ * True once a household has an actual paid Stripe subscription (not
+ * trialing, not lapsed/cancelled) -- distinct from entitlement()'s
+ * canRide/canView, which deliberately don't distinguish trial from active
+ * (both ride). The /subscribe resolver (src/routes/subscribe.ts) needs
+ * exactly this distinction to avoid sending an already-paying household
+ * back to Stripe to be charged twice, and the parent dashboard's checkout-
+ * pending poll (src/routes/app/parent.tsx) needs it to know when a webhook
+ * has actually landed. Both call this instead of comparing `state`
+ * themselves -- see scripts/check-single-entitlement.mjs, which forbids a
+ * literal `state === 'active'` anywhere outside this file.
+ */
+export async function isHouseholdActive(
+  sql: Sql,
+  householdId: string,
+  nowIso: string = new Date().toISOString(),
+): Promise<boolean> {
+  const derived = await recomputeSubscription(sql, householdId, nowIso);
+  return derived.state === "active";
+}
+
+/**
  * The one call site pattern: every surface that needs to know whether a
  * household can ride or view calls this, never reads `subscription.state`
  * itself.
