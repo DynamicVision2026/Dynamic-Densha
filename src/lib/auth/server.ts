@@ -36,6 +36,7 @@ import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { ensureDbReady, getPglite } from "../db";
+import { NEON_POOL_OPTIONS, requireDatabaseUrlOnCloudRun } from "../db-pool-config";
 import { emailAndPasswordEnabled } from "./email-password";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
@@ -138,6 +139,7 @@ const trustedOrigins: string[] = explicitBaseURL
     ];
 
 const databaseUrl = env("DATABASE_URL");
+requireDatabaseUrlOnCloudRun(databaseUrl, "src/lib/auth/server.ts");
 
 // Static broker OAuth endpoints (skip OIDC discovery on every sign-in / callback).
 // Discovery would cost an extra network hop to the broker before the popup can
@@ -154,7 +156,7 @@ const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
 // schema from `migrations/auth/0001_auth.sql`, copied into `migrations/` when
 // the app turns sign-in on.
 const database = databaseUrl
-  ? new Pool({ connectionString: databaseUrl })
+  ? new Pool({ connectionString: databaseUrl, ...NEON_POOL_OPTIONS })
   : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
 
 /** Session token cookie name — also read by the live-preview popup completion page. */

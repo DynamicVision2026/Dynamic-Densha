@@ -123,10 +123,13 @@ block that stopped every reachability attempt throughout this build,
 unrelated to whether the domains are actually live). Run them from a machine
 with real network access.
 
-1. **Routing contract + landing CTAs — automated.** `node
+1. **Routing contract + landing CTAs + DB reachability — automated.** `node
    scripts/smoke-production.mjs` checks `app.kanji-ai.jp/`, `/parents`,
-   `/app/parent` all return 2xx; `kanji-ai.jp/` returns 2xx and
-   `www.kanji-ai.jp/` 301/308s to the apex; and reads the deployed
+   `/app/parent` all return 2xx; `GET /api/health-db` runs a real `select 1`
+   against `DATABASE_URL` and returns 200 (catches a misconfigured or
+   unreachable Neon connection before a parent's first signup, since the
+   routing checks above never touch the database); `kanji-ai.jp/` returns
+   2xx and `www.kanji-ai.jp/` 301/308s to the apex; and reads the deployed
    `index.html` to confirm its two CTA hrefs actually point at
    `https://app.kanji-ai.jp/` and `/parents` — stronger evidence than a
    manual click, since it checks the shipped href rather than trusting how
@@ -247,6 +250,18 @@ traffic" loops above are gone. The manual production checks that remain
 manual are the ones that need a human or a phone: R1 (sign-in survives a
 redeploy — now trivially testable, since every merge is a redeploy), the
 parity capture, and the real-device Safari ride.
+
+**`DATABASE_URL` on the Cloud Run *service* itself** (distinct from the CI
+`DATABASE_URL` secret above, which only the migrate step uses) is a separate,
+one-time `gcloud run services update ... --update-env-vars DATABASE_URL=...`
+against the *service*, not a GitHub Actions secret. Once set, `src/lib/db.ts`
+and `src/lib/auth/server.ts` both now throw at process boot (not on first
+request) if a real Cloud Run revision (`K_SERVICE` set) ever comes up without
+it — previously a missing service-level `DATABASE_URL` was silently absorbed
+by the ephemeral PGLite fallback, and the first sign a parent saw was a
+signup 500. `scripts/smoke-production.mjs`'s `/api/health-db` check (above)
+is the deploy-time backstop for the same class of bug — a `DATABASE_URL`
+that's set but unreachable (wrong host, exhausted Neon connection limit).
 
 **One-time setup, once, by a repo admin:**
 

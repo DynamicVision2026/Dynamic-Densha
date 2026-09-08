@@ -19,6 +19,13 @@
  *      https://app.kanji-ai.jp/parents (or a relative /parents resolving
  *      there) -- stronger evidence than a manual click, since it reads the
  *      exact shipped href rather than trusting what render looks like.
+ *   4. DB reachability -- GET /api/health-db runs a real `select 1` against
+ *      DATABASE_URL and must return 200. A misconfigured or unreachable
+ *      Neon connection (wrong host, exhausted pooler) doesn't fail routes 1
+ *      or 3 above (those never touch the DB), so this is the only check
+ *      that would have caught it before a parent's first signup -- exactly
+ *      the class of bug this checklist previously found in production only
+ *      after a real signup attempt 500'd.
  *
  * Exits non-zero (with every failure listed) if anything is wrong; does
  * not attempt sign-in, redeploy, screenshot parity, or a real-device
@@ -70,6 +77,7 @@ async function checkRoute(url, { expectRedirectTo } = {}) {
 await checkRoute(`${APP_ORIGIN}/`);
 await checkRoute(`${APP_ORIGIN}/parents`);
 await checkRoute(`${APP_ORIGIN}/app/parent`);
+await checkRoute(`${APP_ORIGIN}/api/health-db`);
 if (!SKIP_LANDING) await checkRoute(`${WWW_ORIGIN}/`, { expectRedirectTo: APEX_ORIGIN });
 
 const indexRes = SKIP_LANDING ? null : await checkRoute(`${APEX_ORIGIN}/`);

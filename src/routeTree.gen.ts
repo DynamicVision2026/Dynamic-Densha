@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as ParentsRouteImport } from './routes/parents'
 import { Route as SubscribeRouteImport } from './routes/subscribe'
+import { Route as ApiHealthDbRouteImport } from './routes/api/health-db'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppCatalogRouteImport } from './routes/app/catalog'
 import { Route as AppMapRouteImport } from './routes/app/map'
@@ -62,6 +63,11 @@ const ParentsRoute = ParentsRouteImport.update({
 const SubscribeRoute = SubscribeRouteImport.update({
   id: '/subscribe',
   path: '/subscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthDbRoute = ApiHealthDbRouteImport.update({
+  id: '/api/health-db',
+  path: '/api/health-db',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -162,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
   '/subscribe': typeof SubscribeRoute
+  '/api/health-db': typeof ApiHealthDbRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
   '/subscribe': typeof SubscribeRoute
+  '/api/health-db': typeof ApiHealthDbRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
   '/subscribe': typeof SubscribeRoute
+  '/api/health-db': typeof ApiHealthDbRoute
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
@@ -242,6 +251,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/parents'
     | '/subscribe'
+    | '/api/health-db'
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/parents'
     | '/subscribe'
+    | '/api/health-db'
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
@@ -293,6 +304,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/parents'
     | '/subscribe'
+    | '/api/health-db'
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
@@ -320,6 +332,7 @@ export interface RootRouteChildren {
   OnboardRoute: typeof OnboardRoute
   ParentsRoute: typeof ParentsRoute
   SubscribeRoute: typeof SubscribeRoute
+  ApiHealthDbRoute: typeof ApiHealthDbRoute
   DemoCatalogRoute: typeof DemoCatalogRoute
   DemoMapRoute: typeof DemoMapRoute
   DemoMistakesRoute: typeof DemoMistakesRoute
@@ -374,6 +387,13 @@ declare module '@tanstack/react-router' {
       path: '/subscribe'
       fullPath: '/subscribe'
       preLoaderRoute: typeof SubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health-db': {
+      id: '/api/health-db'
+      path: '/api/health-db'
+      fullPath: '/api/health-db'
+      preLoaderRoute: typeof ApiHealthDbRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -538,6 +558,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardRoute: OnboardRoute,
   ParentsRoute: ParentsRoute,
   SubscribeRoute: SubscribeRoute,
+  ApiHealthDbRoute: ApiHealthDbRoute,
   DemoCatalogRoute: DemoCatalogRoute,
   DemoMapRoute: DemoMapRoute,
   DemoMistakesRoute: DemoMistakesRoute,
