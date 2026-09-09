@@ -14,6 +14,28 @@ import appCss from "../styles.css?url";
 
 const APP_NAME = "漢字でんしゃ";
 
+// A plain `rel="stylesheet"` link here is render-blocking: the browser holds
+// first paint on every route (including /login) until this third-party
+// fetch resolves. Confirmed via a real Playwright/Chromium run (mobile
+// device emulation, JS enabled) against a local deploy-equivalent build --
+// this was the one real failure caught (`net::ERR_CONNECTION_RESET`) behind
+// a report of the page "stalling halfway through loading" on mobile, with
+// zero JS console errors otherwise.
+//
+// Fixed via the standard loadCSS preload+swap recipe, done as a raw inline
+// script in RootDocument's <head> below rather than a `links` entry: React's
+// server renderer silently drops ANY prop matching /^on/i (confirmed by
+// inspecting the actual SSR output -- a first attempt using a plain `onload`
+// string in the `links` array below rendered with no `onload` attribute at
+// all), so there is no way to get a literal `onload="..."` HTML attribute
+// out of TanStack Router's link-object API. The inline script instead
+// creates the `<link>` node itself via the DOM API with a real bound
+// function, which never goes through React's prop filtering, runs
+// synchronously as the browser's own HTML parser reaches it, and doesn't
+// depend on hydration completing at all.
+const GOOGLE_FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Shippori+Mincho:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap";
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -33,10 +55,6 @@ export const Route = createRootRoute({
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Shippori+Mincho:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap",
-      },
     ],
   }),
   component: RootDocument,
@@ -57,6 +75,22 @@ function RootDocument() {
     <html lang="ja" className="antialiased" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* Loads the Google Fonts stylesheet without blocking first paint --
+            see the GOOGLE_FONTS_HREF comment above for why this has to be a
+            raw script rather than a `links` entry. Synchronous + no `defer`/
+            `async`/`type="module"` so it runs immediately as the parser
+            reaches it, before the (large) hydration bundle. */}
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var l=document.createElement("link");l.rel="preload";l.as="style";l.href=${JSON.stringify(GOOGLE_FONTS_HREF)};l.onload=function(){l.onload=null;l.rel="stylesheet";};document.head.appendChild(l);})();`,
+          }}
+        />
+        {/* JS-disabled fallback for the script above -- without this, a
+            visitor with JS off would never get the webfont at all. */}
+        <noscript>
+          <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
+        </noscript>
       </head>
       <body className="font-sans">
         <PreviewHostBridge />
