@@ -19,9 +19,11 @@ export { authConfigured };
 
 if (databaseConfigured && !authConfigured) {
   console.error(
-    "[auth] DATABASE_URL is set but auth is disabled (VITE_AUTH_ENABLED=false) " +
-      "— requireUserId() will reject every request (fail closed) rather than " +
-      "share one dev user on a real database.",
+    "[auth] DATABASE_URL is set but no sign-in method is configured (neither " +
+      "GROK_AUTH_*/GROK_PREVIEW_CLIENT_SECRET nor GOOGLE_CLIENT_ID/" +
+      "GOOGLE_CLIENT_SECRET, or VITE_AUTH_ENABLED=false) — requireUserId() " +
+      "will reject every request (fail closed) rather than share one dev " +
+      "user on a real database.",
   );
 }
 
@@ -104,8 +106,10 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
   if (!authConfigured) {
     if (databaseConfigured) {
       throw new Error(
-        "Auth is disabled (VITE_AUTH_ENABLED=false) but DATABASE_URL is set — " +
-          "refusing to fall back to the shared dev user against a real database.",
+        "No sign-in method is configured (see the '[auth]' console.error " +
+          "logged at module load for which env vars are missing) but " +
+          "DATABASE_URL is set — refusing to fall back to the shared dev " +
+          "user against a real database.",
       );
     }
     return DEV_USER_ID;

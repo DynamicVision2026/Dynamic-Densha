@@ -12,8 +12,16 @@
  * each provider's `idp` hint.
  *
  * Tri-mode:
- *   - Deployed: the deployer injects a per-app `GROK_AUTH_*` + `BETTER_AUTH_URL`
- *     + `DATABASE_URL`, so real federated auth is persisted in Postgres.
+ *   - Deployed: the deployer injects `BETTER_AUTH_URL` + `DATABASE_URL` and
+ *     EITHER a per-app `GROK_AUTH_*` (broker federation) OR
+ *     `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (native Google via
+ *     `socialProviders`, independent of the broker -- see the
+ *     `googleConfigured` comment below), so real auth is persisted in
+ *     Postgres either way. `authConfigured` (exported below) is true when
+ *     EITHER is present -- a Google-only deployment (this app's actual
+ *     production config) is just as "real auth" as a broker-only one, and
+ *     `requireUserId` (verify.server.ts) must not fail-closed-reject every
+ *     real Google sign-in just because the broker specifically isn't set up.
  *   - Sandbox live preview: no injection -> falls back to the shared **preview
  *     client** (`./preview`) and derives the preview's `https://*.grok-sandbox.com`
  *     origin from the request, so real sign-in works (no demo users). Sessions
@@ -80,9 +88,15 @@ const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
 const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? PREVIEW_CLIENT_ID;
 const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? env("GROK_PREVIEW_CLIENT_SECRET");
 
-/** True when federated sign-in is active (real auth is enforced). */
-export const authConfigured =
-  !authDisabled && Boolean(grokClientId && grokClientSecret);
+/**
+ * True when the BROKER specifically is configured -- gates only the
+ * genericOAuth plugin below. Deliberately narrower than `authConfigured`
+ * (below): registering that plugin with an undefined `grokClientSecret`
+ * would either crash Better Auth's setup or silently register a broker
+ * provider that can never complete a sign-in, neither of which is what an
+ * unconfigured broker should do.
+ */
+const brokerConfigured = !authDisabled && Boolean(grokClientId && grokClientSecret);
 
 // Native Google sign-in, independent of the broker above: this app's own
 // direct Google OAuth client, registered with a redirect URI of
@@ -97,6 +111,21 @@ export const authConfigured =
 const googleClientId = env("GOOGLE_CLIENT_ID");
 const googleClientSecret = env("GOOGLE_CLIENT_SECRET");
 const googleConfigured = Boolean(googleClientId && googleClientSecret);
+
+/**
+ * True when ANY real sign-in method is active -- broker or native Google --
+ * as opposed to `brokerConfigured` above, which only asks about the broker.
+ * This is what `requireUserId`/`resolveUserIdFromHeaders`
+ * (verify.server.ts) actually need: "is there a real way for someone to be
+ * signed in on this deployment," not "specifically the broker." Getting
+ * this wrong was a real production bug -- a Google-only deployment (no
+ * broker secrets ever set, which describes this app's actual production
+ * config) had `authConfigured` permanently false even with real Google
+ * sign-ins succeeding, so every authenticated server function
+ * (`requireUserId`) fail-closed-refused every real signed-in user, having
+ * mistaken "broker not configured" for "no auth configured at all."
+ */
+export const authConfigured = !authDisabled && (brokerConfigured || googleConfigured);
 
 // This app's own Better Auth origin. When deployed the deployer injects the
 // public URL. In the sandbox live preview there's no fixed URL (each preview gets
@@ -164,7 +193,7 @@ export const SESSION_TOKEN_COOKIE = "__Host-grok-auth.session_token";
 
 // Built separately so the `betterAuth({...})` call stays easy to edit without
 // breaking brackets (models often trip on the conditional plugin spread).
-const grokOAuthPlugin = authConfigured
+const grokOAuthPlugin = brokerConfigured
   ? genericOAuth({
       config: GROK_PROVIDERS.map(({ providerId, idp }) => ({
         providerId,
