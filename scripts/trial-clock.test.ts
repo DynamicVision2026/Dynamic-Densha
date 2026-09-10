@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { trialEndsAtFrom, trialEndDateLabel } from "../src/lib/trial-clock.ts";
+import { trialEndsAtFrom, trialEndDateLabel, dateWithYearLabel } from "../src/lib/trial-clock.ts";
 import { ymdInZone } from "../src/lib/echo-arrival.ts";
 
 test("trial ends at 23:59:59 JST, ten full calendar days later", () => {
@@ -51,4 +51,14 @@ test("trialEndDateLabel reads the JST day, not the UTC day, near the boundary", 
   // 14:59:59.999Z is still 23:59:59.999 JST on the same JST calendar day.
   const end = "2026-09-11T14:59:59.999Z";
   assert.equal(trialEndDateLabel(end, "ja"), "9月11日");
+});
+
+test("dateWithYearLabel always includes the year -- the exact bug this exists to prevent: an annual pass's paid_until landing on the same month/day as the trial end it stacked from, a year later, is ambiguous without it", () => {
+  const trialEnd = "2026-09-20T14:59:59.999Z"; // 23:59:59.999 JST, 2026-09-20
+  const paidUntil = "2027-09-20T14:59:59.999Z"; // stacked +1 year, same JST calendar day
+  assert.equal(trialEndDateLabel(trialEnd, "ja"), "9月20日");
+  assert.equal(trialEndDateLabel(paidUntil, "ja"), "9月20日"); // identical -- this is the ambiguity
+  assert.equal(dateWithYearLabel(trialEnd, "ja"), "2026年9月20日");
+  assert.equal(dateWithYearLabel(paidUntil, "ja"), "2027年9月20日"); // now distinguishable
+  assert.equal(dateWithYearLabel(paidUntil, "en"), "September 20, 2027");
 });

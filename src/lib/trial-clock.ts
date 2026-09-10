@@ -36,3 +36,22 @@ export function trialEndDateLabel(trialEndsAtIso: string, locale: string): strin
     day: "numeric",
   }).format(new Date(trialEndsAtIso));
 }
+
+/**
+ * Same idea as trialEndDateLabel, but always includes the year -- for a
+ * date that can land a full year or more out (an annual pass's paid_until),
+ * where the month/day alone is genuinely ambiguous: a household's trial
+ * end and its annual pass's paid_until routinely fall on the exact same
+ * calendar day a year apart (the stacking rule in subscription-derive.ts
+ * extends paid_until from effectiveTrialEnd itself when purchased during
+ * the trial), so "9月20日" alone can't tell a parent which one they're
+ * looking at. Never use trialEndDateLabel for a date this far out.
+ */
+export function dateWithYearLabel(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(iso));
+}

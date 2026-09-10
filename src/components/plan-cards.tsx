@@ -1,4 +1,4 @@
-import { trialEndDateLabel } from "@/lib/trial-clock";
+import { dateWithYearLabel } from "@/lib/trial-clock";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { Plan } from "@/lib/subscription-derive";
 
@@ -60,7 +60,7 @@ export function CurrentPlanNotice({ plan, paidUntil }: { plan: Plan | null; paid
     plan === "buyout"
       ? t("currentPlanFamily")
       : plan === "annual" && paidUntil
-        ? t("currentPlanAnnual", { date: trialEndDateLabel(paidUntil, locale) })
+        ? t("currentPlanAnnual", { date: dateWithYearLabel(paidUntil, locale) })
         : t("currentPlanGeneric");
   return (
     <p data-current-plan className="mt-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-fg-muted">
