@@ -32,6 +32,7 @@ import { Route as DemoMistakesRouteImport } from './routes/demo/mistakes'
 import { Route as DemoParentRouteImport } from './routes/demo/parent'
 import { Route as DemoStampsRouteImport } from './routes/demo/stamps'
 import { Route as DemoWorkshopRouteImport } from './routes/demo/workshop'
+import { Route as SubscribeSuccessRouteImport } from './routes/subscribe.success'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiWebhooksShopifyRouteImport } from './routes/api/webhooks/shopify'
 import { Route as AppKanjiCharRouteImport } from './routes/app/kanji.$char'
@@ -152,6 +153,11 @@ const DemoWorkshopRoute = DemoWorkshopRouteImport.update({
   path: '/demo/workshop',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SubscribeSuccessRoute = SubscribeSuccessRouteImport.update({
+  id: '/success',
+  path: '/success',
+  getParentRoute: () => SubscribeRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -180,7 +186,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
-  '/subscribe': typeof SubscribeRoute
+  '/subscribe': typeof SubscribeRouteWithChildren
   '/api/health-db': typeof ApiHealthDbRoute
   '/app/admin': typeof AppAdminRoute
   '/app/catalog': typeof AppCatalogRoute
@@ -195,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/demo/parent': typeof DemoParentRoute
   '/demo/stamps': typeof DemoStampsRoute
   '/demo/workshop': typeof DemoWorkshopRoute
+  '/subscribe/success': typeof SubscribeSuccessRoute
   '/app/': typeof AppIndexRoute
   '/demo/': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -208,7 +215,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
-  '/subscribe': typeof SubscribeRoute
+  '/subscribe': typeof SubscribeRouteWithChildren
   '/api/health-db': typeof ApiHealthDbRoute
   '/app/admin': typeof AppAdminRoute
   '/app/catalog': typeof AppCatalogRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByTo {
   '/demo/parent': typeof DemoParentRoute
   '/demo/stamps': typeof DemoStampsRoute
   '/demo/workshop': typeof DemoWorkshopRoute
+  '/subscribe/success': typeof SubscribeSuccessRoute
   '/app': typeof AppIndexRoute
   '/demo': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -238,7 +246,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
-  '/subscribe': typeof SubscribeRoute
+  '/subscribe': typeof SubscribeRouteWithChildren
   '/api/health-db': typeof ApiHealthDbRoute
   '/app/admin': typeof AppAdminRoute
   '/app/catalog': typeof AppCatalogRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/demo/parent': typeof DemoParentRoute
   '/demo/stamps': typeof DemoStampsRoute
   '/demo/workshop': typeof DemoWorkshopRoute
+  '/subscribe/success': typeof SubscribeSuccessRoute
   '/app/': typeof AppIndexRoute
   '/demo/': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/demo/parent'
     | '/demo/stamps'
     | '/demo/workshop'
+    | '/subscribe/success'
     | '/app/'
     | '/demo/'
     | '/api/auth/$'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/demo/parent'
     | '/demo/stamps'
     | '/demo/workshop'
+    | '/subscribe/success'
     | '/app'
     | '/demo'
     | '/api/auth/$'
@@ -341,6 +352,7 @@ export interface FileRouteTypes {
     | '/demo/parent'
     | '/demo/stamps'
     | '/demo/workshop'
+    | '/subscribe/success'
     | '/app/'
     | '/demo/'
     | '/api/auth/$'
@@ -356,7 +368,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   OnboardRoute: typeof OnboardRoute
   ParentsRoute: typeof ParentsRoute
-  SubscribeRoute: typeof SubscribeRoute
+  SubscribeRoute: typeof SubscribeRouteWithChildren
   ApiHealthDbRoute: typeof ApiHealthDbRoute
   DemoCatalogRoute: typeof DemoCatalogRoute
   DemoMapRoute: typeof DemoMapRoute
@@ -533,6 +545,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoWorkshopRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/subscribe/success': {
+      id: '/subscribe/success'
+      path: '/success'
+      fullPath: '/subscribe/success'
+      preLoaderRoute: typeof SubscribeSuccessRouteImport
+      parentRoute: typeof SubscribeRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -592,6 +611,18 @@ const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
   AppRouteRouteChildren,
 )
 
+interface SubscribeRouteChildren {
+  SubscribeSuccessRoute: typeof SubscribeSuccessRoute
+}
+
+const SubscribeRouteChildren: SubscribeRouteChildren = {
+  SubscribeSuccessRoute: SubscribeSuccessRoute,
+}
+
+const SubscribeRouteWithChildren = SubscribeRoute._addFileChildren(
+  SubscribeRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
@@ -599,7 +630,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   OnboardRoute: OnboardRoute,
   ParentsRoute: ParentsRoute,
-  SubscribeRoute: SubscribeRoute,
+  SubscribeRoute: SubscribeRouteWithChildren,
   ApiHealthDbRoute: ApiHealthDbRoute,
   DemoCatalogRoute: DemoCatalogRoute,
   DemoMapRoute: DemoMapRoute,

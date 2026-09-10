@@ -14,11 +14,13 @@ import { resolveHouseholdId, getOrCreateCheckoutToken } from "@/lib/server/house
 import { isHouseholdActive } from "@/lib/server/subscription";
 import { decideSubscribeAction } from "@/lib/subscribe-resolve";
 import { buildCheckoutUrl, shopifyStoreDomain } from "@/lib/shopify-checkout";
+import type { Plan } from "@/lib/subscription-derive";
 
 export type HandoffResult =
   | { kind: "invalid-plan" }
   | { kind: "already-active" }
-  | { kind: "checkout"; checkoutUrl: string; domain: string };
+  /** `plan` is the SERVER's resolution of the plan param, not the raw query string -- the ticket renders a price from it, so it must not be attacker-chosen. */
+  | { kind: "checkout"; checkoutUrl: string; domain: string; plan: Plan };
 
 export const resolveHandoff = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -32,5 +34,10 @@ export const resolveHandoff = createServerFn({ method: "GET" })
     if (decision.kind !== "checkout") return { kind: decision.kind === "no-session" ? "invalid-plan" : decision.kind };
 
     const token = await getOrCreateCheckoutToken(sql, householdId);
-    return { kind: "checkout", checkoutUrl: buildCheckoutUrl(decision.plan, token), domain: shopifyStoreDomain() };
+    return {
+      kind: "checkout",
+      checkoutUrl: buildCheckoutUrl(decision.plan, token),
+      domain: shopifyStoreDomain(),
+      plan: decision.plan,
+    };
   });

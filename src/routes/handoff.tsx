@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { resolveHandoff } from "@/lib/server/handoff";
+import { resolveHandoff, type HandoffResult } from "@/lib/server/handoff";
+import { OutboundTicket, StatementNotice } from "@/components/ticket";
 import { useI18n } from "@/lib/i18n/i18n";
 
 type Search = { plan?: string };
@@ -15,10 +16,12 @@ export const Route = createFileRoute("/handoff")({
   }),
 });
 
-// Long enough to read the domain + Tokushoho link, short enough that
-// nobody's actually waiting on it -- the manual link below covers anyone
-// who wants to skip the wait or whose browser blocks the auto-navigation.
-const REDIRECT_DELAY_MS = 2000;
+/** An explicit predicate rather than an inline `kind === "checkout"` ternary: the discriminated union does not narrow through useQuery's `data` on its own. */
+function isCheckout(
+  result: HandoffResult | undefined,
+): result is Extract<HandoffResult, { kind: "checkout" }> {
+  return result?.kind === "checkout";
+}
 
 function Handoff() {
   const { user, isPending } = useCurrentUserState();
@@ -32,15 +35,7 @@ function Handoff() {
     enabled: Boolean(user) && Boolean(plan),
   });
 
-  const checkoutUrl = handoffQ.data?.kind === "checkout" ? handoffQ.data.checkoutUrl : undefined;
-
-  useEffect(() => {
-    if (!checkoutUrl) return;
-    const id = setTimeout(() => {
-      window.location.href = checkoutUrl;
-    }, REDIRECT_DELAY_MS);
-    return () => clearTimeout(id);
-  }, [checkoutUrl]);
+  const checkout = isCheckout(handoffQ.data) ? handoffQ.data : undefined;
 
   // Bounce non-checkout outcomes (bad plan, already active, no plan at all,
   // or the lookup itself failing) straight to the dashboard -- /handoff has
@@ -64,21 +59,31 @@ function Handoff() {
     return <RedirectToSignIn to={`/login?next=${encodeURIComponent(next)}`} />;
   }
 
+  // No auto-redirect. This screen now carries the price, the non-renewal
+  // terms, the issuing company and the statement descriptor -- all of it
+  // there to be READ before money moves, which a two-second timer to a
+  // third-party origin actively prevents. The parent taps when ready.
   return (
     <main className="paper-wash grid min-h-dvh place-items-center px-5 py-10">
-      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 text-center shadow-soft sm:p-8">
+      <div className="w-full max-w-md text-center">
         <p className="font-display text-xl">{t("handoffTitle")}</p>
         <p className="mt-2 text-sm leading-6 text-fg-muted">
-          {t("handoffBody", { domain: handoffQ.data?.kind === "checkout" ? handoffQ.data.domain : "" })}
+          {t("handoffBody", { domain: checkout?.domain ?? "" })}
         </p>
-        {checkoutUrl ? (
+
+        <div className="mt-6">{checkout ? <OutboundTicket plan={checkout.plan} /> : null}</div>
+        <StatementNotice />
+
+        {checkout ? (
           <a
-            href={checkoutUrl}
-            className="mt-6 inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm text-primary-fg"
+            href={checkout.checkoutUrl}
+            data-checkout-cta
+            className="mt-6 inline-flex h-12 w-full max-w-[420px] items-center justify-center rounded-lg bg-primary px-5 text-sm text-primary-fg shadow-soft"
           >
-            {t("handoffManualLink")}
+            {t("checkoutCta")}
           </a>
         ) : null}
+
         <p className="mt-6 text-xs text-fg-subtle">
           <a
             href="https://kanji-ai.jp/tokushoho.html"

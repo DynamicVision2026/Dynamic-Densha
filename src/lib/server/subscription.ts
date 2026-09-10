@@ -137,6 +137,34 @@ export async function isHouseholdActive(
 }
 
 /**
+ * What /subscribe/success polls while it waits for the Shopify webhook.
+ * Read-only in the sense that matters: it never grants anything. Entitlement
+ * is granted by src/routes/api/webhooks/shopify.ts and nowhere else -- a
+ * return URL is a browser's claim, forgeable by anyone who reads it once,
+ * so this route observes the derived state and reports it, exactly like
+ * every other surface.
+ *
+ * One recompute serves both answers, rather than isHouseholdActive() and a
+ * separate recompute for plan/paidUntil -- at a 2s poll interval that
+ * halves the query load for the whole confirmation window. Same
+ * effectiveStateOf correction as isHouseholdActive itself (an annual pass
+ * past its own paid_until has no renewal webhook to flip it).
+ */
+export async function getPassStateForHousehold(
+  sql: Sql,
+  householdId: string,
+  nowIso: string = new Date().toISOString(),
+): Promise<{ active: boolean; plan: Plan | null; paidUntil: string | null }> {
+  const derived = await recomputeSubscription(sql, householdId, nowIso);
+  const active =
+    effectiveStateOf(
+      { state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd, paidUntil: derived.paidUntil },
+      nowIso,
+    ) === "active";
+  return { active, plan: derived.plan, paidUntil: derived.paidUntil };
+}
+
+/**
  * The one call site pattern: every surface that needs to know whether a
  * household can ride or view calls this, never reads `subscription.state`
  * itself.

@@ -355,3 +355,31 @@ The very first run of `deploy-production.yml` will apply migration 0010 and
 ship the whole commerce module in one go — expected, and the additive gate
 plus the 0%-traffic candidate smoke are exactly what make that safe to do
 without a hand-run SQL step first.
+
+---
+
+## Post-purchase loop (v1.0) — what still needs a human
+
+The app side of the post-purchase spec is built and deployed: `/subscribe/success`
+with its three states, the ticket motif on `/handoff` and the arrival pass, the
+saveable 定期券, the manifest and install guide. Five items in that spec cannot
+be done from a build environment and are still open.
+
+| # | Item | Where | Why it isn't done |
+|---|---|---|---|
+| 1 | **Order status page script** | Shopify Admin → Settings → Checkout → Additional scripts | Lives in Shopify Admin, outside this repo and outside `landingpage-densha`. Recorded here so it is not later filed as an inert-landing violation. Paste: `<script>setTimeout(function(){window.location.href="https://app.kanji-ai.jp/subscribe/success?checkout=pending";},4000);</script>` — four seconds so the parent sees Shopify's own confirmation (their receipt) first. |
+| 2 | **Order confirmation email link** | Shopify Admin → Settings → Notifications → Order confirmation | This is the PRIMARY return path, not the fallback: a meaningful share of parents never reach the order status page at all (tab closed, redirect blocked, or the flow ends in the PayPay app). The 保護者ページを開く link must point at `https://app.kanji-ai.jp/subscribe/success` and must be prominent, not in the footer. `/subscribe/success` is idempotent and permanent, so this link works three days later too — verified locally: a revisit with no `?checkout=` param resolves straight to the pass. |
+| 3 | **Statement descriptor, confirmed against a real statement** | Shopify Payments settings, then four surfaces | The app now states `SP BC-KANJIDENSHA` (one constant, `src/lib/commerce-copy.ts`, deliberately not localised). `SP` is Shopify Payments' own prefix, so only `BC-KANJIDENSHA` is configurable. After the first live purchase, confirm what the statement actually says and correct **all four** surfaces to match reality rather than the setting: this app's handoff screen, the order confirmation email, the parent-facing payment history, and `tokushoho.html` in the landing repo. |
+| 4 | **iOS home-screen session persistence** | A real iPhone and a real iPad | Whether a standalone launch inherits the Safari session has historically varied by iOS version, and getting signed out immediately after paying is worse than the bookmark it replaces. Until someone tests it, the guide says 「はじめて開くときは、もう一度ログインが必要な場合があります。」 — deliberately "may". If the session does carry, delete that line (`installSessionNote`); if it does not, make it a flat statement. |
+| 5 | **PayPay timing** | A real KOMOJU PayPay purchase | If `orders/paid` fires only on settlement, the slow state is the NORMAL case for that method. The copy is already written to read as "still working" rather than a failure, and polling continues behind it every 10s up to five minutes — but nobody has measured how long that actually takes. Record it when someone does. |
+
+Two things about `/subscribe/success` worth knowing before testing it:
+
+- **It never grants entitlement.** It polls the derived state (`getPassState`
+  → `getPassStateForHousehold`) and renders it. A refund therefore removes the
+  pass on the next poll, which is spec §4.19's check and is worth confirming
+  once against a real refund.
+- **The QR on the saveable pass is a plain URL** (`https://app.kanji-ai.jp/`),
+  never a token or magic link — see `src/lib/ticket-qr.ts` for why that is not
+  negotiable. The matrix is baked, and `scripts/ticket-qr.test.ts` re-encodes
+  it on every run so it cannot silently drift to encoding something else.

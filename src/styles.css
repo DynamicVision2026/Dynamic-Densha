@@ -360,3 +360,18 @@
 }
 
 
+
+/* /subscribe/success pending state: a ticket easing out of a printer slot,
+   over and over, while the webhook is still in flight. Deliberately quiet --
+   this is a wait, not an event. */
+@keyframes ticket-print {
+  0% { transform: translateY(-100%); }
+  60% { transform: translateY(0); }
+  100% { transform: translateY(0); }
+}
+.ticket-print {
+  animation: ticket-print 2200ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticket-print { animation: none; }
+}

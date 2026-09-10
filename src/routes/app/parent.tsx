@@ -19,6 +19,7 @@ import {
 } from "@/lib/server/children";
 import { ParentForwardView } from "@/components/parent-forward";
 import { GradeRolloverCard } from "@/components/grade-rollover";
+import { InstallGuide } from "@/components/install-guide";
 import { StartBandPicker } from "@/components/start-band-picker";
 import { TrialBanner } from "@/components/trial-banner";
 import { PlanCards, CurrentPlanNotice } from "@/components/plan-cards";
@@ -358,6 +359,11 @@ function ParentPage() {
             )}
           </ul>
         </section>
+
+        {/* Below everything, and self-hiding once the app is already on the
+            home screen -- /subscribe/success is seen exactly once, so this is
+            the second and last place a parent can pick the guide up. */}
+        <InstallGuide />
 
         <p className="mt-10 text-center text-[11px] leading-relaxed text-fg-subtle" data-parent-licenses>
           {t("shapeLicense")}

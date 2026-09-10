@@ -1,0 +1,16 @@
+{
+  "name": "漢字でんしゃ",
+  "short_name": "でんしゃ",
+  "description": "文部科学省1026字を、列車に乗せて学ぶ。",
+  "lang": "ja",
+  "display": "standalone",
+  "start_url": "/app",
+  "scope": "/",
+  "theme_color": "#F4EFE4",
+  "background_color": "#F4EFE4",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
