@@ -43,6 +43,13 @@ export type AdminSummary = {
   lapsedInactive: number;
 };
 
+export type AdminChildRow = {
+  name: string;
+  createdAt: string;
+  /** True once a parent has hidden this profile (src/lib/server/children.ts's archiveChild) -- still shown here for oversight, unlike every parent-facing list. */
+  archived: boolean;
+};
+
 export type AdminHouseholdRow = {
   householdId: string;
   ownerName: string | null;
@@ -53,7 +60,7 @@ export type AdminHouseholdRow = {
   validUntilKind: "date" | "unlimited" | "none";
   validUntilIso: string | null;
   childCount: number;
-  childNames: string[];
+  children: AdminChildRow[];
   shopifyOrderId: string | null;
 };
 
@@ -105,16 +112,29 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     // in" is the same one entitlement uses everywhere else: household_member
     // links user_id -> household_id (spec §2), so join through that instead
     // of the stale column.
-    const childRows = await sql<{ household_id: string; name: string }>`
-      select hm.household_id, c.name
+    //
+    // created_at (with archived_at) is included, unlike every parent-facing
+    // listChildren call, specifically so a rapid double-submit -- two rows
+    // with the same name seconds apart -- is immediately visible here; this
+    // is also the one child listing in the app that does NOT filter out
+    // archived_at is not null, since an admin needs to see the full
+    // lifecycle (including what a parent has already hidden), not just the
+    // currently-visible set.
+    const childRows = await sql<{
+      household_id: string;
+      name: string;
+      created_at: string | Date;
+      archived_at: string | Date | null;
+    }>`
+      select hm.household_id, c.name, c.created_at, c.archived_at
       from children c
       join household_member hm on hm.user_id = c.user_id
       order by c.created_at asc
     `;
-    const childrenByHousehold = new Map<string, string[]>();
+    const childrenByHousehold = new Map<string, AdminChildRow[]>();
     for (const c of childRows) {
       const list = childrenByHousehold.get(c.household_id) ?? [];
-      list.push(c.name);
+      list.push({ name: c.name, createdAt: toIso(c.created_at), archived: c.archived_at != null });
       childrenByHousehold.set(c.household_id, list);
     }
 
@@ -161,7 +181,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       }
 
       const owner = ownerByHousehold.get(h.id);
-      const childNames = childrenByHousehold.get(h.id) ?? [];
+      const children = childrenByHousehold.get(h.id) ?? [];
 
       rows.push({
         householdId: h.id,
@@ -172,8 +192,8 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         plan: derived.plan ?? "none",
         validUntilKind,
         validUntilIso,
-        childCount: childNames.length,
-        childNames,
+        childCount: children.length,
+        children,
         shopifyOrderId: derived.shopifyOrderId,
       });
     }

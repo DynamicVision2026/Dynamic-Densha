@@ -94,6 +94,18 @@ function SummaryCard({ label, value, detail }: { label: string; value: number; d
   );
 }
 
+/** Time-of-day, not just a date -- what makes two rapid double-submits (seconds apart) visually obvious here. */
+function formatChildTimestamp(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(iso));
+}
+
 function AdminRow({ row, locale }: { row: AdminHouseholdRow; locale: string }) {
   const { t } = useI18n();
   const statusCls =
@@ -127,7 +139,17 @@ function AdminRow({ row, locale }: { row: AdminHouseholdRow; locale: string }) {
       </td>
       <td className="px-4 py-3">
         {row.childCount}
-        {row.childNames.length ? <span className="ml-1 text-xs text-fg-muted">({row.childNames.join("、")})</span> : null}
+        {row.children.length ? (
+          <ul className="mt-1 space-y-0.5">
+            {row.children.map((child, i) => (
+              <li key={`${child.name}-${i}`} className="text-xs text-fg-muted">
+                {child.name}
+                <span className="ml-1 text-fg-subtle">{formatChildTimestamp(child.createdAt, locale)}</span>
+                {child.archived ? <span className="ml-1 text-fg-subtle">{t("adminChildArchived")}</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </td>
       <td className="px-4 py-3">{row.shopifyOrderId ?? "—"}</td>
     </tr>

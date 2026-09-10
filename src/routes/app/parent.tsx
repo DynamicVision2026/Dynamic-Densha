@@ -4,13 +4,17 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ParentReportView } from "@/components/parent-report";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readActiveChildId, writeActiveChildId } from "@/lib/active-child";
 import { resetActiveGradeToProfile } from "@/lib/active-grade";
 import {
+  archiveChild,
   confirmGradeRollover,
   dismissGradeRollover,
   listChildren,
+  renameChild,
   updateStartBand,
 } from "@/lib/server/children";
 import { ParentForwardView } from "@/components/parent-forward";
@@ -97,6 +101,33 @@ function ParentPage() {
     mutationFn: (startBand: StartBand) => updateStartBand({ data: { childId, startBand } }),
     onSuccess: () => {
       void overviewQ.refetch();
+    },
+  });
+
+  const [renameValue, setRenameValue] = useState("");
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  useEffect(() => {
+    setRenameValue(overviewQ.data?.child.name ?? "");
+    setArchiveConfirm(false);
+  }, [childId, overviewQ.data?.child.name]);
+
+  const renameMut = useMutation({
+    mutationFn: (name: string) => renameChild({ data: { childId, name } }),
+    onSuccess: () => {
+      void childrenQ.refetch();
+      void overviewQ.refetch();
+    },
+  });
+
+  const archiveMut = useMutation({
+    mutationFn: () => archiveChild({ data: { childId } }),
+    onSuccess: async () => {
+      const next = await childrenQ.refetch();
+      const remaining = next.data?.filter((c) => c.id !== childId) ?? [];
+      const nextId = remaining[0]?.id ?? "";
+      writeActiveChildId(nextId);
+      setChildId(nextId);
+      setArchiveConfirm(false);
     },
   });
 
@@ -199,6 +230,73 @@ function ParentPage() {
             onChange={(band) => bandMut.mutate(band)}
             disabled={bandMut.isPending}
           />
+        </section>
+
+        <section className="mt-4 rounded-xl border border-border bg-surface p-5" data-child-profile-manage>
+          <h2 className="font-display text-lg">{t("childProfileManage")}</h2>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="child-rename">{t("renameChildLabel")}</Label>
+              <Input
+                id="child-rename"
+                maxLength={20}
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                className="max-w-[220px]"
+              />
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={renameMut.isPending || !renameValue.trim() || renameValue.trim() === data.child.name}
+              onClick={() => renameMut.mutate(renameValue.trim())}
+            >
+              {t("renameSave")}
+            </Button>
+          </div>
+          {renameMut.isError ? (
+            <p className="mt-1.5 text-sm text-destructive" data-rename-error>
+              {renameMut.error instanceof Error ? renameMut.error.message : t("saveFailed")}
+            </p>
+          ) : null}
+
+          {archiveMut.isError ? (
+            <p className="mt-2 text-sm text-destructive" data-archive-error>
+              {archiveMut.error instanceof Error ? archiveMut.error.message : t("saveFailed")}
+            </p>
+          ) : null}
+
+          {archiveConfirm ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-warm p-3">
+              <p className="text-sm text-fg-muted" data-archive-confirm>
+                {t("archiveConfirmBody", { name: data.child.name })}
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="text-destructive"
+                disabled={archiveMut.isPending}
+                onClick={() => archiveMut.mutate()}
+              >
+                {t("archiveConfirmButton")}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setArchiveConfirm(false)}>
+                {t("cancel")}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-4"
+              onClick={() => setArchiveConfirm(true)}
+            >
+              {t("archiveChildButton")}
+            </Button>
+          )}
         </section>
 
         <GradeRolloverCard

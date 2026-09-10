@@ -68,6 +68,7 @@ const TS_TESTS = [
   "scripts/subscribe-resolve.test.ts",
   "scripts/post-auth-redirect.test.ts",
   "scripts/admin-gate.test.ts",
+  "scripts/child-lifecycle.test.ts",
 ];
 
 const stages = [

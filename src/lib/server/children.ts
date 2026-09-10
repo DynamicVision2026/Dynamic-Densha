@@ -16,79 +16,164 @@ export type ChildRow = {
   startBand: StartBand;
 };
 
+type ChildDbRow = {
+  id: string;
+  name: string;
+  grade: number;
+  created_at: string | Date;
+  start_band: string | null;
+};
+
+function toChildRow(r: ChildDbRow): ChildRow {
+  return {
+    id: r.id,
+    name: r.name,
+    grade: r.grade as Grade,
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    startBand: parseStartBand(r.start_band) ?? "beginning",
+  };
+}
+
 export const listChildren = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const rows = await sql<{
-      id: string;
-      name: string;
-      grade: number;
-      created_at: string | Date;
-      start_band: string | null;
-    }>`
+    const rows = await sql<ChildDbRow>`
       select id, name, grade, created_at, start_band
       from children
-      where user_id = ${context.userId}
+      where user_id = ${context.userId} and archived_at is null
       order by created_at asc
     `;
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      grade: r.grade as Grade,
-      createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
-      startBand: parseStartBand(r.start_band) ?? "beginning",
-    })) satisfies ChildRow[];
+    return rows.map(toChildRow) satisfies ChildRow[];
   });
 
 export const createChild = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { name: string; grade: number; startBand?: string }) => {
+  .validator((input: { name: string; grade: number; startBand?: string; idempotencyKey: string }) => {
     const name = input.name.trim().slice(0, 20);
     const grade = Number(input.grade);
     if (!name) throw new Error("なまえを入れてください");
     if (!Number.isInteger(grade) || grade < 1 || grade > 6) {
       throw new Error("学年が正しくありません");
     }
+    const idempotencyKey = input.idempotencyKey?.trim();
+    if (!idempotencyKey) throw new Error("リクエストが正しくありません");
     return {
       name,
       grade: grade as Grade,
       startBand: parseStartBand(input.startBand) ?? "beginning",
+      idempotencyKey,
     };
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+
+    // A retry of the exact same submission (double-tap, or a client retry
+    // after a dropped response) carries the same client-generated
+    // idempotencyKey (see src/routes/onboard.tsx) -- return the row that
+    // request already created instead of making a second child.
+    const already = await sql<ChildDbRow>`
+      select id, name, grade, created_at, start_band from children
+      where user_id = ${context.userId} and idempotency_key = ${data.idempotencyKey}
+    `;
+    if (already[0]) return toChildRow(already[0]);
+
     const existing = await sql<{ c: number }>`
-      select count(*)::int as c from children where user_id = ${context.userId}
+      select count(*)::int as c from children where user_id = ${context.userId} and archived_at is null
     `;
     if ((existing[0]?.c ?? 0) >= 6) throw new Error("こどもは6人までです");
+
     const id = crypto.randomUUID();
     const nowIso = new Date().toISOString();
     const ordered = orderedKanjiForGrade(data.grade);
     const cursor = startIndexFor(data.startBand, ordered.length);
     const weekStart = tokyoWeekStart(nowIso);
     const newKanji = pickWeeklyNew(ordered, cursor, DEFAULT_WEEKLY_NEW, new Map());
-    await sql`
+    const inserted = await sql<ChildDbRow>`
       insert into children (
-        id, user_id, name, grade, start_band, weekly_new_cap, plan_week_start, plan_cursor, plan_new_kanji
+        id, user_id, name, grade, start_band, weekly_new_cap, plan_week_start, plan_cursor, plan_new_kanji, idempotency_key
       )
       values (
         ${id}, ${context.userId}, ${data.name}, ${data.grade}, ${data.startBand},
-        ${DEFAULT_WEEKLY_NEW}, ${weekStart}, ${cursor}, ${JSON.stringify(newKanji)}
+        ${DEFAULT_WEEKLY_NEW}, ${weekStart}, ${cursor}, ${JSON.stringify(newKanji)}, ${data.idempotencyKey}
       )
+      on conflict (user_id, idempotency_key) do nothing
+      returning id, name, grade, created_at, start_band
     `;
+
+    if (!inserted[0]) {
+      // Conflict: a concurrent request carrying the same key already won
+      // the race (the true double-tap case -- two near-simultaneous
+      // requests, not one request retried after the first's response
+      // already landed). Re-select rather than assume our own insert
+      // applies, and skip re-creating the grade route -- the winner
+      // already did.
+      const row = (
+        await sql<ChildDbRow>`
+          select id, name, grade, created_at, start_band from children
+          where user_id = ${context.userId} and idempotency_key = ${data.idempotencyKey}
+        `
+      )[0];
+      if (!row) throw new Error("こどもの保存に失敗しました");
+      return toChildRow(row);
+    }
+
     const route = await insertGradeRoute(context.userId, id, data.grade, data.startBand, nowIso);
     await sql`
       update children set active_grade_route_id = ${route.id}
       where id = ${id} and user_id = ${context.userId}
     `;
-    return {
-      id,
-      name: data.name,
-      grade: data.grade,
-      createdAt: nowIso,
-      startBand: data.startBand,
-    } satisfies ChildRow;
+    return toChildRow(inserted[0]);
+  });
+
+/** Rename a child's nickname -- never touches progress, plan, or route state. */
+export const renameChild = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { childId: string; name: string }) => {
+    const name = input.name.trim().slice(0, 20);
+    if (!name) throw new Error("なまえを入れてください");
+    if (!input.childId) throw new Error("こどもが見つかりません");
+    return { childId: input.childId, name };
+  })
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql<{ id: string }>`
+      update children set name = ${data.name}
+      where id = ${data.childId} and user_id = ${context.userId} and archived_at is null
+      returning id
+    `;
+    if (!rows[0]) throw new Error("こどもが見つかりません");
+    return { ok: true as const };
+  });
+
+/**
+ * Soft delete: hides a test/unwanted profile from listChildren (and
+ * therefore from every parent-facing surface) without deleting its row or
+ * any historical progress -- archived_at is trivially reversible by a
+ * direct update, unlike the hard delete in migrations/0013_child_lifecycle.
+ * Refuses to archive a household's last remaining active child so a parent
+ * can never accidentally strand themselves back at onboarding with no
+ * visible profile and no way to un-hide one.
+ */
+export const archiveChild = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { childId: string }) => {
+    if (!input.childId) throw new Error("こどもが見つかりません");
+    return { childId: input.childId };
+  })
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const activeCount = await sql<{ c: number }>`
+      select count(*)::int as c from children where user_id = ${context.userId} and archived_at is null
+    `;
+    if ((activeCount[0]?.c ?? 0) <= 1) throw new Error("最後の1人は非表示にできません");
+    const rows = await sql<{ id: string }>`
+      update children set archived_at = now()
+      where id = ${data.childId} and user_id = ${context.userId} and archived_at is null
+      returning id
+    `;
+    if (!rows[0]) throw new Error("こどもが見つかりません");
+    return { ok: true as const };
   });
 
 /** Change 乗りはじめ without wiping mastery or rewriting the Day-one route snapshot. */

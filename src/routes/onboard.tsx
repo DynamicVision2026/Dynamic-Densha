@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { createChild, listChildren } from "@/lib/server/children";
@@ -36,6 +36,13 @@ function Onboard() {
   const [startBand, setStartBand] = useState<StartBand>("beginning");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [nameWarning, setNameWarning] = useState(false);
+  // Synchronous, unlike `busy` -- a ref mutation is visible to a second
+  // click's handler the instant it runs, even before React re-renders to
+  // reflect the disabled button. Two click events on the same JS thread
+  // are always handled one to completion before the next starts, so this
+  // alone fully closes the same-tick double-tap window `busy` can miss.
+  const submittingRef = useRef(false);
 
   // /onboard is reachable two ways: /app's own zero-children redirect (no
   // `next`, always continues to /app once a child exists -- unchanged), and
@@ -70,17 +77,36 @@ function Onboard() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
+
+    const trimmed = name.trim();
+    // Soft warning, not a hard block -- a household normally has zero
+    // children on this route (it's skipped once any exist), so this only
+    // ever fires on the double-tap race this whole change set exists to
+    // close: two near-simultaneous submits, the first already landed by
+    // the time childrenQ refetches, the second still mid-flight. First
+    // click surfaces the warning and stops; a second, deliberate click
+    // continues past it.
+    const dup = childrenQ.data?.some((c) => c.name === trimmed);
+    if (dup && !nameWarning) {
+      setNameWarning(true);
+      return;
+    }
+
+    submittingRef.current = true;
     setBusy(true);
     setError(null);
     try {
-      const child = await createChild({ data: { name, grade, startBand } });
+      const child = await createChild({
+        data: { name, grade, startBand, idempotencyKey: crypto.randomUUID() },
+      });
       writeActiveChildId(child.id);
       writeStoredActiveGrade(child.grade, child.id);
       if (dest === "/app") await navigate({ to: "/app", search: { grade: child.grade } });
       else window.location.href = dest;
     } catch (err) {
       setError(err instanceof Error ? err.message : t("saveFailed"));
-    } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   }
@@ -100,7 +126,10 @@ function Onboard() {
               maxLength={20}
               placeholder={t("nicknamePh")}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameWarning(false);
+              }}
             />
           </div>
           <div className="space-y-1.5">
@@ -121,9 +150,14 @@ function Onboard() {
             </div>
           </div>
           <StartBandPicker value={startBand} onChange={setStartBand} />
+          {nameWarning ? (
+            <p className="text-sm text-fg-muted" data-duplicate-name-warning>
+              {t("duplicateChildNameWarning", { name: name.trim() })}
+            </p>
+          ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button type="submit" className="w-full" disabled={busy || !name.trim()}>
-            {busy ? t("creating") : t("openTimetable")}
+            {busy ? t("creating") : nameWarning ? t("duplicateChildNameConfirm") : t("openTimetable")}
           </Button>
         </form>
       </main>
