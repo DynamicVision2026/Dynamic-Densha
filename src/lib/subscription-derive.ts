@@ -110,10 +110,14 @@ export function deriveSubscription(input: {
           // to that reconciliation.
           paidUntil = null;
         } else {
-          // spec §4.1 (unchanged from the Stripe-era logic): an annual
-          // purchase made during an active trial never shortens it -- extend
-          // from whichever of (effective trial end, this order's time) is
-          // later, not from the order time alone.
+          // Stacking (spec §4.1, unchanged from the Stripe-era logic): an
+          // annual purchase made during an active trial never shortens it --
+          // paid_until = (event.created_at < effectiveTrialEnd)
+          //   ? effectiveTrialEnd + 365d
+          //   : event.created_at + 365d
+          // decided from event.created_at (ev.receivedAt), NEVER `now()` --
+          // this fold has no clock of its own, so replaying the same log
+          // later always produces the same answer.
           const base =
             effectiveTrialEnd && Date.parse(effectiveTrialEnd) > Date.parse(ev.receivedAt)
               ? effectiveTrialEnd

@@ -17,6 +17,7 @@ import { ParentForwardView } from "@/components/parent-forward";
 import { GradeRolloverCard } from "@/components/grade-rollover";
 import { StartBandPicker } from "@/components/start-band-picker";
 import { TrialBanner } from "@/components/trial-banner";
+import { PlanCards, CurrentPlanNotice } from "@/components/plan-cards";
 import type { StartBand } from "@/lib/grade-route";
 import { requestInsight } from "@/lib/server/insights";
 import { getParentOverview } from "@/lib/server/progress";
@@ -154,6 +155,11 @@ function ParentPage() {
 
         <div className="mt-4">
           <TrialBanner banner={data.trialBanner} />
+          {data.trialBanner.isActive ? (
+            <CurrentPlanNotice plan={data.trialBanner.plan} paidUntil={data.trialBanner.paidUntil} />
+          ) : (
+            <PlanCards />
+          )}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2">

@@ -57,6 +57,42 @@ test("an annual purchase after the trial has already ended extends from the orde
   assert.equal(d.paidUntil, "2027-09-20T00:00:00.000Z");
 });
 
+test("annual stacking: paid_until = (event.created_at < effectiveTrialEnd) ? effectiveTrialEnd + 365d : event.created_at + 365d, decided from event.created_at, never now()", () => {
+  // Purchased with a day left on the trial -- created_at < effectiveTrialEnd,
+  // so the year stacks on top of the trial's own end rather than starting
+  // from the purchase moment (a family buying near the end of their trial
+  // must not lose those last few days). `nowIso` is deliberately much later
+  // than both dates, to prove the branch is decided from created_at, not
+  // from whatever `now` happens to be when this is (re-)derived.
+  const stacksOnTrialEnd = deriveSubscription({
+    baseTrialEndsAt: TRIAL_END, // 2026-09-11T14:59:59.999Z
+    events: [{ type: "order_paid", receivedAt: "2026-09-10T00:00:00Z", plan: "annual" }],
+    adminActions: [],
+    nowIso: "2026-12-25T00:00:00Z",
+  });
+  assert.equal(stacksOnTrialEnd.paidUntil, "2027-09-11T14:59:59.999Z");
+
+  // event.created_at exactly equal to effectiveTrialEnd is NOT "< effectiveTrialEnd"
+  // -- the boundary belongs to the created_at branch, not the trial-end branch.
+  const atTheBoundary = deriveSubscription({
+    baseTrialEndsAt: TRIAL_END,
+    events: [{ type: "order_paid", receivedAt: TRIAL_END, plan: "annual" }],
+    adminActions: [],
+    nowIso: "2026-12-25T00:00:00Z",
+  });
+  assert.equal(atTheBoundary.paidUntil, "2027-09-11T14:59:59.999Z"); // TRIAL_END + 1y, same instant either way here
+
+  // Purchased the day AFTER the trial ended -- created_at is NOT <
+  // effectiveTrialEnd, so the year starts from the purchase itself.
+  const startsFromPurchase = deriveSubscription({
+    baseTrialEndsAt: TRIAL_END,
+    events: [{ type: "order_paid", receivedAt: "2026-09-12T00:00:00Z", plan: "annual" }],
+    adminActions: [],
+    nowIso: "2026-12-25T00:00:00Z",
+  });
+  assert.equal(startsFromPurchase.paidUntil, "2027-09-12T00:00:00.000Z");
+});
+
 test("annual pass renews on the same calendar day a year later, not +365 raw days (leap-year safe)", () => {
   const d = deriveSubscription({
     baseTrialEndsAt: null,

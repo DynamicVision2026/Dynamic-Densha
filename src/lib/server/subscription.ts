@@ -9,8 +9,15 @@ import {
   deriveSubscription,
   type AdminActionInput,
   type BillingEventInput,
+  type Plan,
 } from "@/lib/subscription-derive";
-import { entitlement, parentTrialBanner, type Entitlement, type ParentTrialBanner } from "@/lib/entitlement";
+import {
+  entitlement,
+  parentTrialBanner,
+  effectiveStateOf,
+  type Entitlement,
+  type ParentTrialBanner,
+} from "@/lib/entitlement";
 import { resolveHouseholdId, getOrCreateCheckoutToken } from "@/lib/server/household";
 
 type Sql = {
@@ -116,7 +123,17 @@ export async function isHouseholdActive(
   nowIso: string = new Date().toISOString(),
 ): Promise<boolean> {
   const derived = await recomputeSubscription(sql, householdId, nowIso);
-  return derived.state === "active";
+  // effectiveStateOf, not the raw derived.state -- an annual pass's own
+  // fold never flips state back to 'lapsed' on its own (there's no renewal
+  // webhook to drive that transition), so a stale raw 'active' would
+  // wrongly bounce a household whose pass already expired to /subscribe's
+  // "already active" branch, blocking them from ever repurchasing.
+  return (
+    effectiveStateOf(
+      { state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd, paidUntil: derived.paidUntil },
+      nowIso,
+    ) === "active"
+  );
 }
 
 /**
@@ -138,23 +155,33 @@ export async function getEntitlementForHousehold(
 
 /**
  * Parent-dashboard-only companion to getEntitlementForHousehold — see
- * parentTrialBanner's own comment. Also carries the household's opaque
- * checkout_token (lazily created if this household predates it) so the
- * banner's subscribe CTA can route to /subscribe?plan=..., never a bare URL
- * and never the raw household_id.
+ * parentTrialBanner's own comment. Also carries:
+ *   - checkoutToken: the household's opaque checkout_token (lazily created
+ *     if this household predates it), never used directly by the banner
+ *     anymore (that lived in trial-banner.tsx's old inline subscribe
+ *     buttons; the buy affordance is now <PlanCards>, a plain
+ *     /subscribe?plan=... link that resolves its own token server-side) --
+ *     kept here for any future caller that needs it without a second query.
+ *   - isActive: whether the household is a currently-valid paying household
+ *     right now (effectiveStateOf-corrected, see isHouseholdActive's own
+ *     comment on why raw derived.state isn't enough) -- what ParentPage
+ *     uses to decide between showing <PlanCards> (not active) or the
+ *     current-plan notice (active).
+ *   - plan / paidUntil: only meaningful when isActive is true; parent-
+ *     dashboard-only display info for that current-plan notice, same as
+ *     ParentTrialBanner itself never rendered on the child surface.
  */
 export async function getParentTrialBanner(
   sql: Sql,
   householdId: string,
   nowIso: string = new Date().toISOString(),
-): Promise<ParentTrialBanner & { checkoutToken: string }> {
+): Promise<ParentTrialBanner & { checkoutToken: string; isActive: boolean; plan: Plan | null; paidUntil: string | null }> {
   const derived = await recomputeSubscription(sql, householdId, nowIso);
-  const banner = parentTrialBanner(
-    { state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd, paidUntil: derived.paidUntil },
-    nowIso,
-  );
+  const snapshot = { state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd, paidUntil: derived.paidUntil };
+  const banner = parentTrialBanner(snapshot, nowIso);
   const checkoutToken = await getOrCreateCheckoutToken(sql, householdId);
-  return { ...banner, checkoutToken };
+  const isActive = effectiveStateOf(snapshot, nowIso) === "active";
+  return { ...banner, checkoutToken, isActive, plan: derived.plan, paidUntil: derived.paidUntil };
 }
 
 /**

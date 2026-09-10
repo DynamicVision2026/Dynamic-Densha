@@ -54,8 +54,15 @@ export type SubscriptionSnapshot = {
  * Shared by entitlement() and parentTrialBanner() below so this comparison
  * exists exactly once (the class of bug check-echo-eligibility-single-source
  * / check-single-entitlement.mjs exist to catch elsewhere in this project).
+ * Exported so server/subscription.ts's isHouseholdActive() and
+ * getParentTrialBanner() can use the SAME corrected state too -- both used
+ * to compare the raw cached `derived.state` directly, which for an annual
+ * pass whose paid_until already passed (no renewal webhook will ever tell
+ * this app that) stayed "active" forever until some OTHER event happened to
+ * trigger a recompute. That let an already-lapsed household hit /subscribe's
+ * "already active" branch and get silently blocked from ever repurchasing.
  */
-function effectiveStateOf(sub: SubscriptionSnapshot, nowIso: string): SubscriptionState {
+export function effectiveStateOf(sub: SubscriptionSnapshot, nowIso: string): SubscriptionState {
   const trialExpired =
     sub.state === "trial" &&
     sub.effectiveTrialEnd != null &&
