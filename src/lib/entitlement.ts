@@ -28,17 +28,28 @@ export type SubscriptionSnapshot = {
   state: SubscriptionState;
   /** trial_ends_at + admin_action trial_extended days (spec §7.1). Null once not trialing. */
   effectiveTrialEnd: string | null;
+  /**
+   * subscription.paid_until. NULL = permanent (a buyout), never backfilled --
+   * see subscription-derive.ts. Only meaningful while `state === "active"`;
+   * ignored otherwise.
+   */
+  paidUntil: string | null;
 };
 
 /**
- * `now` matters only for `trial`: unlike active -> lapsed (always driven by
- * a Stripe webhook after the grace period), a trial's expiry has no
- * external signal at all -- nothing "tells" the app a trial ran out. The
- * cached `subscription.state` can therefore say 'trial' after the real
- * deadline has already passed, and this is the one place that must catch
- * that by comparing against the clock, not trust the cached label. Every
- * other transition (active/lapsed/cancelled) is written by a webhook or an
- * admin action and is trusted as-is.
+ * `now` matters for two transitions, neither of which has an external signal
+ * of its own:
+ *   - trial expiry -- nothing "tells" the app a trial ran out.
+ *   - an annual pass's paid_until passing -- Shopify sends no renewal
+ *     webhook for a one-time, non-recurring purchase the way Stripe's
+ *     recurring billing would have; a buyout's paid_until is permanently
+ *     null and never trips this (spec: canRide = active && (paid_until ===
+ *     null || now < paid_until)).
+ * The cached `subscription.state` can therefore still say 'trial' or
+ * 'active' after the real deadline has already passed, and this is the one
+ * place that must catch that by comparing against the clock, not trust the
+ * cached label. Every other transition (active/lapsed/cancelled) is written
+ * by a webhook or an admin action and is trusted as-is.
  *
  * Shared by entitlement() and parentTrialBanner() below so this comparison
  * exists exactly once (the class of bug check-echo-eligibility-single-source
@@ -49,7 +60,11 @@ function effectiveStateOf(sub: SubscriptionSnapshot, nowIso: string): Subscripti
     sub.state === "trial" &&
     sub.effectiveTrialEnd != null &&
     Date.parse(nowIso) > Date.parse(sub.effectiveTrialEnd);
-  return trialExpired ? "lapsed" : sub.state;
+  const annualExpired =
+    sub.state === "active" &&
+    sub.paidUntil != null &&
+    Date.parse(nowIso) >= Date.parse(sub.paidUntil);
+  return trialExpired || annualExpired ? "lapsed" : sub.state;
 }
 
 export function entitlement(sub: SubscriptionSnapshot, nowIso: string): Entitlement {

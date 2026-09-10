@@ -36,16 +36,15 @@ export async function recomputeSubscription(
   const events: BillingEventInput[] = eventRows.map((r) => {
     const payload = (r.payload ?? {}) as {
       plan?: string;
-      stripeCustomerId?: string;
-      stripeSubscriptionId?: string;
+      shopifyCustomerId?: string;
+      shopifyOrderId?: string;
     };
     return {
       type: r.type as BillingEventInput["type"],
       receivedAt: r.received_at,
-      plan: payload.plan === "yearly" || payload.plan === "monthly" ? payload.plan : undefined,
-      stripeCustomerId: typeof payload.stripeCustomerId === "string" ? payload.stripeCustomerId : undefined,
-      stripeSubscriptionId:
-        typeof payload.stripeSubscriptionId === "string" ? payload.stripeSubscriptionId : undefined,
+      plan: payload.plan === "buyout" || payload.plan === "annual" ? payload.plan : undefined,
+      shopifyCustomerId: typeof payload.shopifyCustomerId === "string" ? payload.shopifyCustomerId : undefined,
+      shopifyOrderId: typeof payload.shopifyOrderId === "string" ? payload.shopifyOrderId : undefined,
     };
   });
 
@@ -67,8 +66,8 @@ export async function recomputeSubscription(
     set state = ${derived.state},
         paid_until = ${derived.paidUntil},
         plan = ${derived.plan},
-        stripe_customer_id = ${derived.stripeCustomerId},
-        stripe_subscription_id = ${derived.stripeSubscriptionId},
+        shopify_customer_id = ${derived.shopifyCustomerId},
+        shopify_order_id = ${derived.shopifyOrderId},
         updated_at = now()
     where household_id = ${householdId}
   `;
@@ -77,47 +76,39 @@ export async function recomputeSubscription(
 }
 
 /**
- * The Stripe webhook route's handler for every event AFTER checkout.session.
- * completed (invoice.payment_succeeded/failed, customer.subscription.
- * deleted/updated, charge.refunded) resolves a household this way --
- * looking up the ids checkout.session.completed already cached onto this
- * household's subscription row, never by email. Subscription id is checked
- * first (more specific than customer id, and what most of these events
- * carry); customer id is the fallback for event types that only carry that
- * (charge.refunded). Null if neither id is on file yet, e.g. an
- * invoice/subscription event that raced ahead of checkout.session.completed
- * -- the caller's job to decide whether that's retryable.
+ * The Shopify webhook route's refunds/create handler resolves a household
+ * this way. Unlike orders/paid and orders/cancelled (whose payload IS the
+ * Order resource, carrying note_attributes.kd_token directly -- see
+ * src/routes/api/webhooks/shopify.ts), a Refund webhook payload has no
+ * note_attributes of its own, only `order_id` -- so this looks up the
+ * household by the shopify_order_id an earlier orders/paid event already
+ * cached onto its subscription row. Null if no order has been linked yet
+ * (a refund arriving before its own orders/paid delivery landed, or a
+ * refund for an order this household never actually made) -- the caller's
+ * job to decide whether that's retryable.
  */
-export async function getHouseholdIdByStripeIds(
+export async function getHouseholdIdByShopifyOrderId(
   sql: Sql,
-  ids: { customerId?: string | null; subscriptionId?: string | null },
+  orderId: string | null | undefined,
 ): Promise<string | null> {
-  if (ids.subscriptionId) {
-    const bySub = await sql<{ household_id: string }>`
-      select household_id from subscription where stripe_subscription_id = ${ids.subscriptionId}
-    `;
-    if (bySub[0]) return bySub[0].household_id;
-  }
-  if (ids.customerId) {
-    const byCustomer = await sql<{ household_id: string }>`
-      select household_id from subscription where stripe_customer_id = ${ids.customerId}
-    `;
-    if (byCustomer[0]) return byCustomer[0].household_id;
-  }
-  return null;
+  if (!orderId) return null;
+  const rows = await sql<{ household_id: string }>`
+    select household_id from subscription where shopify_order_id = ${orderId}
+  `;
+  return rows[0]?.household_id ?? null;
 }
 
 /**
- * True once a household has an actual paid Stripe subscription (not
- * trialing, not lapsed/cancelled) -- distinct from entitlement()'s
- * canRide/canView, which deliberately don't distinguish trial from active
- * (both ride). The /subscribe resolver (src/routes/subscribe.ts) needs
- * exactly this distinction to avoid sending an already-paying household
- * back to Stripe to be charged twice, and the parent dashboard's checkout-
- * pending poll (src/routes/app/parent.tsx) needs it to know when a webhook
- * has actually landed. Both call this instead of comparing `state`
- * themselves -- see scripts/check-single-entitlement.mjs, which forbids a
- * literal `state === 'active'` anywhere outside this file.
+ * True once a household has an actual paid, still-in-effect Shopify order
+ * (not trialing, not lapsed) -- distinct from entitlement()'s canRide/
+ * canView, which deliberately don't distinguish trial from active (both
+ * ride). The /subscribe and /handoff resolvers need exactly this
+ * distinction to avoid sending an already-entitled household to Shopify to
+ * pay twice, and the parent dashboard's checkout-pending poll (src/routes/
+ * app/parent.tsx) needs it to know when a webhook has actually landed. Both
+ * call this instead of comparing `state` themselves -- see
+ * scripts/check-single-entitlement.mjs, which forbids a literal
+ * `state === 'active'` anywhere outside this file.
  */
 export async function isHouseholdActive(
   sql: Sql,
@@ -139,16 +130,18 @@ export async function getEntitlementForHousehold(
   nowIso: string = new Date().toISOString(),
 ): Promise<Entitlement> {
   const derived = await recomputeSubscription(sql, householdId, nowIso);
-  return entitlement({ state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd }, nowIso);
+  return entitlement(
+    { state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd, paidUntil: derived.paidUntil },
+    nowIso,
+  );
 }
 
 /**
  * Parent-dashboard-only companion to getEntitlementForHousehold — see
  * parentTrialBanner's own comment. Also carries the household's opaque
  * checkout_token (lazily created if this household predates it) so the
- * banner's subscribe CTA can build a Stripe Payment Link with
- * ?client_reference_id=<token> appended, never a bare URL and never the raw
- * household_id.
+ * banner's subscribe CTA can route to /subscribe?plan=..., never a bare URL
+ * and never the raw household_id.
  */
 export async function getParentTrialBanner(
   sql: Sql,
@@ -156,7 +149,10 @@ export async function getParentTrialBanner(
   nowIso: string = new Date().toISOString(),
 ): Promise<ParentTrialBanner & { checkoutToken: string }> {
   const derived = await recomputeSubscription(sql, householdId, nowIso);
-  const banner = parentTrialBanner({ state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd }, nowIso);
+  const banner = parentTrialBanner(
+    { state: derived.state, effectiveTrialEnd: derived.effectiveTrialEnd, paidUntil: derived.paidUntil },
+    nowIso,
+  );
   const checkoutToken = await getOrCreateCheckoutToken(sql, householdId);
   return { ...banner, checkoutToken };
 }

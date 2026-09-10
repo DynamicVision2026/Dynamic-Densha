@@ -8,46 +8,65 @@ with an owner, each with its own clock.
 | # | Blocker | Owner | Notes |
 |---|---|---|---|
 | 1 | ~~Domain mapping~~ — `kanji-ai.jp` → the landing Cloud Run service, `app.kanji-ai.jp` → the app | Founder / infra | **Done** — both domains reported bound and DNS-resolved. Not independently verified from this environment: outbound HTTPS to arbitrary internet hosts is blocked by this sandbox's egress policy (confirmed again just now, `CONNECT tunnel failed, response 403` on both hosts) — this is the same sandbox-level restriction that blocked every reachability check earlier in this build, unrelated to whether the domains are actually live. Worth one real check from outside this environment before relying on it. |
-| 2 | Legal review of `terms.html` / `privacy.html` | Founder + reviewer | Content is complete (10-day trial, monthly/yearly pricing, cancellation/refund and read-only-after-lapse terms all filled in) but has not been independently confirmed as legally reviewed from this environment. |
-| 3 | ~~Business fields for `pricing.html` and `tokushoho.html`~~ | Founder | **Done.** Both files are live at the site root (`landingpage-densha`, no longer in `draft/`): 月額プラン ¥1,280/月, 年額プラン ¥10,800/年, payment method/timing, contract term & auto-renewal, cancellation method & deadline, and refund policy are all filled in — no `［…］` placeholders remain. |
-| 4 | ~~Stripe account + checkout links~~ (superseded Shopify — the account was never opened, no code shipped against it) | Founder | **Mostly done, architecture changed since the table below was last written — see "Unified funnel" section.** `pricing.html`'s buttons currently still link straight to the two live Stripe Payment Links (monthly ¥1,280, yearly ¥10,800); those are being replaced with links to `app.kanji-ai.jp/subscribe?plan=…` (`src/routes/subscribe.ts`, this repo), which attaches the household's `checkout_token` server-side instead of the landing page having to know it. The webhook endpoint (`src/routes/api/webhooks/stripe.ts`) is unchanged: it ingests `checkout.session.completed`, `invoice.payment_succeeded`/`failed`, `customer.subscription.deleted`/`updated`, and `charge.refunded`, verified via Stripe's own signature scheme. Plan (monthly/yearly) is resolved by matching the purchased subscription's Stripe **Price id** against `STRIPE_PRICE_MONTHLY_ID`/`STRIPE_PRICE_ANNUAL_ID`, not by amount — a price change in the Stripe Dashboard alone can never silently break entitlement or mislabel a plan (`src/lib/stripe-plan.ts`; an unmatched price id is logged and left unset, never guessed). **Still needed, and not done from this environment:** configure `STRIPE_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_MONTHLY_ID`, and `STRIPE_PRICE_ANNUAL_ID` as real env vars on the deployed Cloud Run service (see "One-time setup" below — these are Cloud Run service config, not GitHub Actions secrets, since nothing in the deploy workflow injects Cloud Run env vars today), register the webhook endpoint's URL in the Stripe Dashboard, run both verification passes described there, and — last, once the resolver below is deployed and verified — update `landingpage-densha`'s CTAs to the four hrefs in the "Unified funnel" section. Also verify Stripe Checkout's own final confirmation screen shows all six 特商法-required items (contract terms, renewal timing, price, cancellation method, cancellation deadline) — the default screen doesn't necessarily satisfy this, and that screen is Stripe's, not ours. |
+| 2 | Legal review of `terms.html` / `privacy.html` | Founder + reviewer | Content is complete (10-day trial, ¥9,800 permanent buyout / ¥3,800 1-year pass pricing — both one-time, non-recurring purchases, not a subscription — cancellation/refund and read-only-after-lapse terms all filled in) but has not been independently confirmed as legally reviewed from this environment. |
+| 3 | ~~Business fields for `pricing.html` and `tokushoho.html`~~ | Founder | **Done.** Both files are live at the site root (`landingpage-densha`, no longer in `draft/`): ¥9,800 買い切りプラン (permanent), ¥3,800 1年プラン (non-recurring), payment method/timing, and refund policy are all filled in — no `［…］` placeholders remain. |
+| 4 | ~~Stripe account + checkout links~~ superseded by Shopify Checkout (merchant account migration) | Founder | **Done, this pass.** Stripe is fully decommissioned from the codebase — `src/lib/stripe-signature.ts`, `src/lib/stripe-plan.ts`, `src/lib/checkout-link.ts`, and `src/routes/api/webhooks/stripe.ts` are all deleted, replaced by their Shopify equivalents (see "Unified funnel" below). `pricing.html`'s buttons now link to `app.kanji-ai.jp/subscribe?plan=buyout\|annual` (`src/routes/subscribe.ts`), which attaches the household's `checkout_token` server-side and hands off to a Shopify cart permalink via `/handoff`. The webhook endpoint (`src/routes/api/webhooks/shopify.ts`) ingests `orders/paid`, `orders/cancelled`, and `refunds/create`, verified via Shopify's own HMAC-SHA256 signature scheme. Plan (buyout/annual) is resolved by matching the purchased line item's Shopify **variant id** against `SHOPIFY_VARIANT_BUYOUT`/`SHOPIFY_VARIANT_ANNUAL`, not by amount (`src/lib/shopify-plan.ts`; an unmatched variant id is logged and left unset, never guessed). **Still needed, and not done from this environment:** configure `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_VARIANT_BUYOUT`, `SHOPIFY_VARIANT_ANNUAL`, and `SHOPIFY_WEBHOOK_SECRET` as real env vars on the deployed Cloud Run service (see "One-time setup" below), register the three webhook topics in the Shopify Admin, run both verification passes described there, and verify Shopify's own checkout screen shows all six 特商法-required items (contract terms, price, cancellation/refund policy) — the default screen doesn't necessarily satisfy this, and that screen is Shopify's, not ours. |
 
 ## Unified funnel — landing page to checkout
 
 `kanji-ai.jp` stays static/inert (no session, no cookies, no auth-aware
 content — `check-inert.mjs` in `landingpage-densha` still enforces this) and
-never links straight to `buy.stripe.com`. Instead every "subscribe" CTA
-points at `app.kanji-ai.jp/subscribe?plan=monthly|annual` — a thin,
+never links straight to `pay.kanji-ai.jp`. Instead every "subscribe" CTA
+points at `app.kanji-ai.jp/subscribe?plan=buyout|annual` — a thin,
 server-side-only resolver (`src/routes/subscribe.ts`) that renders nothing
-and holds no state; its entire job is resolve household → build URL → 302.
+and holds no state; its entire job is resolve household → decide → 302.
 Identity never crosses the origin boundary; a plan name does.
 
 ```
 kanji-ai.jp  (static, inert)
-      │  <a href="https://app.kanji-ai.jp/subscribe?plan=monthly">
+      │  <a href="https://app.kanji-ai.jp/subscribe?plan=buyout">
       ▼
 app.kanji-ai.jp/subscribe
       ├─ plan missing/invalid → /app/parent
       ├─ no session           → /login?next=<encoded self>
       ├─ session, no household → resolveHouseholdId creates one (idempotent)
       ├─ household already 'active' → /app/parent?already=active (never double-charge)
-      └─ otherwise            → mint/read checkout_token, 302 to Stripe
-                                 with ?client_reference_id=<token>
+      └─ otherwise            → 302 /handoff?plan=<plan>
                                         │
                                         ▼
-                          Stripe checkout → webhook grants entitlement
-                          → return_url → /app/parent?checkout=pending
+                          /handoff (re-derives the same session/household/
+                          already-active checks, shows the store domain +
+                          Tokushoho link, ~2s auto-redirect) → mint/read
+                          checkout_token, redirect to a Shopify cart
+                          permalink with ?attributes[kd_token]=<token>
+                                        │
+                                        ▼
+                     Shopify checkout → webhook grants entitlement
+                     → Shopify's own order-status redirect (configured in
+                       the Shopify Admin, outside this repo) →
+                       /app/parent?checkout=pending
 ```
 
 The branch decision is pure and unit-tested independently of any DB/session
 call (`src/lib/subscribe-resolve.ts`, `scripts/subscribe-resolve.test.ts`) —
-the route itself only supplies the already-resolved `hasSession`/`isActive`
-inputs each branch needs. `isHouseholdActive()`
+both `/subscribe` and `/handoff` (`src/lib/server/handoff.ts`) supply the
+already-resolved `hasSession`/`isActive` inputs each branch needs, and
+neither trusts the other to have already checked: a visitor who reaches
+`/handoff` directly (not only via `/subscribe`'s own redirect) gets the exact
+same invalid-plan/already-active protection. `isHouseholdActive()`
 (`src/lib/server/subscription.ts`) is the one place that distinguishes
-"trialing" from "actually paying," used by both this resolver (to avoid a
+"trialing" from "actually paying," used by both resolvers (to avoid a
 double charge) and the pending-checkout poll below (to know when a webhook
 has actually landed) — `scripts/check-single-entitlement.mjs` still forbids
 a literal `state === 'active'` comparison anywhere else.
+
+**Shopify Admin configuration, outside this repo, not yet done:** the
+order-status/"thank you" redirect back to
+`https://app.kanji-ai.jp/app/parent?checkout=pending` after a completed
+checkout has to be configured in the Shopify Admin (Settings → Checkout →
+Additional Scripts, or the order status page config) — the same way the old
+Stripe Payment Link's post-payment redirect was Stripe Dashboard config, not
+anything in this codebase.
 
 **`next` carry-through + allow-list.** A signed-out visitor hitting
 `/subscribe` is sent to `/login?next=<encoded self>`; `/login` always
@@ -64,11 +83,11 @@ rejected outright) — anything else silently falls back to `/app`, never an
 open redirect. Unit-tested branch by branch in
 `scripts/post-auth-redirect.test.ts`.
 
-**Pending/polling return state.** Stripe's webhook can land after the
+**Pending/polling return state.** Shopify's webhook can land after the
 browser already returned from checkout, so `/app/parent?checkout=pending`
 never claims success on its own say-so (a return URL is a browser's claim,
 forgeable by anyone who reads it once — entitlement is only ever granted by
-`src/routes/api/webhooks/stripe.ts`). It polls the existing
+`src/routes/api/webhooks/shopify.ts`). It polls the existing
 `getParentOverview` query every 2s for up to 30s
 (`src/routes/app/parent.tsx`, via `subscriptionActive` — a new field on that
 query's response, computed by `isHouseholdActive()`), swaps to the normal
@@ -80,38 +99,33 @@ already entitled before the visit.
 
 **Verified from this environment:** typecheck, the full test suite (all 8
 stages, including `single entitlement`/`derived subscription`/`webhook-only
-entitlement`), and a live curl smoke test against the local dev server —
-`/subscribe` with no plan and with a garbage plan both 302 to `/app/parent`;
-`/subscribe?plan=monthly` and `/subscribe?plan=annual` both 302 to the
-correct Stripe Payment Link with the same `client_reference_id` on repeat
-calls (confirming the token is read, not re-minted); `/login`, `/onboard`,
-and `/app/parent` all render (200) with the new search params. **Not
-verifiable from this environment:** the actual signed-out branch of
-`/subscribe` and the client-rendered pending/polling UI, both blocked by
-this sandbox having no real sign-in provider configured (the same category
-of constraint that blocked webhook Pass 1 above) — worth exercising once
-from a real browser against a deployed environment before relying on it,
-the same way R1 below is.
+entitlement`), and a local functional smoke test against a real (PGLite)
+database — an `orders/paid` webhook for each plan correctly derives `active`
+with the right `paid_until` (null for buyout, +1 year for annual), a retried
+delivery (same `X-Shopify-Webhook-Id`) is a no-op, and `refunds/create`
+correctly derives `lapsed` with `canView` still true. **Not verifiable from
+this environment:** the actual signed-out branch of `/subscribe`/`/handoff`,
+the client-rendered pending/polling UI, and anything requiring a real
+Shopify store or a real signed webhook delivery — this sandbox has no real
+sign-in provider configured and no outbound network access to Shopify. Worth
+exercising once from a real browser against a deployed environment before
+relying on it, the same way R1 below is.
 
-**Landing page CTAs — last, deliberately, once the resolver above is
-deployed and directly verified signed-in and signed-out.** Four anchors in
-`landingpage-densha`, replacing the current direct `buy.stripe.com` links
-and the guest-door hero CTA:
+**Landing page CTAs — updated this pass.** `landingpage-densha`'s
+`pricing.html` now links to `/subscribe?plan=buyout` and
+`/subscribe?plan=annual` instead of a direct payment-processor URL — see
+that repo's own change for the exact anchors. `index.html`'s hero CTA
+(`/login?mode=signup`) is unchanged; it never pointed at a payment processor
+in the first place.
 
-```html
-<!-- index.html hero -->
-<a class="btn"  href="https://app.kanji-ai.jp/login?mode=signup">10日間 無料ではじめる</a>
-<a class="btn2" href="pricing.html">プランを見る</a>
-<!-- pricing.html -->
-<a class="btn"  href="https://app.kanji-ai.jp/subscribe?plan=annual">年額プランに申し込む</a>
-<a class="btn2" href="https://app.kanji-ai.jp/subscribe?plan=monthly">月額プランに申し込む</a>
-```
-
-None of this touches `src/components/trial-banner.tsx` (the parent
-dashboard's own subscribe buttons) — those already run inside an
-authenticated page that knows its household directly, so they keep using
-`src/lib/checkout-link.ts`'s helpers rather than round-tripping through
-`/subscribe`.
+`src/components/trial-banner.tsx` (the parent dashboard's own subscribe
+buttons) now also routes through `/subscribe?plan=...` — plain `<a href>`
+anchors, not a TanStack `<Link>`, since `/subscribe` is a server-only route
+with no client-rendered component to navigate to. It used to build a Stripe
+Payment Link URL directly (`src/lib/checkout-link.ts`, deleted); that logic
+now lives server-side in `/subscribe` and `/handoff` instead, so the
+dashboard doesn't need to know a checkout_token or a plan's variant id at
+all.
 
 ## Production verification, now that both domains are live
 
@@ -161,8 +175,8 @@ with real network access.
 
 - **Legal review (item 2) can start in parallel with everything else** — it
   has the longest external clock of the four remaining blockers.
-- **Start the Stripe final-confirmation-screen check (item 4) early.** A
-  default Stripe Checkout doesn't necessarily show all six 特商法-required
+- **Start the Shopify final-confirmation-screen check (item 4) early.** A
+  default Shopify checkout doesn't necessarily show all six 特商法-required
   items — this is the item most likely to surprise you, so verify it with
   enough runway to reconfigure before that's a day-9 problem.
 
@@ -179,7 +193,7 @@ a bug.
 
 ## Day-8 safety valve (first cohort only)
 
-If Stripe checkout isn't fully verified by day 8 of the first cohort, extend
+If Shopify checkout isn't fully verified by day 8 of the first cohort, extend
 trials by 14 days rather than rushing an untested checkout live — this was
 the pre-authorized fallback (spec §8, `admin_action`), but until now there
 was no way to actually pull that lever short of hand-writing SQL against
@@ -200,27 +214,28 @@ design — a first cohort is small enough that this is a feature, not friction.
 
 ## What's already done
 
-- Household/subscription/entitlement model, trial clock, Stripe webhook
-  signature verification (`src/lib/stripe-signature.ts`) + idempotent apply
-  (`applyStripeWebhook`, keyed on `billing_event.stripe_event_id`),
+- Household/subscription/entitlement model, trial clock, Shopify webhook
+  signature verification (`src/lib/shopify-signature.ts`) + idempotent apply
+  (`applyShopifyWebhook`, keyed on `billing_event.shopify_event_id`),
   server-side `canRide` enforcement across every ride entry point (not just
   the final answer write), and the lapsed-child disabled boarding pass — all
   tested, all in `Dynamic-Densha`.
-- The Stripe webhook endpoint itself (`src/routes/api/webhooks/stripe.ts`),
-  wired to the one legitimate caller of `applyStripeWebhook`
+- The Shopify webhook endpoint itself (`src/routes/api/webhooks/shopify.ts`),
+  wired to the one legitimate caller of `applyShopifyWebhook`
   (`scripts/check-webhook-only-entitlement.mjs` enforces that no other route
-  can). Resolves a household via Stripe's own `client_reference_id` on
-  `checkout.session.completed` (never by email — the opaque
-  `household.checkout_token`, appended by the parent dashboard's subscribe
-  buttons as `?client_reference_id=`), and via the cached
-  `stripe_customer_id`/`stripe_subscription_id` for every later event.
+  can). Resolves a household via the order's own `note_attributes.kd_token`
+  on `orders/paid`/`orders/cancelled` (never by email — the opaque
+  `household.checkout_token`, appended to the Shopify cart permalink as
+  `?attributes[kd_token]=`), and via the cached `shopify_order_id` for
+  `refunds/create` (whose payload carries no note_attributes of its own).
 - Trial-abuse guard (`trial_spent`): one trial per email, survives account
   deletion (no foreign key to household/user), verified against a standalone
   PGLite instance mirroring the real schema.
 - Parent-facing trial status: the trial end date is visible from a
   household's first dashboard visit onward (not just near the end), and a
   household whose trial is already spent sees a clear message with two
-  subscribe buttons (monthly, yearly) instead of a silent dead end.
+  subscribe buttons (permanent buyout, 1-year pass) instead of a silent dead
+  end.
 - A5 (parent trial notices): no email infrastructure exists in this repo and
   none is being built pre-launch — the parent-dashboard banner above is the
   agreed substitute. Revisit real email once the domain (item 1) is settled.
@@ -272,7 +287,7 @@ that's set but unreachable (wrong host, exhausted Neon connection limit).
 
 **Separately, not a GitHub Actions secret at all:** four env vars must be set
 directly on the `Dynamic-Densha` Cloud Run *service* (`gcloud run services
-update ... --set-env-vars STRIPE_WEBHOOK_SECRET=whsec_...,STRIPE_SECRET_KEY=sk_...,STRIPE_PRICE_MONTHLY_ID=price_...,STRIPE_PRICE_ANNUAL_ID=price_...`,
+update ... --update-env-vars SHOPIFY_STORE_DOMAIN=pay.kanji-ai.jp,SHOPIFY_VARIANT_BUYOUT=...,SHOPIFY_VARIANT_ANNUAL=...,SHOPIFY_WEBHOOK_SECRET=...`,
 or the Console) — `deploy-production.yml`'s `gcloud run deploy` step never
 passes `--set-env-vars`, so runtime env vars live on the service itself and
 persist across deploys rather than being wired through CI the way
@@ -280,16 +295,17 @@ persist across deploys rather than being wired through CI the way
 
 | Env var | Where it comes from | What breaks without it |
 |---|---|---|
-| `STRIPE_WEBHOOK_SECRET` | Stripe Dashboard → the webhook endpoint's own settings page | `src/routes/api/webhooks/stripe.ts` returns 500 and refuses every delivery — fails closed, same choice `db:migrate` makes for `DATABASE_URL`. |
-| `STRIPE_SECRET_KEY` | Stripe Dashboard → API keys | `checkout.session.completed` can't look up the purchased price; the household still becomes entitled (state doesn't depend on plan) but `plan` is left unset and logged as an error. |
-| `STRIPE_PRICE_MONTHLY_ID` / `STRIPE_PRICE_ANNUAL_ID` | Stripe Dashboard → Product catalog → each plan's own Price id (not the Payment Link id, not the amount) | Same failure mode as a missing `STRIPE_SECRET_KEY` — plan resolution logs an error and leaves `plan` unset rather than guessing (`src/lib/stripe-plan.ts`). |
+| `SHOPIFY_STORE_DOMAIN` | The store's checkout domain (e.g. `pay.kanji-ai.jp`) | `/handoff` can't build a cart permalink at all -- `src/lib/shopify-checkout.ts` throws. |
+| `SHOPIFY_VARIANT_BUYOUT` / `SHOPIFY_VARIANT_ANNUAL` | Shopify Admin → Products → each plan's own variant id (not the product id, not the amount) | Same failure mode for the missing plan's checkout link; an incoming `orders/paid` webhook for that variant logs an error and leaves `plan` unset rather than guessing (`src/lib/shopify-plan.ts`) -- the household still becomes entitled (state doesn't depend on plan). |
+| `SHOPIFY_WEBHOOK_SECRET` | Shopify Admin → the webhook (or custom app credential) that signs deliveries | `src/routes/api/webhooks/shopify.ts` returns 500 and refuses every delivery -- fails closed, same choice `db:migrate` makes for `DATABASE_URL`. |
 
-Once all four are set, register the endpoint's URL
-(`https://app.kanji-ai.jp/api/webhooks/stripe`) in the Stripe Dashboard so
+Once all four are set, register the three webhook topics this app handles
+(`orders/paid`, `orders/cancelled`, `refunds/create`) in the Shopify Admin,
+each pointed at `https://app.kanji-ai.jp/api/webhooks/shopify`, so
 deliveries actually start arriving.
 
 **Verify it actually works before relying on it — a misconfigured secret
-fails silently.** A wrong `STRIPE_WEBHOOK_SECRET` doesn't error anywhere a
+fails silently.** A wrong `SHOPIFY_WEBHOOK_SECRET` doesn't error anywhere a
 parent (or you) would see; signature verification just quietly rejects every
 delivery, forever, and no household is ever entitled. This needs two passes,
 because they check different things — a canned test event can only prove the
@@ -297,31 +313,29 @@ endpoint is reachable and correctly signed, not that a household actually
 gets entitled.
 
 **Pass 1 — the endpoint exists and the secret is correct.** After setting
-all four vars and registering the endpoint URL:
+all four vars and registering the three webhook topics:
 
-1. In the Stripe Dashboard, open the webhook endpoint and use **Send test
-   webhook** for `checkout.session.completed`.
-2. Confirm the Dashboard's delivery log shows `200`, not `400` (bad
-   signature — `STRIPE_WEBHOOK_SECRET` is wrong) or `500` (secret not set at
-   all).
-3. Look at the response body the Dashboard shows for that delivery: it
-   should read `{"ok":true,"skipped":"no household for token"}`, **not** a
-   row appearing in `billing_event`. Stripe's canned test payload carries a
-   placeholder `client_reference_id` that was never issued to a real
-   household, so `getHouseholdIdByCheckoutToken` correctly finds nothing and
-   the handler skips before ever writing anything — by design (§1 of this
-   endpoint's invariants: entitlement is never granted to an unattributable
-   event). That `skipped` body, not a database row, is what "the signature
-   check and the routing logic both work" looks like from a canned test
-   event.
+1. In the Shopify Admin, open the webhook (Settings → Notifications →
+   Webhooks) and send a test event for `orders/paid`.
+2. Confirm the delivery log shows `200`, not `401` (bad signature --
+   `SHOPIFY_WEBHOOK_SECRET` is wrong) or `500` (secret not set at all).
+3. Look at the response body for that delivery: it should read
+   `{"ok":true,"skipped":"unattributed"}`, **not** a row appearing in
+   `billing_event`. Shopify's canned test payload carries no real
+   `note_attributes.kd_token` ever issued to a real household, so
+   `getHouseholdIdByCheckoutToken` correctly finds nothing and the handler
+   skips before ever writing anything — by design (invariant 1: entitlement
+   is never granted to an unattributable event). That `skipped` body, not a
+   database row, is what "the signature check and the routing logic both
+   work" looks like from a canned test event.
 
 **Pass 2 — a real checkout actually reaches billing_event.** Only Pass 1 can
-be done with a canned Dashboard event; confirming the full chain (household
-resolution through `applyStripeWebhook`) needs one real checkout carrying a
-real `checkout_token`, which means either a Stripe **test-mode** Payment
-Link pointed at this same endpoint (Stripe test-mode events verify against
-the same `STRIPE_WEBHOOK_SECRET` and hit the same endpoint as live mode) or,
-before the first real cohort, one real purchase. Whichever you use:
+be done with a canned Admin test event; confirming the full chain (household
+resolution through `applyShopifyWebhook`) needs one real checkout carrying a
+real `checkout_token`, which means either a Shopify **test order** (draft
+order marked paid, or a $0 test discount) that still fires `orders/paid` to
+this same endpoint, or, before the first real cohort, one real purchase.
+Whichever you use:
 
 ```bash
 DATABASE_URL=<production Neon URL> node -e '
@@ -332,10 +346,10 @@ DATABASE_URL=<production Neon URL> node -e '
 '
 ```
 
-A `subscription_created` row with a `received_at` matching when you checked
-out means the whole chain — signature verification, `client_reference_id`
-resolution, `applyStripeWebhook`, `recomputeSubscription` — actually works
-end to end for a real household, not just that the endpoint responds.
+An `order_paid` row with a `received_at` matching when you checked out means
+the whole chain — signature verification, `kd_token` resolution,
+`applyShopifyWebhook`, `recomputeSubscription` — actually works end to end
+for a real household, not just that the endpoint responds.
 
 The very first run of `deploy-production.yml` will apply migration 0010 and
 ship the whole commerce module in one go — expected, and the additive gate

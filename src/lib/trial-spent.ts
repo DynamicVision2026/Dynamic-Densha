@@ -4,7 +4,7 @@
  * file is pure hashing only -- the check-and-record against the trial_spent
  * table happens in server/household.ts, which is DB-touching glue and not
  * unit-testable outside the live app (same pure/glue split as
- * stripe-signature.ts vs server/webhooks.ts elsewhere in this repo).
+ * shopify-signature.ts vs server/webhooks.ts elsewhere in this repo).
  */
 import { createHash } from "node:crypto";
 

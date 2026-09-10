@@ -1,14 +1,14 @@
 /**
- * The Unified Funnel's one server-side identity/checkout resolver. Every
- * "subscribe" CTA on the (deliberately static/inert) landing page
- * (kanji-ai.jp) points here instead of straight at a Stripe Payment Link --
- * only this app knows who is signed in, so only this app can attach the
- * right household's checkout_token to the Stripe URL.
+ * The Unified Funnel's one server-side identity resolver. Every "subscribe"
+ * CTA on the (deliberately static/inert) landing page (kanji-ai.jp) points
+ * here instead of straight at a Shopify cart link -- only this app knows
+ * who is signed in, so only this app can attach the right household's
+ * checkout_token before handing off.
  *
  * This is a redirect, not a page: it renders nothing and holds no state,
- * matching the src/routes/api/webhooks/stripe.ts precedent for a plain
+ * matching the src/routes/api/webhooks/shopify.ts precedent for a plain
  * server: { handlers } route rather than a component route. Its entire job
- * is resolve household -> build URL -> 302, in exactly these five branches
+ * is resolve household -> decide -> 302, in exactly these five branches
  * (the decision itself lives in the pure, unit-tested
  * src/lib/subscribe-resolve.ts -- this file only does the DB/session work
  * each branch implies, and stops early rather than doing that work for a
@@ -20,17 +20,18 @@
  *      (idempotent -- also just the normal "already has one" path)
  *   4. household already 'active'    -> /app/parent?already=active
  *      (never double-charge -- the dashboard shows the current plan)
- *   5. otherwise                     -> mint/read checkout_token, 302 to
- *      Stripe with ?client_reference_id=<token>, never the raw household_id
+ *   5. otherwise                     -> /handoff?plan=<plan>, which shows
+ *      the Shopify domain + Tokushoho link and redirects there itself --
+ *      never a direct 302 to Shopify from here, so the visitor always sees
+ *      where they're headed before payment.
  *
  * Identity never crosses the origin boundary; a plan name does.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { getSql } from "@/lib/db";
 import { resolveUserIdFromHeaders } from "@/lib/auth/verify.server";
-import { getOrCreateCheckoutToken, resolveHouseholdId } from "@/lib/server/household";
+import { resolveHouseholdId } from "@/lib/server/household";
 import { isHouseholdActive } from "@/lib/server/subscription";
-import { monthlyCheckoutUrl, yearlyCheckoutUrl } from "@/lib/checkout-link";
 import { decideSubscribeAction, parsePlanParam } from "@/lib/subscribe-resolve";
 
 function redirectTo(location: string): Response {
@@ -69,12 +70,8 @@ export const Route = createFileRoute("/subscribe")({
           }
           case "already-active":
             return redirectTo("/app/parent?already=active");
-          case "checkout": {
-            const token = await getOrCreateCheckoutToken(await getSql(), householdId as string);
-            const checkoutUrl =
-              decision.plan === "yearly" ? yearlyCheckoutUrl(token) : monthlyCheckoutUrl(token);
-            return redirectTo(checkoutUrl);
-          }
+          case "checkout":
+            return redirectTo(`/handoff?plan=${decision.plan}`);
         }
       },
     },

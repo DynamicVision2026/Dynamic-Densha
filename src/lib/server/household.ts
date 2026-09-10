@@ -113,11 +113,12 @@ export async function resolveHouseholdId(
 }
 
 /**
- * checkout_token exists so a Stripe Payment Link can carry
- * ?client_reference_id=<token> instead of the raw household_id -- the token
- * is meaningless outside this one lookup, so a leaked link (browser history,
- * a forwarded email) can't be used to look up or target a household any
- * other way household_id itself could be used for.
+ * checkout_token exists so a Shopify cart permalink can carry
+ * ?attributes[kd_token]=<token> instead of the raw household_id (see
+ * src/lib/shopify-checkout.ts) -- the token is meaningless outside this one
+ * lookup, so a leaked link (browser history, a forwarded email) can't be
+ * used to look up or target a household any other way household_id itself
+ * could be used for.
  *
  * Every household created via resolveHouseholdId above already gets one at
  * insert time. This function exists for the households that predate that:
@@ -149,10 +150,11 @@ export async function getOrCreateCheckoutToken(sql: Sql, householdId: string): P
 }
 
 /**
- * The Stripe webhook route's checkout.session.completed handler resolves a
- * household this way -- Stripe's own client_reference_id round-tripped back
- * to us, never an email lookup. Null on a stale or forged token (the
- * session was never issued a real one, or the household was deleted since).
+ * The Shopify webhook route's orders/paid and orders/cancelled handlers
+ * resolve a household this way -- the order's own note_attributes.kd_token,
+ * round-tripped from the cart permalink, never an email lookup. Null on a
+ * stale or forged token (the checkout was never issued a real one, or the
+ * household was deleted since).
  */
 export async function getHouseholdIdByCheckoutToken(sql: Sql, token: string): Promise<string | null> {
   const rows = await sql<{ id: string }>`select id from household where checkout_token = ${token}`;

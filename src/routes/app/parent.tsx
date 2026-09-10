@@ -58,11 +58,12 @@ function ParentPage() {
     queryKey: ["overview", childId],
     queryFn: () => getParentOverview({ data: childId }),
     enabled: Boolean(childId),
-    // Stripe's webhook can land after the browser already returned here
-    // (src/routes/subscribe.ts hands off to Stripe; entitlement is only
-    // ever granted by src/routes/api/webhooks/stripe.ts). Poll for up to
-    // 30s so the swap to the normal dashboard happens as soon as that
-    // webhook actually lands, without ever claiming success before it does.
+    // Shopify's webhook can land after the browser already returned here
+    // (src/routes/subscribe.ts hands off to /handoff, which hands off to
+    // Shopify; entitlement is only ever granted by src/routes/api/webhooks/
+    // shopify.ts). Poll for up to 30s so the swap to the normal dashboard
+    // happens as soon as that webhook actually lands, without ever claiming
+    // success before it does.
     refetchInterval: (query) => {
       if (!isPendingCheckout) return false;
       if (query.state.data?.subscriptionActive) return false;
@@ -111,9 +112,9 @@ function ParentPage() {
   const data = overviewQ.data;
   if (!data) return null;
 
-  // src/routes/subscribe.ts's return_url. Entitlement is granted by the
-  // Stripe webhook (src/routes/api/webhooks/stripe.ts), which can land
-  // after this page does -- so this is a read-only wait for that webhook,
+  // src/routes/subscribe.ts's ultimate destination after /handoff. Entitlement
+  // is granted by the Shopify webhook (src/routes/api/webhooks/shopify.ts),
+  // which can land after this page does -- so this is a read-only wait for that webhook,
   // never a claim of success on its own (a return URL is just a browser's
   // say-so, forgeable by anyone who reads it once). subscriptionActive
   // flipping true is what ends it, driven entirely by overviewQ's own poll

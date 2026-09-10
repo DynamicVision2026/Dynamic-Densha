@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteRouteImport } from './routes/app/route'
+import { Route as HandoffRouteImport } from './routes/handoff'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as ParentsRouteImport } from './routes/parents'
@@ -31,7 +32,7 @@ import { Route as DemoParentRouteImport } from './routes/demo/parent'
 import { Route as DemoStampsRouteImport } from './routes/demo/stamps'
 import { Route as DemoWorkshopRouteImport } from './routes/demo/workshop'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as ApiWebhooksShopifyRouteImport } from './routes/api/webhooks/shopify'
 import { Route as AppKanjiCharRouteImport } from './routes/app/kanji.$char'
 import { Route as DemoKanjiCharRouteImport } from './routes/demo/kanji.$char'
 
@@ -43,6 +44,11 @@ const IndexRoute = IndexRouteImport.update({
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandoffRoute = HandoffRouteImport.update({
+  id: '/handoff',
+  path: '/handoff',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -145,9 +151,9 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
-  id: '/api/webhooks/stripe',
-  path: '/api/webhooks/stripe',
+const ApiWebhooksShopifyRoute = ApiWebhooksShopifyRouteImport.update({
+  id: '/api/webhooks/shopify',
+  path: '/api/webhooks/shopify',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppKanjiCharRoute = AppKanjiCharRouteImport.update({
@@ -164,6 +170,7 @@ const DemoKanjiCharRoute = DemoKanjiCharRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteRouteWithChildren
+  '/handoff': typeof HandoffRoute
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
@@ -184,12 +191,13 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/demo/': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/handoff': typeof HandoffRoute
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
@@ -210,7 +218,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/demo': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
 }
@@ -218,6 +226,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteRouteWithChildren
+  '/handoff': typeof HandoffRoute
   '/login': typeof LoginRoute
   '/onboard': typeof OnboardRoute
   '/parents': typeof ParentsRoute
@@ -238,7 +247,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/demo/': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
 }
@@ -247,6 +256,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/app'
+    | '/handoff'
     | '/login'
     | '/onboard'
     | '/parents'
@@ -267,12 +277,13 @@ export interface FileRouteTypes {
     | '/app/'
     | '/demo/'
     | '/api/auth/$'
-    | '/api/webhooks/stripe'
+    | '/api/webhooks/shopify'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/handoff'
     | '/login'
     | '/onboard'
     | '/parents'
@@ -293,13 +304,14 @@ export interface FileRouteTypes {
     | '/app'
     | '/demo'
     | '/api/auth/$'
-    | '/api/webhooks/stripe'
+    | '/api/webhooks/shopify'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
   id:
     | '__root__'
     | '/'
     | '/app'
+    | '/handoff'
     | '/login'
     | '/onboard'
     | '/parents'
@@ -320,7 +332,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/demo/'
     | '/api/auth/$'
-    | '/api/webhooks/stripe'
+    | '/api/webhooks/shopify'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
   fileRoutesById: FileRoutesById
@@ -328,6 +340,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
+  HandoffRoute: typeof HandoffRoute
   LoginRoute: typeof LoginRoute
   OnboardRoute: typeof OnboardRoute
   ParentsRoute: typeof ParentsRoute
@@ -341,7 +354,7 @@ export interface RootRouteChildren {
   DemoWorkshopRoute: typeof DemoWorkshopRoute
   DemoIndexRoute: typeof DemoIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  ApiWebhooksShopifyRoute: typeof ApiWebhooksShopifyRoute
   DemoKanjiCharRoute: typeof DemoKanjiCharRoute
 }
 
@@ -359,6 +372,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handoff': {
+      id: '/handoff'
+      path: '/handoff'
+      fullPath: '/handoff'
+      preLoaderRoute: typeof HandoffRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -501,11 +521,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/webhooks/stripe': {
-      id: '/api/webhooks/stripe'
-      path: '/api/webhooks/stripe'
-      fullPath: '/api/webhooks/stripe'
-      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+    '/api/webhooks/shopify': {
+      id: '/api/webhooks/shopify'
+      path: '/api/webhooks/shopify'
+      fullPath: '/api/webhooks/shopify'
+      preLoaderRoute: typeof ApiWebhooksShopifyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/kanji/$char': {
@@ -554,6 +574,7 @@ const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
+  HandoffRoute: HandoffRoute,
   LoginRoute: LoginRoute,
   OnboardRoute: OnboardRoute,
   ParentsRoute: ParentsRoute,
@@ -567,7 +588,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoWorkshopRoute: DemoWorkshopRoute,
   DemoIndexRoute: DemoIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  ApiWebhooksShopifyRoute: ApiWebhooksShopifyRoute,
   DemoKanjiCharRoute: DemoKanjiCharRoute,
 }
 export const routeTree = rootRouteImport

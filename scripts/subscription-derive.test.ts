@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deriveSubscription, GRACE_DAYS } from "../src/lib/subscription-derive.ts";
+import { deriveSubscription } from "../src/lib/subscription-derive.ts";
 
 const TRIAL_END = "2026-09-11T14:59:59.999Z"; // 23:59:59 JST, day 10
 
@@ -11,28 +11,72 @@ test("a fresh household with no events is trialing", () => {
   assert.equal(d.paidUntil, null);
 });
 
-test("spec §4.1: subscribing during trial extends from effectiveTrialEnd, not from now", () => {
-  // Trial started 2026-09-01, subscribes on day 4 (2026-09-05) with monthly.
+test("buyout: paid_until is permanently null, state active", () => {
   const d = deriveSubscription({
-    baseTrialEndsAt: TRIAL_END, // day 10 = 2026-09-11
-    events: [{ type: "subscription_created", receivedAt: "2026-09-05T03:00:00Z", plan: "monthly" }],
+    baseTrialEndsAt: TRIAL_END,
+    events: [{ type: "order_paid", receivedAt: "2026-09-05T03:00:00Z", plan: "buyout" }],
     adminActions: [],
     nowIso: "2026-09-05T03:00:01Z",
   });
   assert.equal(d.state, "active");
-  // paid_until = trial_ends_at + 1 month, NOT subscribe-date + 1 month.
-  assert.equal(d.paidUntil, "2026-10-11T14:59:59.999Z");
+  assert.equal(d.paidUntil, null);
+  assert.equal(d.plan, "buyout");
 });
 
-test("subscribing after the trial has already ended extends from the subscribe date", () => {
+test("buyout stays active forever -- no date ever lapses it", () => {
   const d = deriveSubscription({
     baseTrialEndsAt: TRIAL_END,
-    events: [{ type: "subscription_created", receivedAt: "2026-09-20T00:00:00Z", plan: "monthly" }],
+    events: [{ type: "order_paid", receivedAt: "2026-09-05T03:00:00Z", plan: "buyout" }],
+    adminActions: [],
+    nowIso: "2099-01-01T00:00:00Z",
+  });
+  assert.equal(d.state, "active");
+});
+
+test("spec §4.1: an annual purchase during trial extends from effectiveTrialEnd, not from the order time", () => {
+  // Trial started 2026-09-01, purchases annual on day 4 (2026-09-05).
+  const d = deriveSubscription({
+    baseTrialEndsAt: TRIAL_END, // day 10 = 2026-09-11
+    events: [{ type: "order_paid", receivedAt: "2026-09-05T03:00:00Z", plan: "annual" }],
+    adminActions: [],
+    nowIso: "2026-09-05T03:00:01Z",
+  });
+  assert.equal(d.state, "active");
+  // paid_until = trial_ends_at + 1 year, NOT order-date + 1 year.
+  assert.equal(d.paidUntil, "2027-09-11T14:59:59.999Z");
+});
+
+test("an annual purchase after the trial has already ended extends from the order date", () => {
+  const d = deriveSubscription({
+    baseTrialEndsAt: TRIAL_END,
+    events: [{ type: "order_paid", receivedAt: "2026-09-20T00:00:00Z", plan: "annual" }],
     adminActions: [],
     nowIso: "2026-09-20T00:00:01Z",
   });
   assert.equal(d.state, "active");
-  assert.equal(d.paidUntil, "2026-10-20T00:00:00.000Z");
+  assert.equal(d.paidUntil, "2027-09-20T00:00:00.000Z");
+});
+
+test("annual pass renews on the same calendar day a year later, not +365 raw days (leap-year safe)", () => {
+  const d = deriveSubscription({
+    baseTrialEndsAt: null,
+    events: [{ type: "order_paid", receivedAt: "2028-02-29T00:00:00Z", plan: "annual" }],
+    adminActions: [],
+    nowIso: "2028-02-29T00:00:01Z",
+  });
+  assert.equal(d.paidUntil, "2029-03-01T00:00:00.000Z"); // JS Date's own Feb-29-plus-1-year rollover, not a bug in this function
+});
+
+test("an unmatched variant (plan left unset) still grants entitlement, treated as permanent -- a real payment must never read as unentitled because of a price-lookup miss", () => {
+  const d = deriveSubscription({
+    baseTrialEndsAt: null,
+    events: [{ type: "order_paid", receivedAt: "2026-09-05T00:00:00Z" }], // no `plan`
+    adminActions: [],
+    nowIso: "2026-09-06T00:00:00Z",
+  });
+  assert.equal(d.state, "active");
+  assert.equal(d.paidUntil, null);
+  assert.equal(d.plan, null);
 });
 
 test("admin_action trial_extended is folded in and survives being computed fresh every time", () => {
@@ -61,112 +105,52 @@ test("a re-derivation after a routine webhook retry does not revert an admin ext
   assert.equal(before.effectiveTrialEnd, after.effectiveTrialEnd);
 });
 
-test("failed charge: stays active through grace, then lapses if nothing else arrives", () => {
+test("refund lapses the household regardless of paid_until, buyout included", () => {
   const events = [
-    { type: "subscription_created" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "monthly" as const },
-    { type: "subscription_charge_failed" as const, receivedAt: "2026-09-01T00:00:00Z" },
-  ];
-  const duringGrace = deriveSubscription({
-    baseTrialEndsAt: null,
-    events,
-    adminActions: [],
-    nowIso: "2026-09-02T00:00:00Z", // 1 day into a 3-day grace
-  });
-  assert.equal(duringGrace.state, "active");
-
-  const afterGrace = deriveSubscription({
-    baseTrialEndsAt: null,
-    events,
-    adminActions: [],
-    nowIso: new Date(Date.parse("2026-09-01T00:00:00Z") + (GRACE_DAYS + 1) * 86_400_000).toISOString(),
-  });
-  assert.equal(afterGrace.state, "lapsed");
-});
-
-test("a successful charge during grace clears it -- riding resumes, no lapse", () => {
-  const events = [
-    { type: "subscription_created" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "monthly" as const },
-    { type: "subscription_charge_failed" as const, receivedAt: "2026-09-01T00:00:00Z" },
-    { type: "subscription_charge_succeeded" as const, receivedAt: "2026-09-02T00:00:00Z", plan: "monthly" as const },
-  ];
-  const d = deriveSubscription({ baseTrialEndsAt: null, events, adminActions: [], nowIso: "2026-09-10T00:00:00Z" });
-  assert.equal(d.state, "active");
-});
-
-test("cancel: stays active until paid_until, THEN becomes cancelled -- never immediately", () => {
-  const events = [
-    { type: "subscription_created" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "monthly" as const },
-    { type: "subscription_cancelled" as const, receivedAt: "2026-08-15T00:00:00Z" },
-  ];
-  const paidUntil = "2026-09-01T00:00:00.000Z";
-  const stillActive = deriveSubscription({ baseTrialEndsAt: null, events, adminActions: [], nowIso: "2026-08-20T00:00:00Z" });
-  assert.equal(stillActive.state, "active");
-  assert.equal(stillActive.paidUntil, paidUntil);
-
-  const afterPeriodEnd = deriveSubscription({ baseTrialEndsAt: null, events, adminActions: [], nowIso: paidUntil });
-  assert.equal(afterPeriodEnd.state, "cancelled");
-});
-
-test("refund lapses the household regardless of paid_until", () => {
-  const events = [
-    { type: "subscription_created" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "yearly" as const },
+    { type: "order_paid" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "buyout" as const },
     { type: "refund" as const, receivedAt: "2026-08-15T00:00:00Z" },
+  ];
+  const d = deriveSubscription({ baseTrialEndsAt: null, events, adminActions: [], nowIso: "2026-08-16T00:00:00Z" });
+  assert.equal(d.state, "lapsed");
+  assert.equal(d.paidUntil, null);
+});
+
+test("order_cancelled lapses the household the same way a refund does", () => {
+  const events = [
+    { type: "order_paid" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "annual" as const },
+    { type: "order_cancelled" as const, receivedAt: "2026-08-15T00:00:00Z" },
   ];
   const d = deriveSubscription({ baseTrialEndsAt: null, events, adminActions: [], nowIso: "2026-08-16T00:00:00Z" });
   assert.equal(d.state, "lapsed");
 });
 
-test("yearly plan renews on the same calendar day a year later, not +365 raw days (leap-year safe)", () => {
-  const d = deriveSubscription({
-    baseTrialEndsAt: null,
-    events: [{ type: "subscription_created", receivedAt: "2028-02-29T00:00:00Z", plan: "yearly" }],
-    adminActions: [],
-    nowIso: "2028-02-29T00:00:01Z",
-  });
-  assert.equal(d.paidUntil, "2029-03-01T00:00:00.000Z"); // JS Date's own Feb-29-plus-1-year rollover, not a bug in this function
-});
-
-test("subscription_created folds stripeCustomerId/stripeSubscriptionId into the derived row", () => {
+test("order_paid folds shopifyCustomerId/shopifyOrderId into the derived row", () => {
   const d = deriveSubscription({
     baseTrialEndsAt: null,
     events: [
       {
-        type: "subscription_created",
+        type: "order_paid",
         receivedAt: "2026-08-01T00:00:00Z",
-        plan: "monthly",
-        stripeCustomerId: "cus_abc",
-        stripeSubscriptionId: "sub_abc",
+        plan: "buyout",
+        shopifyCustomerId: "cus_abc",
+        shopifyOrderId: "ord_abc",
       },
     ],
     adminActions: [],
     nowIso: "2026-08-01T00:00:01Z",
   });
-  assert.equal(d.stripeCustomerId, "cus_abc");
-  assert.equal(d.stripeSubscriptionId, "sub_abc");
+  assert.equal(d.shopifyCustomerId, "cus_abc");
+  assert.equal(d.shopifyOrderId, "ord_abc");
 });
 
-test("a household with no subscription_created event has null Stripe ids", () => {
+test("a household with no order_paid event has null Shopify ids", () => {
   const d = deriveSubscription({ baseTrialEndsAt: null, events: [], adminActions: [], nowIso: "2026-08-01T00:00:00Z" });
-  assert.equal(d.stripeCustomerId, null);
-  assert.equal(d.stripeSubscriptionId, null);
-});
-
-test("plan_changed (customer.subscription.updated for a tier switch) moves plan but not state or paid_until", () => {
-  const events = [
-    { type: "subscription_created" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "monthly" as const },
-    { type: "plan_changed" as const, receivedAt: "2026-08-15T00:00:00Z", plan: "yearly" as const },
-  ];
-  const d = deriveSubscription({ baseTrialEndsAt: null, events, adminActions: [], nowIso: "2026-08-16T00:00:00Z" });
-  assert.equal(d.plan, "yearly");
-  assert.equal(d.state, "active");
-  assert.equal(d.paidUntil, "2026-09-01T00:00:00.000Z"); // unchanged from subscription_created's monthly period
+  assert.equal(d.shopifyCustomerId, null);
+  assert.equal(d.shopifyOrderId, null);
 });
 
 test("event replay is order-sensitive and idempotent: the same log folded twice gives the same answer", () => {
-  const events = [
-    { type: "subscription_created" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "monthly" as const },
-    { type: "subscription_charge_succeeded" as const, receivedAt: "2026-09-01T00:00:00Z", plan: "monthly" as const },
-  ];
+  const events = [{ type: "order_paid" as const, receivedAt: "2026-08-01T00:00:00Z", plan: "annual" as const }];
   const once = deriveSubscription({ baseTrialEndsAt: null, events, adminActions: [], nowIso: "2026-09-15T00:00:00Z" });
   const twice = deriveSubscription({ baseTrialEndsAt: null, events: [...events], adminActions: [], nowIso: "2026-09-15T00:00:00Z" });
   assert.deepEqual(once, twice);

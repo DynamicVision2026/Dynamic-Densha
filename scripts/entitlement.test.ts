@@ -4,8 +4,12 @@ import { entitlement, parentTrialBanner, type SubscriptionSnapshot, type Subscri
 
 const NOW = "2026-09-05T12:00:00.000Z";
 
-function snap(state: SubscriptionState, effectiveTrialEnd: string | null = null): SubscriptionSnapshot {
-  return { state, effectiveTrialEnd };
+function snap(
+  state: SubscriptionState,
+  effectiveTrialEnd: string | null = null,
+  paidUntil: string | null = null,
+): SubscriptionSnapshot {
+  return { state, effectiveTrialEnd, paidUntil };
 }
 
 test("guest/trial/active can ride and can view", () => {
@@ -43,12 +47,25 @@ test("a trial whose real deadline has already passed cannot ride, even though th
   assert.equal(e.canView, true);
 });
 
-test("active is trusted as-is regardless of any date field -- its lapse is always webhook-driven", () => {
-  // active has no effectiveTrialEnd at all; nothing about `now` should be
-  // able to flip it, since paid_until expiry is handled by Stripe firing a
-  // charge-failed webhook + grace period, not by a client-side date check.
-  const e = entitlement(snap("active", null), "2099-01-01T00:00:00.000Z");
+test("active with paid_until null (a buyout) rides forever -- no date ever lapses it", () => {
+  const e = entitlement(snap("active", null, null), "2099-01-01T00:00:00.000Z");
   assert.equal(e.canRide, true);
+});
+
+test("active with paid_until in the future (an annual pass still within its year) rides", () => {
+  const e = entitlement(snap("active", null, "2026-12-01T00:00:00.000Z"), NOW);
+  assert.equal(e.canRide, true);
+});
+
+test("active whose paid_until has already passed cannot ride, even though the cached state still says active -- Shopify sends no renewal webhook for a one-time annual pass", () => {
+  const e = entitlement(snap("active", null, "2026-09-01T00:00:00.000Z"), NOW);
+  assert.equal(e.canRide, false);
+  assert.equal(e.canView, true);
+});
+
+test("active exactly at paid_until (the instant it expires) cannot ride -- the boundary is exclusive", () => {
+  const e = entitlement(snap("active", null, NOW), NOW);
+  assert.equal(e.canRide, false);
 });
 
 test("parentTrialBanner shows the trial end date while trialing", () => {
@@ -70,8 +87,13 @@ test("parentTrialBanner reads a naturally-expired trial the same as one backdate
   assert.deepEqual(backdatedAtCreation, { kind: "trialEnded" });
 });
 
+test("parentTrialBanner reads an expired annual pass the same way -- 'trialEnded' copy, reused generically for any lapse", () => {
+  const b = parentTrialBanner(snap("active", null, "2026-09-01T00:00:00.000Z"), NOW);
+  assert.deepEqual(b, { kind: "trialEnded" });
+});
+
 test("parentTrialBanner is 'cancelled' for a cancelled subscription, 'none' for guest/active", () => {
   assert.deepEqual(parentTrialBanner(snap("cancelled"), NOW), { kind: "cancelled" });
-  assert.deepEqual(parentTrialBanner(snap("active"), NOW), { kind: "none" });
+  assert.deepEqual(parentTrialBanner(snap("active", null, null), NOW), { kind: "none" });
   assert.deepEqual(parentTrialBanner(snap("guest"), NOW), { kind: "none" });
 });

@@ -6,40 +6,48 @@
  * wrapper (server/subscription.ts) reads the logs, calls this, and caches
  * the result back into the `subscription` row.
  *
- * Three transitions have NO event of their own and must be caught by
- * comparing `nowIso` against a date computed from past events, the same
- * way entitlement.ts catches trial expiry:
+ * Shopify Checkout sells one-time purchases (a permanent "buyout" or a
+ * non-recurring "annual" pass), not a recurring subscription -- there is no
+ * renewal webhook, no failed-charge grace period, and no "cancel at period
+ * end" pending-cancellation state the way Stripe's model had. Two
+ * transitions still have no event of their own and must be caught by
+ * comparing `nowIso` against a date computed from past events, the same way
+ * entitlement.ts catches expiry:
  *   - trial expiry (no external signal at all)
- *   - grace-period expiry after a failed charge (spec §6.3: 3 days)
- *   - a pending cancellation reaching its already-paid-through period end
- *     (spec §6.3/§9: "at period end, never immediately")
- * Every other transition is driven by a specific event and trusted as-is.
+ *   - an annual pass reaching its own paid_until with no renewal order
+ *     (nothing ever tells this app "the year is up" -- see entitlement.ts's
+ *     own paid_until check, spec's canRide formula)
+ * A buyout's paid_until is permanently null, so it never expires this way.
+ * Every other transition (order_paid, refund, order_cancelled) is driven by
+ * a specific event and trusted as-is.
  */
 import type { SubscriptionState } from "./entitlement.ts";
 
-export type BillingEventType =
-  | "subscription_created"
-  | "subscription_charge_succeeded"
-  | "subscription_charge_failed"
-  | "subscription_cancelled"
-  | "refund"
-  | "plan_changed";
+export type BillingEventType = "order_paid" | "refund" | "order_cancelled";
 
-export type Plan = "monthly" | "yearly";
+export type Plan = "buyout" | "annual";
 
 export type BillingEventInput = {
   type: BillingEventType;
   receivedAt: string;
+  /**
+   * Present on order_paid when src/lib/shopify-plan.ts resolved the order's
+   * variant id to a known plan. Absent when the variant id matched neither
+   * configured env var (an unrecognized/misconfigured price) -- the fold
+   * below still grants entitlement in that case (a real payment happened;
+   * see its own comment), it just can't compute a period end, so it treats
+   * the purchase as permanent rather than risk wrongly cutting a paying
+   * family off. Never present on refund/order_cancelled.
+   */
   plan?: Plan;
   /**
-   * Only ever present on the event that first links this household to a
-   * Stripe customer/subscription (checkout.session.completed) -- every other
-   * event type resolves its household by looking up one of these two ids
-   * against the already-cached subscription row (never by email), so the
-   * fold just carries whatever it's already holding forward unchanged.
+   * Only ever present on order_paid -- every other event type resolves its
+   * household via kd_token (or, for refunds/create, the order_id fallback --
+   * see getHouseholdIdByShopifyOrderId) at the webhook route layer, before
+   * this fold ever runs, so there's nothing to carry forward here.
    */
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
+  shopifyCustomerId?: string;
+  shopifyOrderId?: string;
 };
 
 export type AdminActionInput =
@@ -51,21 +59,18 @@ export type DerivedSubscription = {
   effectiveTrialEnd: string | null;
   paidUntil: string | null;
   plan: Plan | null;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
+  shopifyCustomerId: string | null;
+  shopifyOrderId: string | null;
 };
-
-export const GRACE_DAYS = 3;
 
 function addDays(iso: string, days: number): string {
   return new Date(Date.parse(iso) + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
-/** Calendar-correct: a monthly/yearly plan renews on the same day of the month/year, not +30/+365 raw days. */
-function addPeriod(iso: string, plan: Plan | null): string {
+/** Calendar-correct: an annual pass renews on the same calendar day a year later, not +365 raw days. */
+function addYear(iso: string): string {
   const d = new Date(iso);
-  if (plan === "yearly") d.setUTCFullYear(d.getUTCFullYear() + 1);
-  else d.setUTCMonth(d.getUTCMonth() + 1); // default to monthly cadence if plan is somehow unset
+  d.setUTCFullYear(d.getUTCFullYear() + 1);
   return d.toISOString();
 }
 
@@ -85,75 +90,46 @@ export function deriveSubscription(input: {
   let state: SubscriptionState = effectiveTrialEnd ? "trial" : "guest";
   let paidUntil: string | null = null;
   let plan: Plan | null = null;
-  let stripeCustomerId: string | null = null;
-  let stripeSubscriptionId: string | null = null;
-  let graceUntil: string | null = null;
-  let cancelPending = false;
+  let shopifyCustomerId: string | null = null;
+  let shopifyOrderId: string | null = null;
 
   for (const ev of input.events) {
     switch (ev.type) {
-      case "subscription_created": {
-        // spec §4.1: a subscription started during an active trial never
-        // shortens it -- extend from whichever of (effective trial end, now)
-        // is later, not from `now` alone.
-        const base =
-          effectiveTrialEnd && Date.parse(effectiveTrialEnd) > Date.parse(ev.receivedAt)
-            ? effectiveTrialEnd
-            : ev.receivedAt;
+      case "order_paid": {
         plan = ev.plan ?? plan;
-        stripeCustomerId = ev.stripeCustomerId ?? stripeCustomerId;
-        stripeSubscriptionId = ev.stripeSubscriptionId ?? stripeSubscriptionId;
-        paidUntil = addPeriod(base, plan);
+        shopifyCustomerId = ev.shopifyCustomerId ?? shopifyCustomerId;
+        shopifyOrderId = ev.shopifyOrderId ?? shopifyOrderId;
         state = "active";
-        graceUntil = null;
-        cancelPending = false;
+        if (ev.plan === "buyout" || ev.plan === undefined) {
+          // Permanent -- both a real buyout, and the safe default when the
+          // variant id didn't resolve to a known plan at all: a real payment
+          // was made, so this must never read as "not entitled" just because
+          // a price/env-var lookup failed. The flagged, plan-unset
+          // billing_event (see src/routes/api/webhooks/shopify.ts) is what a
+          // human reconciles later; entitlement itself is never held hostage
+          // to that reconciliation.
+          paidUntil = null;
+        } else {
+          // spec §4.1 (unchanged from the Stripe-era logic): an annual
+          // purchase made during an active trial never shortens it -- extend
+          // from whichever of (effective trial end, this order's time) is
+          // later, not from the order time alone.
+          const base =
+            effectiveTrialEnd && Date.parse(effectiveTrialEnd) > Date.parse(ev.receivedAt)
+              ? effectiveTrialEnd
+              : ev.receivedAt;
+          paidUntil = addYear(base);
+        }
         break;
       }
-      case "plan_changed": {
-        // Stripe's customer.subscription.updated for a plan/tier change
-        // alone -- no charge accompanies this event (the next invoice bills
-        // the new amount at the next renewal), so only `plan` moves; state
-        // and paid_until are untouched.
-        plan = ev.plan ?? plan;
-        break;
-      }
-      case "subscription_charge_succeeded": {
-        plan = ev.plan ?? plan;
-        const base = paidUntil && Date.parse(paidUntil) > Date.parse(ev.receivedAt) ? paidUntil : ev.receivedAt;
-        paidUntil = addPeriod(base, plan);
-        state = "active";
-        graceUntil = null;
-        cancelPending = false;
-        break;
-      }
-      case "subscription_charge_failed": {
-        // Stays active through grace (spec §6.3) -- a payment failure is a
-        // payment problem, not a decision to stop.
-        graceUntil = addDays(ev.receivedAt, GRACE_DAYS);
-        state = "active";
-        break;
-      }
-      case "subscription_cancelled": {
-        // Stays active until paid_until; the actual state flip is the
-        // time-driven check below, at period end, never immediately.
-        cancelPending = true;
-        break;
-      }
-      case "refund": {
+      case "refund":
+      case "order_cancelled": {
         state = "lapsed";
         paidUntil = null;
-        graceUntil = null;
-        cancelPending = false;
         break;
       }
     }
   }
 
-  if (state === "active" && graceUntil && Date.parse(input.nowIso) > Date.parse(graceUntil)) {
-    state = "lapsed";
-  } else if (state === "active" && cancelPending && paidUntil && Date.parse(input.nowIso) >= Date.parse(paidUntil)) {
-    state = "cancelled";
-  }
-
-  return { state, effectiveTrialEnd, paidUntil, plan, stripeCustomerId, stripeSubscriptionId };
+  return { state, effectiveTrialEnd, paidUntil, plan, shopifyCustomerId, shopifyOrderId };
 }
