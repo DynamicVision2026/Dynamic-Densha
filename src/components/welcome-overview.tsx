@@ -104,7 +104,7 @@ export function WelcomeOverview({
   focusGrade: Grade;
   focusChar?: string;
   glow?: string[];
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
   onBack: () => void;
   onFocusGrade: (g: Grade) => void;
   /** "landing" renders the first-screen entry treatment: dominant CTA, no line toggle. */

@@ -12,7 +12,13 @@ export function GradeSwitcher({
   childId,
 }: {
   value?: Grade;
-  hrefBase: "/demo" | "/app" | "/demo/catalog" | "/app/catalog" | "/demo/map" | "/app/map";
+  hrefBase:
+    | "/demo"
+    | "/demo/catalog"
+    | "/demo/map"
+    | "/app/child/$childId"
+    | "/app/child/$childId/catalog"
+    | "/app/child/$childId/map";
   search?: Record<string, string | number | undefined>;
   childId?: string;
 }) {
@@ -28,6 +34,7 @@ export function GradeSwitcher({
         return (
           <Link
             key={n}
+            params={childId ? { childId } : undefined}
             to={hrefBase}
             search={{ ...search, grade: n }}
             onClick={() => writeStoredActiveGrade(n, childId)}

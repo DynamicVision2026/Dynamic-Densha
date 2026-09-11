@@ -17,6 +17,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { recomputeSubscription } from "@/lib/server/subscription";
+import { withHouseholdLock } from "@/lib/server/household-lock";
 import type { BillingEventInput } from "@/lib/subscription-derive";
 
 export { verifyShopifyWebhookSignature } from "@/lib/shopify-signature";
@@ -43,6 +44,17 @@ export async function applyShopifyWebhook(
   },
 ) {
   const receivedAt = input.receivedAt ?? new Date().toISOString();
+  // Serialised against every other mutation of this household (createChild,
+  // assignAnnualPass, archiveChild). Without it, an orders/paid landing at
+  // the same moment as a createChild can interleave: the recompute below
+  // clears covered_child_id on a buyout while the other transaction is
+  // mid-flight deciding to set it, and the family ends up on a buyout with
+  // one child covered and the rest locked out of what they just paid for.
+  //
+  // `sql` here is the transaction handle from the route (see
+  // src/routes/api/webhooks/shopify.ts), so the lock is transaction-scoped
+  // and released by its COMMIT.
+  await withHouseholdLock(sql, input.householdId, () => Promise.resolve());
   const inserted = await sql<{ id: string }>`
     insert into billing_event (id, household_id, shopify_event_id, type, payload, received_at)
     values (

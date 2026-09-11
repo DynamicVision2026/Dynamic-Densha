@@ -1,75 +1,34 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { AppShell } from "@/components/app-shell";
-import { StampBook } from "@/components/stamp-book";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { ChildShell } from "@/components/child-shell";
 import { Skeleton } from "@/components/ui/skeleton";
-import { readActiveChildId, writeActiveChildId } from "@/lib/active-child";
-import { listChildren } from "@/lib/server/children";
-import { getStampBook } from "@/lib/server/progress";
-import { useI18n } from "@/lib/i18n/i18n";
+import { useResolvedChildId } from "@/lib/use-resolved-child";
 import { gradeSearchFrom } from "@/lib/grade-nav";
 
+/**
+ * Pre-scoping path, kept as a redirect. Child surfaces moved to
+ * /app/child/$childId/... (see src/routes/app/child.$childId.tsx); this
+ * resolves which child the caller meant and forwards. Not deleted, because
+ * this URL is in real browser histories and home-screen shortcuts.
+ */
 export const Route = createFileRoute("/app/stamps")({
-  component: AppStamps,
+  component: LegacyStamps,
   validateSearch: gradeSearchFrom,
 });
 
-function AppStamps() {
-  const { t } = useI18n();
-  const navigate = useNavigate();
-  const [childId, setChildId] = useState<string | null>(null);
+function LegacyStamps() {
+  const search = Route.useSearch();
+  const childId = useResolvedChildId();
 
-  const childrenQ = useQuery({
-    queryKey: ["children"],
-    queryFn: () => listChildren(),
-  });
-
-  useEffect(() => {
-    if (!childrenQ.data) return;
-    if (childrenQ.data.length === 0) {
-      void navigate({ to: "/onboard" });
-      return;
-    }
-    const stored = readActiveChildId();
-    const next =
-      (stored && childrenQ.data.some((c) => c.id === stored) && stored) ||
-      childrenQ.data[0]!.id;
-    setChildId(next);
-    writeActiveChildId(next);
-  }, [childrenQ.data, navigate]);
-
-  const bookQ = useQuery({
-    queryKey: ["stamps", childId],
-    queryFn: () => getStampBook({ data: childId! }),
-    enabled: Boolean(childId),
-  });
-
-  if (childrenQ.isLoading || (childId && bookQ.isLoading) || !bookQ.data) {
+  if (childId === undefined) {
     return (
-      <AppShell>
-        <div className="mx-auto max-w-3xl px-4 py-10">
-          <Skeleton className="h-64 w-full rounded-xl" />
+      <ChildShell>
+        <div className="grid flex-1 place-items-center px-4">
+          <Skeleton className="h-48 w-full max-w-[900px] rounded-[28px]" />
         </div>
-      </AppShell>
+      </ChildShell>
     );
   }
+  if (childId === null) return <Navigate to="/onboard" replace />;
 
-  const data = bookQ.data;
-
-  return (
-    <AppShell childName={data.child.name} grade={data.child.grade}>
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <p className="text-xs tracking-[0.2em] text-fg-subtle">{t("stampsKicker")}</p>
-        <h1 className="mt-1 font-display text-3xl">{t("stampsTitle")}</h1>
-        <p className="mt-2 text-sm text-fg-muted">{t("stampsLead")}</p>
-        <p className="mt-4 font-display text-xl tabular-nums">
-          {t("stampsCount", { n: data.stamps.length })}
-        </p>
-        <div className="mt-6">
-          <StampBook stamps={data.stamps} />
-        </div>
-      </main>
-    </AppShell>
-  );
+  return <Navigate to="/app/child/$childId/stamps" params={{ childId }} search={search} replace />;
 }

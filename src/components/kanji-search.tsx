@@ -7,9 +7,11 @@ import { useI18n } from "@/lib/i18n/i18n";
 
 export function KanjiSearch({
   hrefBase,
+  childId,
   defaultQuery = "",
 }: {
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
+  childId?: string;
   defaultQuery?: string;
 }) {
   const { t } = useI18n();
@@ -41,7 +43,7 @@ export function KanjiSearch({
     if (hrefBase === "/demo") {
       void navigate({ to: "/demo/kanji/$char", params: { char } });
     } else {
-      void navigate({ to: "/app/kanji/$char", params: { char } });
+      void navigate({ to: "/app/child/$childId/kanji/$char", params: { childId: childId!, char } });
     }
   }
 
@@ -49,7 +51,7 @@ export function KanjiSearch({
     if (hrefBase === "/demo") {
       void navigate({ to: "/demo/catalog", search: { q: query } });
     } else {
-      void navigate({ to: "/app/catalog", search: { q: query } });
+      void navigate({ to: "/app/child/$childId/catalog", params: { childId: childId! }, search: { q: query } });
     }
   }
 

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ParentReportView } from "@/components/parent-report";
@@ -23,6 +23,8 @@ import { InstallGuide } from "@/components/install-guide";
 import { StartBandPicker } from "@/components/start-band-picker";
 import { TrialBanner } from "@/components/trial-banner";
 import { PlanCards, CurrentPlanNotice } from "@/components/plan-cards";
+import { PassAssignmentCard } from "@/components/pass-assignment-card";
+import { assignAnnualPass, getPassAssignment } from "@/lib/server/pass";
 import type { StartBand } from "@/lib/grade-route";
 import { requestInsight } from "@/lib/server/insights";
 import { getParentOverview } from "@/lib/server/progress";
@@ -47,6 +49,9 @@ function ParentPage() {
   const search = Route.useSearch();
   const [childId, setChildId] = useState(search.child || readActiveChildId() || "");
   const childrenQ = useQuery({ queryKey: ["children"], queryFn: () => listChildren() });
+  // Parent surface only. Nothing on a child surface ever asks for this.
+  const passQ = useQuery({ queryKey: ["pass-assignment"], queryFn: () => getPassAssignment() });
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (!childId && childrenQ.data?.[0]) {
@@ -194,11 +199,30 @@ function ParentPage() {
           )}
         </div>
 
+        {passQ.data ? (
+          <PassAssignmentCard
+            assignment={passQ.data}
+            children={(childrenQ.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
+            onAssign={async (id) => {
+              const result = await assignAnnualPass({ data: { childId: id } });
+              // Coverage changes what every child's board is allowed to do,
+              // so the board's own cached entitlement has to go too.
+              await Promise.all([
+                passQ.refetch(),
+                qc.invalidateQueries({ queryKey: ["overview"] }),
+                qc.invalidateQueries({ queryKey: ["home"] }),
+              ]);
+              return result;
+            }}
+          />
+        ) : null}
+
         <div className="mt-6 flex flex-wrap gap-2">
           {childrenQ.data?.map((c) => (
             <button
               key={c.id}
               type="button"
+              data-child-chip={c.id}
               className={`h-11 rounded-full border px-3 text-sm ${
                 c.id === childId ? "border-fg bg-fg text-bg" : "border-border bg-surface"
               }`}
@@ -210,6 +234,14 @@ function ParentPage() {
               {c.name}
             </button>
           ))}
+          <Link
+            to="/onboard"
+            search={{ add: true }}
+            data-add-child
+            className="inline-flex h-11 items-center rounded-full border border-dashed border-border px-3 text-sm text-fg-muted"
+          >
+            ＋ {t("addChild")}
+          </Link>
         </div>
 
         {data.report ? <ParentReportView report={data.report} /> : null}
@@ -336,8 +368,8 @@ function ParentPage() {
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg">{t("recentStudy")}</h2>
             <Link
-              to="/app/mistakes"
-              search={{ child: childId }}
+              to="/app/child/$childId/mistakes"
+              params={{ childId }}
               className="text-sm text-fg-muted underline-offset-4 hover:underline"
             >
               {t("mistakes")}

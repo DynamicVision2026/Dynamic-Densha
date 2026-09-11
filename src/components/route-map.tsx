@@ -31,7 +31,7 @@ function StationNode({
   mode,
 }: {
   station: MapStationView;
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
   childId?: string;
   mode?: "play" | "look";
   activeGrade?: Grade;
@@ -61,7 +61,6 @@ function StationNode({
   );
 
   const search = {
-    ...(childId ? { child: childId } : {}),
     mode: mode ?? "play",
     ...(stationGrade ? { grade: stationGrade } : {}),
   };
@@ -69,8 +68,8 @@ function StationNode({
   return (
     <li className={cn("flex min-w-14 flex-col items-center gap-1", !inLens && "opacity-55")}>
       <Link
-        to={hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/kanji/$char"}
-        params={{ char: station.kanji }}
+        to={hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/child/$childId/kanji/$char"}
+        params={childId ? { childId, char: station.kanji } : { char: station.kanji }}
         search={search}
         onClick={() => {
           if (stationGrade) writeStoredActiveGrade(stationGrade, childId);
@@ -114,7 +113,7 @@ function LineRow({
   focused,
 }: {
   view: MapLineView;
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
   childId?: string;
   mode?: "play" | "look";
   activeGrade?: Grade;
@@ -197,7 +196,7 @@ export function RouteMap({
   focusLineId,
 }: {
   lines: MapLineView[];
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
   childId?: string;
   mode?: "play" | "look";
   activeGrade?: Grade;

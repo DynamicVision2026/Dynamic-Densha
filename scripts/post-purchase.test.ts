@@ -140,8 +140,20 @@ test("/subscribe/success reads entitlement and never grants it", () => {
   assert.match(route, /getPassState/);
   // No writes to the billing log or the derived row from this path.
   for (const path of ["src/routes/subscribe.success.tsx", "src/lib/server/pass.ts"]) {
-    assert.equal(/insert into billing_event|update subscription set|admin_action/i.test(codeOf(path)), false);
+    assert.equal(/insert into billing_event|update subscription set/i.test(codeOf(path)), false);
   }
+  // pass.ts gained assignAnnualPass, which appends ONE admin_action row so
+  // support can answer "who held the pass in March". admin_action is an
+  // input to the derivation, so this clause is narrow rather than absent:
+  // the only type it may write is pass_reassigned, and the fold below is
+  // what proves that type grants nothing. A `trial_extended` written from
+  // here would be a real entitlement grant and this would catch it.
+  const passSrc = codeOf("src/lib/server/pass.ts");
+  const adminWrites = passSrc.match(/insert into admin_action[\s\S]*?`/g) ?? [];
+  assert.equal(adminWrites.length, 1, "exactly one admin_action write in pass.ts");
+  assert.match(adminWrites[0]!, /'pass_reassigned'/);
+  assert.equal(/trial_extended/.test(passSrc), false);
+  assert.equal(/subscribe\.success/.test("src/routes/subscribe.success.tsx") && /admin_action/.test(codeOf("src/routes/subscribe.success.tsx")), false);
 });
 
 test("the three states are all reachable from the route, and there is no error state", () => {

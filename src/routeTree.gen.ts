@@ -36,8 +36,16 @@ import { Route as DemoWorkshopRouteImport } from './routes/demo/workshop'
 import { Route as SubscribeSuccessRouteImport } from './routes/subscribe.success'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiWebhooksShopifyRouteImport } from './routes/api/webhooks/shopify'
+import { Route as AppChildChildIdRouteImport } from './routes/app/child.$childId'
 import { Route as AppKanjiCharRouteImport } from './routes/app/kanji.$char'
 import { Route as DemoKanjiCharRouteImport } from './routes/demo/kanji.$char'
+import { Route as AppChildChildIdIndexRouteImport } from './routes/app/child.$childId.index'
+import { Route as AppChildChildIdCatalogRouteImport } from './routes/app/child.$childId.catalog'
+import { Route as AppChildChildIdMapRouteImport } from './routes/app/child.$childId.map'
+import { Route as AppChildChildIdMistakesRouteImport } from './routes/app/child.$childId.mistakes'
+import { Route as AppChildChildIdStampsRouteImport } from './routes/app/child.$childId.stamps'
+import { Route as AppChildChildIdWorkshopRouteImport } from './routes/app/child.$childId.workshop'
+import { Route as AppChildChildIdKanjiCharRouteImport } from './routes/app/child.$childId.kanji.$char'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -174,6 +182,11 @@ const ApiWebhooksShopifyRoute = ApiWebhooksShopifyRouteImport.update({
   path: '/api/webhooks/shopify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppChildChildIdRoute = AppChildChildIdRouteImport.update({
+  id: '/child/$childId',
+  path: '/child/$childId',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppKanjiCharRoute = AppKanjiCharRouteImport.update({
   id: '/kanji/$char',
   path: '/kanji/$char',
@@ -184,6 +197,42 @@ const DemoKanjiCharRoute = DemoKanjiCharRouteImport.update({
   path: '/demo/kanji/$char',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppChildChildIdIndexRoute = AppChildChildIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppChildChildIdRoute,
+} as any)
+const AppChildChildIdCatalogRoute = AppChildChildIdCatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => AppChildChildIdRoute,
+} as any)
+const AppChildChildIdMapRoute = AppChildChildIdMapRouteImport.update({
+  id: '/map',
+  path: '/map',
+  getParentRoute: () => AppChildChildIdRoute,
+} as any)
+const AppChildChildIdMistakesRoute = AppChildChildIdMistakesRouteImport.update({
+  id: '/mistakes',
+  path: '/mistakes',
+  getParentRoute: () => AppChildChildIdRoute,
+} as any)
+const AppChildChildIdStampsRoute = AppChildChildIdStampsRouteImport.update({
+  id: '/stamps',
+  path: '/stamps',
+  getParentRoute: () => AppChildChildIdRoute,
+} as any)
+const AppChildChildIdWorkshopRoute = AppChildChildIdWorkshopRouteImport.update({
+  id: '/workshop',
+  path: '/workshop',
+  getParentRoute: () => AppChildChildIdRoute,
+} as any)
+const AppChildChildIdKanjiCharRoute =
+  AppChildChildIdKanjiCharRouteImport.update({
+    id: '/kanji/$char',
+    path: '/kanji/$char',
+    getParentRoute: () => AppChildChildIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -213,8 +262,16 @@ export interface FileRoutesByFullPath {
   '/demo/': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
+  '/app/child/$childId': typeof AppChildChildIdRouteWithChildren
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
+  '/app/child/$childId/catalog': typeof AppChildChildIdCatalogRoute
+  '/app/child/$childId/map': typeof AppChildChildIdMapRoute
+  '/app/child/$childId/mistakes': typeof AppChildChildIdMistakesRoute
+  '/app/child/$childId/stamps': typeof AppChildChildIdStampsRoute
+  '/app/child/$childId/workshop': typeof AppChildChildIdWorkshopRoute
+  '/app/child/$childId/': typeof AppChildChildIdIndexRoute
+  '/app/child/$childId/kanji/$char': typeof AppChildChildIdKanjiCharRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -245,6 +302,13 @@ export interface FileRoutesByTo {
   '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
+  '/app/child/$childId/catalog': typeof AppChildChildIdCatalogRoute
+  '/app/child/$childId/map': typeof AppChildChildIdMapRoute
+  '/app/child/$childId/mistakes': typeof AppChildChildIdMistakesRoute
+  '/app/child/$childId/stamps': typeof AppChildChildIdStampsRoute
+  '/app/child/$childId/workshop': typeof AppChildChildIdWorkshopRoute
+  '/app/child/$childId': typeof AppChildChildIdIndexRoute
+  '/app/child/$childId/kanji/$char': typeof AppChildChildIdKanjiCharRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -275,8 +339,16 @@ export interface FileRoutesById {
   '/demo/': typeof DemoIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
+  '/app/child/$childId': typeof AppChildChildIdRouteWithChildren
   '/app/kanji/$char': typeof AppKanjiCharRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
+  '/app/child/$childId/catalog': typeof AppChildChildIdCatalogRoute
+  '/app/child/$childId/map': typeof AppChildChildIdMapRoute
+  '/app/child/$childId/mistakes': typeof AppChildChildIdMistakesRoute
+  '/app/child/$childId/stamps': typeof AppChildChildIdStampsRoute
+  '/app/child/$childId/workshop': typeof AppChildChildIdWorkshopRoute
+  '/app/child/$childId/': typeof AppChildChildIdIndexRoute
+  '/app/child/$childId/kanji/$char': typeof AppChildChildIdKanjiCharRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -308,8 +380,16 @@ export interface FileRouteTypes {
     | '/demo/'
     | '/api/auth/$'
     | '/api/webhooks/shopify'
+    | '/app/child/$childId'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
+    | '/app/child/$childId/catalog'
+    | '/app/child/$childId/map'
+    | '/app/child/$childId/mistakes'
+    | '/app/child/$childId/stamps'
+    | '/app/child/$childId/workshop'
+    | '/app/child/$childId/'
+    | '/app/child/$childId/kanji/$char'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -340,6 +420,13 @@ export interface FileRouteTypes {
     | '/api/webhooks/shopify'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
+    | '/app/child/$childId/catalog'
+    | '/app/child/$childId/map'
+    | '/app/child/$childId/mistakes'
+    | '/app/child/$childId/stamps'
+    | '/app/child/$childId/workshop'
+    | '/app/child/$childId'
+    | '/app/child/$childId/kanji/$char'
   id:
     | '__root__'
     | '/'
@@ -369,8 +456,16 @@ export interface FileRouteTypes {
     | '/demo/'
     | '/api/auth/$'
     | '/api/webhooks/shopify'
+    | '/app/child/$childId'
     | '/app/kanji/$char'
     | '/demo/kanji/$char'
+    | '/app/child/$childId/catalog'
+    | '/app/child/$childId/map'
+    | '/app/child/$childId/mistakes'
+    | '/app/child/$childId/stamps'
+    | '/app/child/$childId/workshop'
+    | '/app/child/$childId/'
+    | '/app/child/$childId/kanji/$char'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -586,6 +681,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksShopifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/child/$childId': {
+      id: '/app/child/$childId'
+      path: '/child/$childId'
+      fullPath: '/app/child/$childId'
+      preLoaderRoute: typeof AppChildChildIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/app/kanji/$char': {
       id: '/app/kanji/$char'
       path: '/kanji/$char'
@@ -600,8 +702,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoKanjiCharRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/child/$childId/': {
+      id: '/app/child/$childId/'
+      path: '/'
+      fullPath: '/app/child/$childId/'
+      preLoaderRoute: typeof AppChildChildIdIndexRouteImport
+      parentRoute: typeof AppChildChildIdRoute
+    }
+    '/app/child/$childId/catalog': {
+      id: '/app/child/$childId/catalog'
+      path: '/catalog'
+      fullPath: '/app/child/$childId/catalog'
+      preLoaderRoute: typeof AppChildChildIdCatalogRouteImport
+      parentRoute: typeof AppChildChildIdRoute
+    }
+    '/app/child/$childId/map': {
+      id: '/app/child/$childId/map'
+      path: '/map'
+      fullPath: '/app/child/$childId/map'
+      preLoaderRoute: typeof AppChildChildIdMapRouteImport
+      parentRoute: typeof AppChildChildIdRoute
+    }
+    '/app/child/$childId/mistakes': {
+      id: '/app/child/$childId/mistakes'
+      path: '/mistakes'
+      fullPath: '/app/child/$childId/mistakes'
+      preLoaderRoute: typeof AppChildChildIdMistakesRouteImport
+      parentRoute: typeof AppChildChildIdRoute
+    }
+    '/app/child/$childId/stamps': {
+      id: '/app/child/$childId/stamps'
+      path: '/stamps'
+      fullPath: '/app/child/$childId/stamps'
+      preLoaderRoute: typeof AppChildChildIdStampsRouteImport
+      parentRoute: typeof AppChildChildIdRoute
+    }
+    '/app/child/$childId/workshop': {
+      id: '/app/child/$childId/workshop'
+      path: '/workshop'
+      fullPath: '/app/child/$childId/workshop'
+      preLoaderRoute: typeof AppChildChildIdWorkshopRouteImport
+      parentRoute: typeof AppChildChildIdRoute
+    }
+    '/app/child/$childId/kanji/$char': {
+      id: '/app/child/$childId/kanji/$char'
+      path: '/kanji/$char'
+      fullPath: '/app/child/$childId/kanji/$char'
+      preLoaderRoute: typeof AppChildChildIdKanjiCharRouteImport
+      parentRoute: typeof AppChildChildIdRoute
+    }
   }
 }
+
+interface AppChildChildIdRouteChildren {
+  AppChildChildIdCatalogRoute: typeof AppChildChildIdCatalogRoute
+  AppChildChildIdMapRoute: typeof AppChildChildIdMapRoute
+  AppChildChildIdMistakesRoute: typeof AppChildChildIdMistakesRoute
+  AppChildChildIdStampsRoute: typeof AppChildChildIdStampsRoute
+  AppChildChildIdWorkshopRoute: typeof AppChildChildIdWorkshopRoute
+  AppChildChildIdIndexRoute: typeof AppChildChildIdIndexRoute
+  AppChildChildIdKanjiCharRoute: typeof AppChildChildIdKanjiCharRoute
+}
+
+const AppChildChildIdRouteChildren: AppChildChildIdRouteChildren = {
+  AppChildChildIdCatalogRoute: AppChildChildIdCatalogRoute,
+  AppChildChildIdMapRoute: AppChildChildIdMapRoute,
+  AppChildChildIdMistakesRoute: AppChildChildIdMistakesRoute,
+  AppChildChildIdStampsRoute: AppChildChildIdStampsRoute,
+  AppChildChildIdWorkshopRoute: AppChildChildIdWorkshopRoute,
+  AppChildChildIdIndexRoute: AppChildChildIdIndexRoute,
+  AppChildChildIdKanjiCharRoute: AppChildChildIdKanjiCharRoute,
+}
+
+const AppChildChildIdRouteWithChildren = AppChildChildIdRoute._addFileChildren(
+  AppChildChildIdRouteChildren,
+)
 
 interface AppRouteRouteChildren {
   AppAdminRoute: typeof AppAdminRoute
@@ -612,6 +787,7 @@ interface AppRouteRouteChildren {
   AppStampsRoute: typeof AppStampsRoute
   AppWorkshopRoute: typeof AppWorkshopRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppChildChildIdRoute: typeof AppChildChildIdRouteWithChildren
   AppKanjiCharRoute: typeof AppKanjiCharRoute
 }
 
@@ -624,6 +800,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppStampsRoute: AppStampsRoute,
   AppWorkshopRoute: AppWorkshopRoute,
   AppIndexRoute: AppIndexRoute,
+  AppChildChildIdRoute: AppChildChildIdRouteWithChildren,
   AppKanjiCharRoute: AppKanjiCharRoute,
 }
 

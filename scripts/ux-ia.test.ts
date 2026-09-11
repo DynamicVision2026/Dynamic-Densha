@@ -135,8 +135,14 @@ test("map is overlay state, not a child tab; old map routes replace to home", ()
   assert.equal(/createFileRoute/.test(overlay), false);
   assert.match(demoMap, /to="\/demo"/);
   assert.match(demoMap, /replace/);
-  assert.match(appMap, /to="\/app"/);
+  // The app's map path resolves which child it meant and forwards to that
+  // child's board, where the overlay lives; the demo surface has one
+  // pretend child and still goes straight to /demo.
+  assert.match(appMap, /to="\/app\/child\/\$childId"/);
   assert.match(appMap, /replace/);
+  const scopedMap = readFileSync("src/routes/app/child.$childId.map.tsx", "utf8");
+  assert.match(scopedMap, /to="\/app\/child\/\$childId"/);
+  assert.match(scopedMap, /replace/);
   assert.equal(/workshopTry/.test(overlay), false);
 });
 

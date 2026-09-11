@@ -24,7 +24,7 @@ export function HomeLineStrip({
 }: {
   cars: StripCar[];
   currentChar?: string;
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
   childId?: string;
   grade: Grade;
   onOpenMap: () => void;
@@ -33,8 +33,10 @@ export function HomeLineStrip({
   const { t } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
   const pinchStart = useRef(0);
-  const rideTo = hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/kanji/$char";
-  const search = { ...(childId ? { child: childId } : {}), grade };
+  const rideTo = hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/child/$childId/kanji/$char";
+  // The child is in the PATH on the app surface now, so it no longer rides
+  // along in the query string. Demo has no real child to name.
+  const search = { grade };
 
   useEffect(() => {
     const root = scroller.current;
@@ -87,6 +89,7 @@ export function HomeLineStrip({
             current={car.char === currentChar}
             glow={Boolean(glowChars?.includes(car.char))}
             to={rideTo}
+            childId={childId}
             search={search}
           />
         ))}
@@ -102,6 +105,7 @@ function StripStation({
   current,
   glow,
   to,
+  childId,
   search,
 }: {
   char: string;
@@ -109,15 +113,16 @@ function StripStation({
   echoDue?: boolean;
   current?: boolean;
   glow?: boolean;
-  to: "/demo/kanji/$char" | "/app/kanji/$char";
-  search: { child?: string; grade: Grade };
+  to: "/demo/kanji/$char" | "/app/child/$childId/kanji/$char";
+  childId?: string;
+  search: { grade: Grade };
 }) {
   const meta = STATUS_META[status];
   return (
     <Link
       role="listitem"
       to={to}
-      params={{ char }}
+      params={childId ? { childId, char } : { char }}
       search={search}
       data-strip-car={char}
       data-return-glow={glow || undefined}

@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAutoDemo } from "@/components/auto-demo";
 import { ChildShell } from "@/components/child-shell";
+import { ChildSwitcher } from "@/components/child-switcher";
 import { DepartureTicket } from "@/components/departure-ticket";
 import { HomeLineStrip } from "@/components/home-line-strip";
 import { HubPlate } from "@/components/hub-plate";
@@ -35,6 +36,7 @@ import type { Grade } from "@/data/kyoiku";
 export function ChildHome({
   hrefBase,
   childId,
+  siblings = [],
   grade,
   profileGrade,
   cars,
@@ -44,8 +46,14 @@ export function ChildHome({
   rings,
   entitlement,
 }: {
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
   childId?: string;
+  /**
+   * Every living child in this household, current one included. Drives the
+   * locomotive switcher above the board. Empty on /demo, which has exactly
+   * one pretend child and nothing to switch between.
+   */
+  siblings?: { id: string; name: string }[];
   grade: Grade;
   profileGrade: Grade;
   cars: StripCar[];
@@ -75,12 +83,11 @@ export function ChildHome({
     () => pickDeparture({ board, echoQueue, cars }),
     [board, echoQueue, cars],
   );
-  const rideTo = hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/kanji/$char";
+  const rideTo = hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/child/$childId/kanji/$char";
   const parentTo = hrefBase === "/demo" ? "/demo/parent" : "/app/parent";
-  const search = {
-    ...(childId ? { child: childId } : {}),
-    grade,
-  };
+  // The child is in the path on the app surface; only the grade lens still
+  // travels in the query string.
+  const search = { grade };
   const hub = hubCounts(rings, grade);
 
   useEffect(() => {
@@ -145,7 +152,7 @@ export function ChildHome({
     skipReturnGlow();
     void navigate({
       to: rideTo,
-      params: { char: depart.kanji },
+      params: childId ? { childId, char: depart.kanji } : { char: depart.kanji },
       search,
     });
   }
@@ -199,6 +206,10 @@ export function ChildHome({
             <ParentDoor to={parentTo} />
           </header>
 
+          {hrefBase === "/demo" ? null : (
+            <ChildSwitcher siblings={siblings} currentId={childId} />
+          )}
+
           <section
             data-child-stage
             className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto overscroll-contain px-4 py-3"
@@ -212,7 +223,7 @@ export function ChildHome({
               ariaName={t("ticketAria")}
               stationLabel={t("ticketStation")}
               rideLabel={depart.empty ? t("freeRide") : t("ticketRide")}
-              emptyLead={t("ticketEmpty")}
+              emptyLead={canRide ? t("ticketEmpty") : t("cannotRideNow")}
               countLabel={t("ticketCount", { n: glyphs.length })}
               disabled={!canRide}
             />

@@ -2,13 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { resolveHouseholdId } from "@/lib/server/household";
-import {
-  assertCanRide,
-  getEntitlementForHousehold,
-  getParentTrialBanner,
-  isHouseholdActive,
-} from "@/lib/server/subscription";
+import { getParentTrialBanner, isHouseholdActive } from "@/lib/server/subscription";
 import type { Grade } from "@/data/kyoiku";
+import { ChildAccessError, assertChildCanRide, assertOwnedChild, getChildEntitlement } from "@/lib/server/coverage";
 import { getKanji } from "@/data/kyoiku";
 import { decorateTrains, type TrainView } from "@/lib/trains";
 import { parseKinds, type MasteryStatus, type PracticeKind } from "@/lib/mastery";
@@ -134,14 +130,32 @@ function rowToState(r: Record<string, unknown>): ProgressState {
   });
 }
 
+/**
+ * Resolve the caller's household and refuse anything that is not theirs, or
+ * that this child may not ride right now. One helper rather than three lines
+ * repeated in four handlers -- the repeated version is how one of them ends
+ * up missing the ownership half.
+ */
+async function assertChildCanRideForCaller(userId: string, childId: string): Promise<void> {
+  const sql = await getSql();
+  const householdId = await resolveHouseholdId(sql, userId);
+  await assertChildCanRide(sql, householdId, childId);
+}
+
 export async function loadProgress(userId: string, childId: string, sqlClient?: Sql) {
   const sql = sqlClient ?? (await getSql());
+  // Scoped to the caller's HOUSEHOLD, not to their user_id. The two are the
+  // same for a single-parent household and diverge the moment a second
+  // parent joins one -- at which point a user_id filter would hide a
+  // co-parent's children from them. A cross-household id finds nothing and
+  // raises the 404-shaped ChildAccessError, never a 403: see coverage.ts.
+  const householdId = await resolveHouseholdId(sql, userId);
   const owned = await sql<{ id: string; grade: number; name: string }>`
     select id, grade, name from children
-    where id = ${childId} and user_id = ${userId}
+    where id = ${childId} and household_id = ${householdId} and archived_at is null
   `;
   const child = owned[0];
-  if (!child) throw new Error("こどもが見つかりません");
+  if (!child) throw new ChildAccessError(404, "こどもが見つかりません");
   await backfillSurfaceSeenFromProgress(sql, userId, childId);
   const seenByKanji = await loadSurfaceSeenByKanji(sql, userId, childId);
   const rows = await sql.query<Record<string, unknown>>(
@@ -359,7 +373,10 @@ export const getHomeState = createServerFn({ method: "GET" })
     const rings = buildGradeRings({ progress: map, profileGrade: child.grade });
     const sqlForEntitlement = await getSql();
     const householdId = await resolveHouseholdId(sqlForEntitlement, context.userId);
-    const entitlement = await getEntitlementForHousehold(sqlForEntitlement, householdId, now);
+    // Per child. On an annual pass this is what makes the uncovered
+    // sibling's board render read-only (canView stays true, canRide goes
+    // false) rather than showing them a live boarding pass they cannot use.
+    const entitlement = await getChildEntitlement(sqlForEntitlement, householdId, data.childId, now);
     return {
       child,
       viewGrade,
@@ -384,7 +401,13 @@ export const getKanjiStudy = createServerFn({ method: "GET" })
     // open a ride at all, not merely fail to write progress at the end of
     // one. This is the study payload the session mounts with, so it's
     // gated here, not just at the final answer.
-    await assertCanRide(await getSql(), context.userId);
+    //
+    // Per CHILD, not per household: on an annual pass the household is
+    // entitled and the uncovered sibling is not, so a household-level gate
+    // would let anyone in the family ride on one child's pass. Ownership is
+    // checked first and answers 404, so a guessed id from another household
+    // cannot be distinguished from one that does not exist.
+    await assertChildCanRideForCaller(context.userId, data.childId);
     const { child, map } = await loadProgress(context.userId, data.childId);
     const now = new Date().toISOString();
     const p = paramsForChar(data.char, child.grade);
@@ -406,7 +429,7 @@ export const completeEncounter = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string; char: string }) => input)
   .handler(async ({ context, data }) => {
-    await assertCanRide(await getSql(), context.userId);
+    await assertChildCanRideForCaller(context.userId, data.childId);
     const { child, map } = await loadProgress(context.userId, data.childId);
     const now = new Date().toISOString();
     const next = evaluateProgress(
@@ -422,7 +445,7 @@ export const completeUnderstand = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string; char: string }) => input)
   .handler(async ({ context, data }) => {
-    await assertCanRide(await getSql(), context.userId);
+    await assertChildCanRideForCaller(context.userId, data.childId);
     const { child, map } = await loadProgress(context.userId, data.childId);
     const now = new Date().toISOString();
     const next = evaluateProgress(
@@ -449,9 +472,10 @@ export const submitPractice = createServerFn({ method: "POST" })
     // Commerce spec §3.1/§13 rule 4: entitlement is evaluated server-side,
     // not just as a client-side hint. This is one of four gated entry
     // points (getKanjiStudy/completeEncounter/completeUnderstand are the
-    // other three) -- see assertCanRide's own comment for why there's one
-    // shared throw site instead of four copies of the same check.
-    await assertCanRide(await getSql(), context.userId);
+    // other three) -- see assertChildCanRide's own comment for why there's
+    // one shared throw site instead of four copies of the same check, and
+    // why ownership is asked before entitlement.
+    await assertChildCanRideForCaller(context.userId, data.childId);
 
     const item = getItem(data.itemId, true);
     if (!item || item.kanji !== data.char) throw new Error("unknown item");
@@ -521,6 +545,12 @@ export const listMistakes = createServerFn({ method: "GET" })
   .validator((childId: string) => childId)
   .handler(async ({ context, data: childId }) => {
     const sql = await getSql();
+    // Ownership first, for the same reason every other child-scoped read does
+    // it: filtering the rows by user_id would keep a stranger out, but would
+    // also hide a co-parent's children from them once a second parent joins
+    // a household. 404 either way -- never a 403.
+    const householdId = await resolveHouseholdId(sql, context.userId);
+    await assertOwnedChild(sql, householdId, childId);
     const rows = await sql<{
       kanji: string;
       kind: string;
@@ -529,7 +559,7 @@ export const listMistakes = createServerFn({ method: "GET" })
     }>`
       select kanji, kind, answer, created_at
       from practice_events
-      where user_id = ${context.userId} and child_id = ${childId} and correct = false
+      where child_id = ${childId} and correct = false
       order by created_at desc
       limit 40
     `;

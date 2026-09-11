@@ -17,12 +17,21 @@ import { StartBandPicker } from "@/components/start-band-picker";
 import type { StartBand } from "@/lib/grade-route";
 import { resolvePostAuthNext } from "@/lib/post-auth-redirect";
 
-type Search = { next?: string };
+type Search = { next?: string; add?: boolean };
 
 export const Route = createFileRoute("/onboard")({
   component: Onboard,
   validateSearch: (s: Record<string, unknown>): Search => ({
     next: typeof s.next === "string" ? s.next : undefined,
+    // ?add=1 is how a household that already has children reaches this form
+    // deliberately. Without it there is no way to register a second child at
+    // all: the skip-if-you-have-one behaviour below (right for a post-login
+    // hop) would bounce a parent straight back out of the form they asked
+    // for, which made the whole multi-child model unreachable.
+    // Parsed loosely on purpose: TanStack hands this through as a string
+    // from a typed <Link search={{ add: true }}> and as a number from a
+    // hand-typed ?add=1, and the difference is not worth a bug.
+    add: s.add === 1 || s.add === "1" || s.add === true || s.add === "true",
   }),
 });
 
@@ -38,12 +47,20 @@ function Onboard() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [nameWarning, setNameWarning] = useState(false);
+  // Distinguished from any other error so the tier refusal is assertable,
+  // and so a future "…and here is what to do about it" can hang off it.
+  const [quotaRefused, setQuotaRefused] = useState(false);
   // Synchronous, unlike `busy` -- a ref mutation is visible to a second
   // click's handler the instant it runs, even before React re-renders to
   // reflect the disabled button. Two click events on the same JS thread
   // are always handled one to completion before the next starts, so this
   // alone fully closes the same-tick double-tap window `busy` can miss.
   const submittingRef = useRef(false);
+  // One key per form INSTANCE, not per submit: the duplicate-name prompt
+  // sends the same submission twice (ask, then confirm), and a fresh key on
+  // the second would defeat the idempotency it exists for -- a dropped
+  // response to the confirm followed by a retry would create two children.
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   // /onboard is reachable two ways: /app's own zero-children redirect (no
   // `next`, always continues to /app once a child exists -- unchanged), and
@@ -58,7 +75,8 @@ function Onboard() {
     queryFn: () => listChildren(),
     enabled: Boolean(user),
   });
-  const hasChildren = Boolean(childrenQ.data && childrenQ.data.length > 0);
+  const adding = search.add === true;
+  const hasChildren = Boolean(childrenQ.data && childrenQ.data.length > 0) && !adding;
   const childless = Boolean(childrenQ.data && childrenQ.data.length === 0);
 
   // Every post-login destination hops through here (see login.tsx), and this
@@ -101,30 +119,48 @@ function Onboard() {
     e.preventDefault();
     if (submittingRef.current) return;
 
-    const trimmed = name.trim();
-    // Soft warning, not a hard block -- a household normally has zero
-    // children on this route (it's skipped once any exist), so this only
-    // ever fires on the double-tap race this whole change set exists to
-    // close: two near-simultaneous submits, the first already landed by
-    // the time childrenQ refetches, the second still mid-flight. First
-    // click surfaces the warning and stops; a second, deliberate click
-    // continues past it.
-    const dup = childrenQ.data?.some((c) => c.name === trimmed);
-    if (dup && !nameWarning) {
-      setNameWarning(true);
-      return;
-    }
-
     submittingRef.current = true;
     setBusy(true);
     setError(null);
+    setQuotaRefused(false);
     try {
-      const child = await createChild({
-        data: { name, grade, startBand, idempotencyKey: crypto.randomUUID() },
+      // The duplicate-name question is the SERVER's to ask now: a client-side
+      // scan of childrenQ.data cannot see a sibling created seconds ago in
+      // another tab, and this form's whole reason for existing is the race
+      // where two submissions land at once. First attempt asks; a second,
+      // deliberate tap carries confirmDuplicateName and goes through.
+      const result = await createChild({
+        data: {
+          name,
+          grade,
+          startBand,
+          idempotencyKey: idempotencyKeyRef.current,
+          confirmDuplicateName: nameWarning,
+        },
       });
+
+      if ("error" in result) {
+        if (result.error.code === "DUPLICATE_NAME") {
+          setNameWarning(true);
+        } else if (result.error.code === "QUOTA_EXCEEDED") {
+          setQuotaRefused(true);
+          setError(t("childQuotaReached"));
+        } else {
+          setError(t("saveFailed"));
+        }
+        submittingRef.current = false;
+        setBusy(false);
+        return;
+      }
+
+      const child = result.child;
       writeActiveChildId(child.id);
       writeStoredActiveGrade(child.grade, child.id);
-      if (dest === "/app") await navigate({ to: "/app", search: { grade: child.grade } });
+      // Adding a sibling returns to the parent surface, which is where the
+      // parent was and where the pass assignment lives; a first child opens
+      // their own board.
+      if (adding) await navigate({ to: "/app/parent", search: { child: child.id } });
+      else if (dest === "/app") await navigate({ to: "/app/child/$childId", params: { childId: child.id }, search: { grade: child.grade } });
       else window.location.href = dest;
     } catch (err) {
       setError(err instanceof Error ? err.message : t("saveFailed"));
@@ -177,7 +213,11 @@ function Onboard() {
               {t("duplicateChildNameWarning", { name: name.trim() })}
             </p>
           ) : null}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? (
+            <p className="text-sm text-destructive" data-quota-error={quotaRefused || undefined}>
+              {error}
+            </p>
+          ) : null}
           <Button type="submit" className="w-full" disabled={busy || !name.trim()}>
             {busy ? t("creating") : nameWarning ? t("duplicateChildNameConfirm") : t("openTimetable")}
           </Button>

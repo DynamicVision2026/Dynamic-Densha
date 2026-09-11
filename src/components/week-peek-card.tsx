@@ -6,10 +6,12 @@ import type { Grade } from "@/data/kyoiku";
 export function WeekPeekCard({
   peek,
   hrefBase,
+  childId,
   grade,
 }: {
   peek: WeekPeek;
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
+  childId?: string;
   grade?: Grade;
 }) {
   const { t } = useI18n();
@@ -17,10 +19,10 @@ export function WeekPeekCard({
   const to = isLine
     ? hrefBase === "/demo"
       ? "/demo/map"
-      : "/app/map"
+      : "/app/child/$childId/map"
     : hrefBase === "/demo"
       ? "/demo/workshop"
-      : "/app/workshop";
+      : "/app/child/$childId/workshop";
   const search = isLine ? { grade, line: peek.id } : { grade, family: peek.id };
 
   return (
@@ -40,6 +42,7 @@ export function WeekPeekCard({
       </p>
       <Link
         to={to}
+        params={childId ? { childId } : undefined}
         search={search}
         data-tour="week-peek"
         className="mt-3 inline-flex h-11 items-center rounded-md bg-fg px-4 text-sm font-medium text-bg"

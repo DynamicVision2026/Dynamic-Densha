@@ -14,7 +14,7 @@
  * trusting a plain household_id a client could send.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { getSql } from "@/lib/db";
+import { getSql, withTransaction } from "@/lib/db";
 import { verifyShopifyWebhookSignature } from "@/lib/shopify-signature";
 import { applyShopifyWebhook } from "@/lib/server/webhooks";
 import { getHouseholdIdByCheckoutToken } from "@/lib/server/household";
@@ -124,13 +124,19 @@ export const Route = createFileRoute("/api/webhooks/shopify")({
               }
             }
 
-            await applyShopifyWebhook(sql, {
-              householdId,
-              shopifyEventId: webhookId,
-              type: topic === "orders/paid" ? "order_paid" : "order_cancelled",
-              payload: eventPayload,
-              receivedAt: eventReceivedAt(order),
-            });
+            // In a transaction so applyShopifyWebhook's advisory lock is
+            // transaction-scoped and actually holds: on the pooled client it
+            // would be taken on one connection and the insert+recompute done
+            // on others, which is a lock that blocks nobody.
+            await withTransaction((tx) =>
+              applyShopifyWebhook(tx, {
+                householdId,
+                shopifyEventId: webhookId,
+                type: topic === "orders/paid" ? "order_paid" : "order_cancelled",
+                payload: eventPayload,
+                receivedAt: eventReceivedAt(order),
+              }),
+            );
             return json(200, { ok: true });
           }
 
@@ -140,13 +146,15 @@ export const Route = createFileRoute("/api/webhooks/shopify")({
             const householdId = await getHouseholdIdByShopifyOrderId(sql, orderId);
             if (!householdId) return json(200, { ok: true, skipped: "unattributed" });
 
-            await applyShopifyWebhook(sql, {
-              householdId,
-              shopifyEventId: webhookId,
-              type: "refund",
-              payload: { shopifyOrderId: orderId, raw: payload },
-              receivedAt: eventReceivedAt(refund),
-            });
+            await withTransaction((tx) =>
+              applyShopifyWebhook(tx, {
+                householdId,
+                shopifyEventId: webhookId,
+                type: "refund",
+                payload: { shopifyOrderId: orderId, raw: payload },
+                receivedAt: eventReceivedAt(refund),
+              }),
+            );
             return json(200, { ok: true });
           }
 

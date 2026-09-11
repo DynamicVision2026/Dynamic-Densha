@@ -12,9 +12,23 @@
  * it repeatedly, or concurrently for the same brand-new user, never creates
  * two households for one user.
  */
-import { randomUUID } from "node:crypto";
 import { trialEndsAtFrom } from "@/lib/trial-clock";
-import { hashEmail } from "@/lib/trial-spent";
+
+/**
+ * The global Web Crypto `randomUUID`, deliberately NOT `import { randomUUID }
+ * from "node:crypto"`.
+ *
+ * This module is server-only in intent but not in reachability: server/
+ * children.ts imports resolveHouseholdId, and every route that imports a
+ * server function from children.ts therefore pulls this module into its
+ * CLIENT bundle. Vite replaces node:crypto there with a proxy that throws on
+ * property access, so the static import took down /app/parent on load --
+ * "Module node:crypto has been externalized for browser compatibility" --
+ * while typecheck, lint and all 480 tests stayed green. The global has been
+ * available in Node since 19 and is what the rest of this repo already uses
+ * (see server/children.ts).
+ */
+const randomUUID = () => crypto.randomUUID();
 
 type Sql = {
   <T = Record<string, unknown>>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T[]>;
@@ -50,6 +64,16 @@ async function trialEndsAtForNewHousehold(
   const email = userRows[0]?.email;
   if (!email) return trialEndsAtFrom(nowIso, TRIAL_DAYS);
 
+  // Imported lazily, and this is not a micro-optimisation: @/lib/trial-spent
+  // statically imports node:crypto's createHash, and this module is reachable
+  // from the client bundle of any ROUTE that imports a server function from a
+  // module which in turn imports this one. Vite replaces node:crypto with a
+  // proxy that throws on property access, so a static import here killed
+  // /app/parent on load with "Module node:crypto has been externalized for
+  // browser compatibility" -- while typecheck, lint and the full test suite
+  // stayed green. A dynamic import inside a server-only code path keeps
+  // node:crypto out of the static graph entirely.
+  const { hashEmail } = await import("@/lib/trial-spent");
   const emailHash = hashEmail(email);
   const spent = await sql<{ email_hash: string }>`
     select email_hash from trial_spent where email_hash = ${emailHash}

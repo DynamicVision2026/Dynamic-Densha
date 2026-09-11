@@ -1,33 +1,34 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { ChildHome } from "@/components/child-home";
+import { useEffect } from "react";
 import { ChildShell } from "@/components/child-shell";
 import { Skeleton } from "@/components/ui/skeleton";
-import { readActiveChildId, writeActiveChildId } from "@/lib/active-child";
-import { resolveActiveGrade, usePersistActiveGrade } from "@/lib/active-grade";
+import { readActiveChildId } from "@/lib/active-child";
+import { resolveInitialChildId } from "@/lib/child-route-resolve";
 import { gradeSearchFrom } from "@/lib/grade-nav";
 import { listChildren } from "@/lib/server/children";
 import { getAdminStatus } from "@/lib/server/admin";
-import { maybeImportGuestProgress } from "@/lib/guest-migrate-client";
-import { getHomeState, getMapState } from "@/lib/server/progress";
-import { useNow } from "@/lib/use-now";
-import type { Grade } from "@/data/kyoiku";
 
 export const Route = createFileRoute("/app/")({
   component: AppHome,
   validateSearch: gradeSearchFrom,
 });
 
+/**
+ * /app is now a resolver, not a board. It answers one question -- whose
+ * board? -- and forwards to /app/child/<id>, where the board actually lives.
+ *
+ * Resolution order, all of it client-side and none of it trusted:
+ *   1. the device-local hint, IF it still names one of this household's
+ *      living children (see child-route-resolve.ts)
+ *   2. otherwise the first child by created_at
+ *   3. no children at all -> /onboard, unless this is an admin account,
+ *      which has no children and never will
+ */
 function AppHome() {
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const [childId, setChildId] = useState<string | null>(null);
-
-  const childrenQ = useQuery({
-    queryKey: ["children"],
-    queryFn: () => listChildren(),
-  });
+  const childrenQ = useQuery({ queryKey: ["children"], queryFn: () => listChildren() });
 
   // Only consulted when this account has no child and would otherwise be
   // sent to onboarding -- an admin has no child and never will, so the
@@ -43,83 +44,25 @@ function AppHome() {
 
   useEffect(() => {
     if (!childrenQ.data) return;
-    if (childrenQ.data.length === 0) {
+    const next = resolveInitialChildId(childrenQ.data, readActiveChildId());
+    if (!next) {
       if (adminQ.isLoading) return; // decide once, rather than bouncing to /onboard first
       void navigate({ to: adminQ.data?.isAdmin ? "/app/admin" : "/onboard" });
       return;
     }
-    const stored = readActiveChildId();
-    const next =
-      (stored && childrenQ.data.some((c) => c.id === stored) && stored) ||
-      childrenQ.data[0]!.id;
-    setChildId(next);
-    writeActiveChildId(next);
-  }, [childrenQ.data, navigate, adminQ.isLoading, adminQ.data]);
-
-  useEffect(() => {
-    if (!childId) return;
-    void maybeImportGuestProgress(childId);
-  }, [childId]);
-
-  const current = useMemo(
-    () => childrenQ.data?.find((c) => c.id === childId),
-    [childrenQ.data, childId],
-  );
-  const childGrade = (current?.grade ?? 1) as Grade;
-  const viewGrade = resolveActiveGrade({
-    urlGrade: search.grade,
-    profileGrade: childGrade,
-    childId,
-  });
-  usePersistActiveGrade(viewGrade, childId);
-  useEffect(() => {
-    if (childId && search.grade == null) {
-      void navigate({ to: "/app", search: { grade: viewGrade }, replace: true });
-    }
-  }, [childId, search.grade, viewGrade, navigate]);
-
-  // Re-render on visibilitychange/focus/midnight and fold the tick into the
-  // query key so a board left open overnight refetches from the server's
-  // current clock instead of freezing at the last fetch (PI-3).
-  const nowTick = useNow();
-  const homeQ = useQuery({
-    queryKey: ["home", childId, viewGrade, nowTick],
-    queryFn: () => getHomeState({ data: { childId: childId!, grade: viewGrade } }),
-    enabled: Boolean(childId),
-  });
-  const mapQ = useQuery({
-    queryKey: ["map", childId, viewGrade],
-    queryFn: () => getMapState({ data: { childId: childId!, grade: viewGrade } }),
-    enabled: Boolean(childId),
-  });
-
-  if (childrenQ.isLoading || (childId && homeQ.isLoading) || !homeQ.data) {
-    return (
-      <ChildShell>
-        <div className="mx-auto flex w-full max-w-[900px] flex-1 items-center px-4">
-          <Skeleton className="h-48 w-full rounded-xl" />
-        </div>
-      </ChildShell>
-    );
-  }
-
-  const home = homeQ.data;
-  const cars = home.trains.flatMap((t) =>
-    t.cars.map((c) => ({ char: c.char, status: c.status, echoDue: c.echoDue })),
-  );
+    void navigate({
+      to: "/app/child/$childId",
+      params: { childId: next },
+      search: search.grade ? { grade: search.grade } : {},
+      replace: true,
+    });
+  }, [childrenQ.data, navigate, adminQ.isLoading, adminQ.data, search.grade]);
 
   return (
-    <ChildHome
-      hrefBase="/app"
-      childId={childId ?? undefined}
-      grade={viewGrade}
-      profileGrade={childGrade}
-      cars={cars}
-      board={home.board}
-      entitlement={home.entitlement}
-      echoQueue={home.echoQueue}
-      lines={mapQ.data?.lines ?? []}
-      rings={home.rings ?? []}
-    />
+    <ChildShell>
+      <div className="mx-auto flex w-full max-w-[900px] flex-1 items-center px-4">
+        <Skeleton className="h-48 w-full rounded-xl" />
+      </div>
+    </ChildShell>
   );
 }

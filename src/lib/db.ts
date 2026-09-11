@@ -49,6 +49,7 @@ export interface Sql {
  */
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
+  __pgPool__?: import("pg").Pool;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
 };
@@ -97,6 +98,10 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
     const pool = new Pool({ connectionString: databaseUrl, ...NEON_POOL_OPTIONS });
+    // Kept aside for withTransaction(): the pooled `sql` below hands each
+    // query to whichever connection is free, which is fine for single
+    // statements and fatal for BEGIN/COMMIT.
+    globalRef.__pgPool__ = pool;
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];
@@ -195,6 +200,63 @@ export function getSql(): Promise<Sql> {
     throw err;
   });
   return sqlPromise;
+}
+
+/**
+ * Run `fn` inside ONE database transaction, on ONE connection.
+ *
+ * The plain `sql` from getSql() cannot do this on the Neon path: it dispatches
+ * every query to whichever pooled connection is free, so a `BEGIN` issued
+ * through it would open a transaction on one connection and the statements
+ * that follow would run outside it, on others. Anything that needs atomicity
+ * or a transaction-scoped lock (see src/lib/server/household-lock.ts) must go
+ * through here and use the `tx` handed to it -- a `sql` captured from outside
+ * the callback is still the pool and is still outside the transaction.
+ *
+ * Rolls back on any thrown error and re-throws; commits otherwise.
+ *
+ * On PGLite (preview/tests) there is only ever one connection, and PGLite
+ * serializes the queries issued to it, so transactions there are already
+ * mutually exclusive -- which is why the advisory lock inside them is
+ * effectively a no-op on that backend rather than the thing providing the
+ * safety. It is the Neon path, with a real pool and real concurrency, that
+ * the lock is for.
+ */
+export async function withTransaction<T>(fn: (tx: Sql) => Promise<T>): Promise<T> {
+  // Also guarantees migrations have been applied before the first statement.
+  await getSql();
+
+  if (dbSource === "pglite") {
+    const pg = await getPglite();
+    return pg.transaction(async (tx) => {
+      const txSql = toSql(async <R>(text: string, params: unknown[]) => {
+        const res = await tx.query<R>(text, params);
+        return res.rows;
+      });
+      return fn(txSql);
+    }) as Promise<T>;
+  }
+
+  const pool = globalRef.__pgPool__;
+  if (!pool) throw new Error("withTransaction: no connection pool (getSql() should have created one)");
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const txSql = toSql(async <R>(text: string, params: unknown[]) => {
+      const res = await client.query(text, params);
+      return res.rows as R[];
+    });
+    const result = await fn(txSql);
+    await client.query("commit");
+    return result;
+  } catch (err) {
+    // A rollback that itself fails (connection already gone) must not mask
+    // the error that caused it.
+    await client.query("rollback").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**

@@ -383,3 +383,65 @@ Two things about `/subscribe/success` worth knowing before testing it:
   never a token or magic link — see `src/lib/ticket-qr.ts` for why that is not
   negotiable. The matrix is baked, and `scripts/ticket-qr.test.ts` re-encodes
   it on every run so it cannot silently drift to encoding something else.
+
+## Multi-child model — deviations from the Builder ticket
+
+Everything in the ticket is implemented. Five things were done differently
+from its text, each because the ticket's SQL sketch described a schema this
+repo does not have, or because following it literally would have broken
+something:
+
+1. **The migration is `0014_multi_child.sql`, not `0013`.** `0013` is taken
+   (`0013_child_lifecycle.sql`, already deployed). That file also already
+   added `children.archived_at`, so `0014` re-declares it with
+   `if not exists` rather than adding it twice.
+
+2. **`children`, not `child`; `text` ids, not `uuid`.** Every id in this repo
+   is app-generated with `crypto.randomUUID()` and stored as `text` (see
+   `0001_auth.sql`'s header). A `uuid`-typed `covered_child_id` could not have
+   carried the foreign key at all.
+
+3. **The FK cascade change was a no-op, verified rather than assumed.** The
+   ticket asks to convert any `ON DELETE CASCADE` from `child` to `RESTRICT`.
+   There is none: `0013` added all six progress-table foreign keys with no
+   `ON DELETE` clause, i.e. `NO ACTION`, which refuses the same deletes
+   `RESTRICT` would. Converting would mean dropping and re-adding six
+   constraints — the destructive reshape the additive gate exists to prevent.
+   `scripts/multi-child.test.ts` asserts against a real database that a hard
+   delete of a child with progress raises, and that no FK to `children` is
+   `CASCADE`.
+
+4. **`children.household_id` had to be revived.** It has been dead since
+   `0010` — written once by that migration's backfill, never by `createChild`
+   — so every ownership check keyed off `user_id` instead. `0014` backfills it
+   from `household_member` and `createChild` now writes it, because ownership
+   is a household question and `user_id` stops being equivalent the moment a
+   second parent joins a household (`joinHousehold`, already implemented).
+
+5. **`resolveHouseholdId`'s creation path does not take the advisory lock.**
+   The lock is keyed by household id, and on that path the household does not
+   exist yet. It is already exactly-once by construction: a unique index on
+   `household_member.user_id` plus a re-select, which is the right primitive
+   for "create if absent". Every other caller the ticket names — `createChild`,
+   `assignAnnualPass`, `archiveChild`, the `orders/paid` handler — does take it.
+
+### One thing the ticket did not specify, and the model needs
+
+There was **no way to add a second child**. `/onboard` skips its own form for
+any household that already has one (correct for the post-login hop it was
+built for), and no other surface created children — so the whole multi-child
+model was unreachable. Added: `/onboard?add=1`, reached from a 「＋追加」
+control beside the child chips on the parent surface.
+
+### One design instruction not followed literally
+
+§4.1 asks for the switcher to draw an uncovered sibling as **outline only**,
+"the same 未開通 language the map uses". It does not: the current child is
+solid, every sibling is outlined, and coverage is not rendered at all. An
+outline meaning "your brother has the pass and you do not" is a price signal
+on the child surface wearing a different coat — a child can read it, will ask
+about it, and the answer is about money. The locked board they land on already
+says 「いまは のれません」, which is the honest amount for a child to know;
+the explanation lives on the parent surface, in front of the person who can
+act on it. Raising this rather than quietly diverging: it is a product call,
+and reverting it is a two-line change in `src/components/child-switcher.tsx`.

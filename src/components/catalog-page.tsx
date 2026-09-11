@@ -8,19 +8,21 @@ import { useI18n } from "@/lib/i18n/i18n";
 
 export function CatalogPage({
   hrefBase,
+  childId,
   childName,
   childGrade,
   viewGrade,
   query,
 }: {
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
+  childId?: string;
   childName?: string;
   childGrade: Grade;
   viewGrade?: Grade;
   query: string;
 }) {
   const { t } = useI18n();
-  const catalogTo = hrefBase === "/demo" ? "/demo/catalog" : "/app/catalog";
+  const catalogTo = hrefBase === "/demo" ? "/demo/catalog" : "/app/child/$childId/catalog";
   const grade = viewGrade;
   const hits = searchKyoiku(query, grade ?? "all");
   const exactMiss = query.trim().length === 1 && !getKanji(query.trim());
@@ -37,14 +39,16 @@ export function CatalogPage({
           <GradeSwitcher
             value={grade}
             hrefBase={catalogTo}
+            childId={childId}
             search={query ? { q: query } : undefined}
           />
-          <KanjiSearch hrefBase={hrefBase} defaultQuery={query} />
+          <KanjiSearch hrefBase={hrefBase} childId={childId} defaultQuery={query} />
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <Link
             to={catalogTo}
+            params={childId ? { childId } : undefined}
             search={query ? { q: query } : {}}
             className={`inline-flex h-11 items-center rounded-full px-3 ${
               !grade ? "bg-fg text-bg" : "border border-border bg-surface text-fg-muted"
@@ -67,8 +71,8 @@ export function CatalogPage({
             {hits.map((k) => (
               <li key={k.char}>
                 <Link
-                  to={hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/kanji/$char"}
-                  params={{ char: k.char }}
+                  to={hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/child/$childId/kanji/$char"}
+                  params={childId ? { childId, char: k.char } : { char: k.char }}
                   search={{ grade: k.grade }}
                   className="flex h-16 flex-col items-center justify-center rounded-md border border-border bg-surface hover:bg-bg-warm"
                   aria-label={`${k.char} ${t("gradeLabel", { n: k.grade })}`}
@@ -83,7 +87,12 @@ export function CatalogPage({
 
         {grade ? (
           <p className="mt-8 text-center text-sm">
-            <Link to={hrefBase} search={{ grade }} className="underline">
+            <Link
+              to={hrefBase}
+              params={childId ? { childId } : undefined}
+              search={{ grade }}
+              className="underline"
+            >
               {t("catalogJump", { n: grade })}
             </Link>
           </p>

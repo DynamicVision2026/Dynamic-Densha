@@ -1,21 +1,34 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { ChildShell } from "@/components/child-shell";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useResolvedChildId } from "@/lib/use-resolved-child";
 import { mapSearchFrom } from "@/lib/grade-nav";
 
-/** 路線図 is an overlay on child home, not a peer route. */
+/**
+ * Pre-scoping path, kept as a redirect. Child surfaces moved to
+ * /app/child/$childId/... (see src/routes/app/child.$childId.tsx); this
+ * resolves which child the caller meant and forwards. Not deleted, because
+ * this URL is in real browser histories and home-screen shortcuts.
+ */
 export const Route = createFileRoute("/app/map")({
-  component: AppMapRedirect,
+  component: LegacyMap,
   validateSearch: mapSearchFrom,
 });
 
-function AppMapRedirect() {
+function LegacyMap() {
   const search = Route.useSearch();
-  return (
-    <Navigate
-      to="/app"
-      search={{
-        ...(search.grade ? { grade: search.grade } : {}),
-      }}
-      replace
-    />
-  );
+  const childId = useResolvedChildId();
+
+  if (childId === undefined) {
+    return (
+      <ChildShell>
+        <div className="grid flex-1 place-items-center px-4">
+          <Skeleton className="h-48 w-full max-w-[900px] rounded-[28px]" />
+        </div>
+      </ChildShell>
+    );
+  }
+  if (childId === null) return <Navigate to="/onboard" replace />;
+
+  return <Navigate to="/app/child/$childId" params={{ childId }} search={search} replace />;
 }

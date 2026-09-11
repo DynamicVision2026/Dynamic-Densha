@@ -30,7 +30,10 @@ test("empty ticket is a button, click handler is unconditional, disabling is ent
   assert.match(src, /onClick=\{onRide\}/);
   assert.match(src, /data-ticket-empty/);
   assert.match(src, /disabled=\{disabled\}/);
-  assert.match(home, /params: \{ char: depart\.kanji \}/);
+  // Route scoping: the ride target is /app/child/$childId/kanji/$char, so
+  // the child rides alongside the character in params rather than being
+  // resolved from localStorage at the far end.
+  assert.match(home, /params: childId \? \{ childId, char: depart\.kanji \} : \{ char: depart\.kanji \}/);
   assert.match(home, /freeRide/);
 });
 

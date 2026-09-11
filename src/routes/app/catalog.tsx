@@ -1,60 +1,34 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/app-shell";
-import { CatalogPage } from "@/components/catalog-page";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { ChildShell } from "@/components/child-shell";
 import { Skeleton } from "@/components/ui/skeleton";
-import { readActiveChildId, writeActiveChildId } from "@/lib/active-child";
+import { useResolvedChildId } from "@/lib/use-resolved-child";
 import { catalogSearchFrom } from "@/lib/grade-nav";
-import { listChildren } from "@/lib/server/children";
-import type { Grade } from "@/data/kyoiku";
 
+/**
+ * Pre-scoping path, kept as a redirect. Child surfaces moved to
+ * /app/child/$childId/... (see src/routes/app/child.$childId.tsx); this
+ * resolves which child the caller meant and forwards. Not deleted, because
+ * this URL is in real browser histories and home-screen shortcuts.
+ */
 export const Route = createFileRoute("/app/catalog")({
-  component: AppCatalog,
+  component: LegacyCatalog,
   validateSearch: catalogSearchFrom,
 });
 
-function AppCatalog() {
-  const navigate = useNavigate();
+function LegacyCatalog() {
   const search = Route.useSearch();
-  const [childId, setChildId] = useState<string | null>(null);
-  const childrenQ = useQuery({ queryKey: ["children"], queryFn: () => listChildren() });
+  const childId = useResolvedChildId();
 
-  useEffect(() => {
-    if (!childrenQ.data) return;
-    if (childrenQ.data.length === 0) {
-      void navigate({ to: "/onboard" });
-      return;
-    }
-    const stored = readActiveChildId();
-    const next =
-      (stored && childrenQ.data.some((c) => c.id === stored) && stored) || childrenQ.data[0]!.id;
-    setChildId(next);
-    writeActiveChildId(next);
-  }, [childrenQ.data, navigate]);
-
-  const current = useMemo(
-    () => childrenQ.data?.find((c) => c.id === childId),
-    [childrenQ.data, childId],
-  );
-
-  if (!current) {
+  if (childId === undefined) {
     return (
-      <AppShell>
-        <div className="mx-auto max-w-5xl px-4 py-10">
-          <Skeleton className="h-64 w-full rounded-xl" />
+      <ChildShell>
+        <div className="grid flex-1 place-items-center px-4">
+          <Skeleton className="h-48 w-full max-w-[900px] rounded-[28px]" />
         </div>
-      </AppShell>
+      </ChildShell>
     );
   }
+  if (childId === null) return <Navigate to="/onboard" replace />;
 
-  return (
-    <CatalogPage
-      hrefBase="/app"
-      childName={current.name}
-      childGrade={current.grade as Grade}
-      viewGrade={search.grade}
-      query={search.q ?? ""}
-    />
-  );
+  return <Navigate to="/app/child/$childId/catalog" params={{ childId }} search={search} replace />;
 }

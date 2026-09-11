@@ -20,7 +20,7 @@ export function MapOverlay({
 }: {
   open: boolean;
   lines: MapLineView[];
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
   childId?: string;
   grade?: Grade;
   onClose: () => void;

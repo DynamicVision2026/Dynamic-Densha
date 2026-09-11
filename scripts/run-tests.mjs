@@ -72,6 +72,7 @@ const TS_TESTS = [
   "scripts/ticket-qr.test.ts",
   "scripts/post-purchase.test.ts",
   "scripts/admin-access.test.ts",
+  "scripts/multi-child.test.ts",
 ];
 
 const stages = [

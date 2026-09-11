@@ -1,103 +1,37 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KanjiSession } from "@/components/kanji-session";
-import { AppShell } from "@/components/app-shell";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { ChildShell } from "@/components/child-shell";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getKanji } from "@/data/kyoiku";
-import { readActiveChildId } from "@/lib/active-child";
-import { parseGrade } from "@/lib/grade-nav";
-import { PRACTICE_KINDS, type PracticeKind } from "@/lib/mastery";
-import {
-  completeEncounter,
-  completeUnderstand,
-  getKanjiStudy,
-  submitPractice,
-} from "@/lib/server/progress";
+import { useResolvedChildId } from "@/lib/use-resolved-child";
 
-type Search = { child?: string; mode?: "play" | "look"; kind?: PracticeKind; grade?: number };
-
+/**
+ * Pre-scoping path, kept as a redirect. Child surfaces moved to
+ * /app/child/$childId/... (see src/routes/app/child.$childId.tsx); this
+ * resolves which child the caller meant and forwards. Not deleted, because
+ * this URL is in real browser histories and home-screen shortcuts.
+ */
 export const Route = createFileRoute("/app/kanji/$char")({
-  component: KanjiStudy,
-  validateSearch: (s: Record<string, unknown>): Search => ({
-    child: typeof s.child === "string" ? s.child : undefined,
-    mode: s.mode === "look" ? "look" : "play",
-    kind: PRACTICE_KINDS.includes(s.kind as PracticeKind)
-      ? (s.kind as PracticeKind)
-      : undefined,
-    grade: parseGrade(s.grade),
+  component: LegacyKanji,
+  validateSearch: (s: Record<string, unknown>) => ({
+    mode: s.mode === "look" ? ("look" as const) : ("play" as const),
+    grade: typeof s.grade === "number" ? s.grade : undefined,
   }),
 });
 
-function KanjiStudy() {
-  const { char: raw } = Route.useParams();
-  const char = decodeURIComponent(raw);
+function LegacyKanji() {
   const search = Route.useSearch();
-  const childId = search.child || readActiveChildId() || "";
-  const lookMode = (search.mode ?? "play") === "look";
-  const qc = useQueryClient();
+  const { char } = Route.useParams();
+  const childId = useResolvedChildId();
 
-  const studyQ = useQuery({
-    queryKey: ["study", childId, char],
-    queryFn: () => getKanjiStudy({ data: { childId, char } }),
-    enabled: Boolean(childId),
-  });
-
-  const encounter = useMutation({
-    mutationFn: () => completeEncounter({ data: { childId, char } }),
-    onSuccess: (out) => {
-      void qc.setQueryData(["study", childId, char], (prev: typeof studyQ.data) =>
-        prev ? { ...prev, progress: out.progress, nextArrival: out.nextArrival } : prev,
-      );
-    },
-  });
-  const understand = useMutation({
-    mutationFn: () => completeUnderstand({ data: { childId, char } }),
-    onSuccess: (out) => {
-      void qc.setQueryData(["study", childId, char], (prev: typeof studyQ.data) =>
-        prev ? { ...prev, progress: out.progress, nextArrival: out.nextArrival } : prev,
-      );
-    },
-  });
-
-  if (!childId || studyQ.isLoading || !studyQ.data) {
+  if (childId === undefined) {
     return (
-      <AppShell>
-        <div className="mx-auto max-w-lg px-5 py-16">
-          <Skeleton className="h-80 w-full rounded-xl" />
+      <ChildShell>
+        <div className="grid flex-1 place-items-center px-4">
+          <Skeleton className="h-48 w-full max-w-[900px] rounded-[28px]" />
         </div>
-      </AppShell>
+      </ChildShell>
     );
   }
+  if (childId === null) return <Navigate to="/onboard" replace />;
 
-  const study = studyQ.data;
-
-  return (
-    <KanjiSession
-      key={char}
-      char={char}
-      progress={study.progress}
-      nextArrival={study.nextArrival}
-      grade={getKanji(char)?.grade ?? study.child.grade}
-      lookMode={lookMode}
-      echoOn={!lookMode && study.echoOn}
-      childId={childId}
-      childName={study.child.name}
-      hrefHome="/app"
-      busy={encounter.isPending || understand.isPending}
-      onEncounter={() => encounter.mutateAsync()}
-      onUnderstand={() => understand.mutateAsync()}
-      onAnswer={async (input) => {
-        const out = await submitPractice({
-          data: {
-            childId,
-            char,
-            ...input,
-          },
-        });
-        await qc.invalidateQueries({ queryKey: ["study", childId, char] });
-        await qc.invalidateQueries({ queryKey: ["home", childId] });
-        return out;
-      }}
-    />
-  );
+  return <Navigate to="/app/child/$childId/kanji/$char" params={{ childId, char }} search={search} replace />;
 }

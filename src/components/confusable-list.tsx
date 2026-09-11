@@ -11,7 +11,7 @@ export function ConfusableList({
   childGrade,
 }: {
   pairs: Array<ConfusablePair & { playable: boolean }>;
-  hrefBase: "/demo" | "/app";
+  hrefBase: "/demo" | "/app/child/$childId";
   childId?: string;
   childGrade: number;
 }) {
@@ -29,9 +29,9 @@ export function ConfusableList({
             <li key={`${pair.a}${pair.b}`}>
               {pair.playable ? (
                 <Link
-                  to={hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/kanji/$char"}
-                  params={{ char: target }}
-                  search={childId ? { child: childId, mode: "play" } : { mode: "play" }}
+                  to={hrefBase === "/demo" ? "/demo/kanji/$char" : "/app/child/$childId/kanji/$char"}
+                  params={childId ? { childId, char: target } : { char: target }}
+                  search={{ mode: "play" as const }}
                   className="flex h-14 items-center justify-between rounded-md border border-border bg-bg px-3 hover:bg-bg-warm"
                 >
                   <span className="font-display text-2xl tracking-widest">

@@ -18,7 +18,7 @@ import {
   type Entitlement,
   type ParentTrialBanner,
 } from "@/lib/entitlement";
-import { resolveHouseholdId, getOrCreateCheckoutToken } from "@/lib/server/household";
+import { getOrCreateCheckoutToken } from "@/lib/server/household";
 
 type Sql = {
   <T = Record<string, unknown>>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T[]>;
@@ -78,6 +78,27 @@ export async function recomputeSubscription(
         updated_at = now()
     where household_id = ${householdId}
   `;
+
+  // Upgrading to a buyout CLEARS the annual pass's child assignment rather
+  // than reassigning it: a buyout covers every child, so a set
+  // covered_child_id would mean the opposite of what the family just paid
+  // for -- it would lock the household they just widened down to one child.
+  //
+  // Here, in the derivation, rather than in the webhook handler, for the
+  // same reason everything else about a household's state is derived: the
+  // webhook is one delivery of one event, and a household whose buyout
+  // arrived while this column was already set must end up cleared on the
+  // next read regardless of whether that particular delivery ran this code.
+  //
+  // covered_assigned_at is deliberately left alone. It gates annual
+  // reassignment only, there is no downgrade path back to annual, and
+  // keeping it preserves "when was the pass last moved" for support.
+  if (derived.plan === "buyout") {
+    await sql`
+      update household set covered_child_id = null
+      where id = ${householdId} and covered_child_id is not null
+    `;
+  }
 
   return derived;
 }
@@ -213,20 +234,14 @@ export async function getParentTrialBanner(
 }
 
 /**
- * Riding itself is what's gated, not just the write at the end of one
- * (spec §3.1/§13 rule 4) -- a lapsed/cancelled household can view its train
- * (canView is never false) but must not be able to open a session at all:
- * not the study payload, not encounter/understand, not the graded answer.
- * Every server function reachable once a ride starts calls this first, so
- * there's one throw site and one error string, not four copies of the same
- * three lines.
+ * There used to be an `assertCanRide(sql, userId)` here: one household-level
+ * gate that every ride-path server function called. It is gone, replaced by
+ * assertChildCanRide in src/lib/server/coverage.ts, because it answered the
+ * wrong question once a pass could cover one child instead of all of them --
+ * an annual household is entitled, so this returned true for EVERY child in
+ * it, including the siblings the pass does not cover. It also never checked
+ * that the childId in the request belonged to the caller at all.
+ *
+ * Deleted rather than left deprecated: a correctly-named function that
+ * silently under-checks is the kind of thing a future handler reaches for.
  */
-export async function assertCanRide(
-  sql: Sql,
-  userId: string,
-  nowIso: string = new Date().toISOString(),
-): Promise<void> {
-  const householdId = await resolveHouseholdId(sql, userId, nowIso);
-  const gate = await getEntitlementForHousehold(sql, householdId, nowIso);
-  if (!gate.canRide) throw new Error("この列車は いま のれません");
-}
