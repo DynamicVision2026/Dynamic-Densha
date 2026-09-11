@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { isAllowedNext, resolvePostAuthNext } from "../src/lib/post-auth-redirect.ts";
+import {
+  ADMIN_HOME,
+  ADMIN_LOGIN_PATH,
+  CONSUMER_ROOT,
+  resolveAdminNext,
+  signOutDestinationFor,
+} from "../src/lib/admin-routes.ts";
 
 /**
  * The admin surface must not be caught by the consumer onboarding gate.
@@ -114,4 +121,81 @@ test("the overview carries the webhook log the admin surface promises", () => {
   const route = codeOf("src/routes/app/admin.tsx");
   assert.match(route, /data-admin-webhooks/);
   assert.match(route, /adminWebhookLog/);
+});
+
+/**
+ * The console's auth lifecycle is its own: a separate door in, a separate
+ * door out, and a decision about who may pass that happens before any
+ * consumer route renders. These lock that separation down -- it is exactly
+ * the kind of wiring that silently reverts when someone tidies a redirect.
+ */
+
+test("the admin portal's `next` allow-list only ever returns you to the console", () => {
+  assert.equal(resolveAdminNext("/app/admin"), "/app/admin");
+  assert.equal(resolveAdminNext("/app/admin/orders?q=1"), "/app/admin/orders?q=1");
+  // Narrower than the consumer list on purpose: these pass isAllowedNext.
+  assert.equal(resolveAdminNext("/subscribe"), ADMIN_HOME);
+  assert.equal(resolveAdminNext("/app/parent"), ADMIN_HOME);
+  assert.equal(resolveAdminNext("/app"), ADMIN_HOME);
+  // And it is still an allow-list, not a sanitizer.
+  assert.equal(resolveAdminNext("https://evil.example/app/admin"), ADMIN_HOME);
+  assert.equal(resolveAdminNext("//evil.example/app/admin"), ADMIN_HOME);
+  assert.equal(resolveAdminNext("/app/adminx"), ADMIN_HOME);
+  assert.equal(resolveAdminNext(undefined), ADMIN_HOME);
+});
+
+test("sign-out goes back to the door you came in through", () => {
+  assert.equal(signOutDestinationFor("/app/admin"), ADMIN_LOGIN_PATH);
+  assert.equal(signOutDestinationFor("/app/admin/orders"), ADMIN_LOGIN_PATH);
+  assert.equal(signOutDestinationFor("/app/parent"), CONSUMER_ROOT);
+  assert.equal(signOutDestinationFor("/app"), CONSUMER_ROOT);
+  // /admin/login is the console's door, but signing out of the consumer app
+  // must never land there -- it is not a page a parent should ever see.
+  assert.notEqual(CONSUMER_ROOT, ADMIN_LOGIN_PATH);
+});
+
+test("the sign-out button asks where it is before it decides where to go", () => {
+  const src = codeOf("src/lib/auth/gates.tsx");
+  assert.match(src, /signOut\(signOutDestinationFor\(path\)\)/);
+  assert.match(src, /useRouterState/);
+  // The old form took no argument and fell through to signOut's "/" default.
+  assert.equal(/void signOut\(\)\.catch/.test(src), false);
+});
+
+test("a signed-out visit to /app/admin is sent to the console's own login", () => {
+  const src = codeOf("src/routes/app/route.tsx");
+  assert.match(src, /if \(isAdminSurface\(path\)\) return <RedirectToSignIn to=\{ADMIN_LOGIN_PATH\} next=\{path\} \/>;/);
+  // The consumer branch must still exist below it, unchanged.
+  assert.match(src, /<RedirectToSignIn next=\{isAllowedNext\(path\) \? path : undefined\} \/>/);
+});
+
+test("the admin portal carries no consumer onboarding surface", () => {
+  const src = codeOf("src/routes/admin.login.tsx");
+  // No AppShell (train chrome, もどる, brand header), and above all no hop
+  // through /onboard -- that hop is what asks an admin to register a child.
+  assert.equal(/AppShell/.test(src), false);
+  assert.equal(/\/onboard/.test(src), false);
+  assert.equal(/signUp|password/i.test(src), false);
+  assert.match(src, /Beyond Culture 管理コンソール/);
+  assert.match(src, /漢字でんしゃ 管理者ログイン/);
+  assert.match(src, /Google アカウントでログイン/);
+});
+
+test("the portal decides admin-or-not itself, before anything in /app renders", () => {
+  const src = codeOf("src/routes/admin.login.tsx");
+  assert.match(src, /getAdminStatus/);
+  // OAuth returns HERE, not straight to the destination, so the check runs first.
+  assert.match(src, /callbackURL = `\$\{ADMIN_LOGIN_PATH\}\?next=/);
+  assert.match(src, /if \(isAdmin\) window\.location\.href = dest;/);
+  // Neither "sign in" nor "forbidden" may be shown while the check is open.
+  assert.match(src, /undecided/);
+});
+
+test("a non-admin signing in through the portal gets 403 and a way out of the session", () => {
+  const src = codeOf("src/routes/admin.login.tsx");
+  assert.match(src, /管理者権限がありません/);
+  assert.match(src, /data-admin-login-forbidden/);
+  assert.match(src, /signOut\(ADMIN_LOGIN_PATH\)/);
+  // No "back to the app" escape hatch: that drops them into the consumer flow.
+  assert.equal(/to="\/app"|backToApp/.test(src), false);
 });

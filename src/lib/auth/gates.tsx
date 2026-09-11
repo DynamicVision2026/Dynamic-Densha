@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { Navigate } from "@tanstack/react-router";
+import { Navigate, useRouterState } from "@tanstack/react-router";
 import { authEnabled, signOut } from "./client";
+import { signOutDestinationFor } from "../admin-routes";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
 
 /**
@@ -65,6 +66,12 @@ export function UserButton() {
   // Sign-out can take a moment (and can fail when deployed), so the control
   // shows it is working and cannot be fired twice.
   const [signingOut, setSigningOut] = useState(false);
+  // Where sign-out lands depends on which surface you signed out FROM: the
+  // admin console returns to its own login page, everything else to the
+  // consumer root. Read here rather than passed in as a prop because this
+  // button is rendered by shared chrome (<AuthSlot /> inside <AppShell />)
+  // that has no idea which page it is decorating.
+  const path = useRouterState({ select: (s) => s.location.pathname });
   if (!user) return null;
   const label = user.displayName ?? user.primaryEmail ?? "Account";
   return (
@@ -88,7 +95,7 @@ export function UserButton() {
           onClick={() => {
             setSigningOut(true);
             // Success navigates away; on failure re-enable so it can be retried.
-            void signOut().catch(() => setSigningOut(false));
+            void signOut(signOutDestinationFor(path)).catch(() => setSigningOut(false));
           }}
           className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
         >
