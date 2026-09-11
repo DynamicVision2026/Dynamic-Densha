@@ -69,7 +69,7 @@ function SubscribeSuccess() {
     // The email link is the primary return path (§1.2) and may be opened
     // days later on a device with no session, so sign-in has to come back
     // here rather than dumping the parent on the dashboard.
-    return <RedirectToSignIn to={`/login?next=${encodeURIComponent("/subscribe/success")}`} />;
+    return <RedirectToSignIn next="/subscribe/success" />;
   }
 
   const active = passQ.data?.active === true;

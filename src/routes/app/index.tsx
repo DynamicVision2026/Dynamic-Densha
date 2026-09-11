@@ -8,6 +8,7 @@ import { readActiveChildId, writeActiveChildId } from "@/lib/active-child";
 import { resolveActiveGrade, usePersistActiveGrade } from "@/lib/active-grade";
 import { gradeSearchFrom } from "@/lib/grade-nav";
 import { listChildren } from "@/lib/server/children";
+import { getAdminStatus } from "@/lib/server/admin";
 import { maybeImportGuestProgress } from "@/lib/guest-migrate-client";
 import { getHomeState, getMapState } from "@/lib/server/progress";
 import { useNow } from "@/lib/use-now";
@@ -28,10 +29,23 @@ function AppHome() {
     queryFn: () => listChildren(),
   });
 
+  // Only consulted when this account has no child and would otherwise be
+  // sent to onboarding -- an admin has no child and never will, so the
+  // consumer gate below must not catch them. A normal family never triggers
+  // this query at all.
+  const childless = Boolean(childrenQ.data && childrenQ.data.length === 0);
+  const adminQ = useQuery({
+    queryKey: ["admin-status"],
+    queryFn: () => getAdminStatus(),
+    enabled: childless,
+    retry: false,
+  });
+
   useEffect(() => {
     if (!childrenQ.data) return;
     if (childrenQ.data.length === 0) {
-      void navigate({ to: "/onboard" });
+      if (adminQ.isLoading) return; // decide once, rather than bouncing to /onboard first
+      void navigate({ to: adminQ.data?.isAdmin ? "/app/admin" : "/onboard" });
       return;
     }
     const stored = readActiveChildId();
@@ -40,7 +54,7 @@ function AppHome() {
       childrenQ.data[0]!.id;
     setChildId(next);
     writeActiveChildId(next);
-  }, [childrenQ.data, navigate]);
+  }, [childrenQ.data, navigate, adminQ.isLoading, adminQ.data]);
 
   useEffect(() => {
     if (!childId) return;

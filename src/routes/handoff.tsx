@@ -55,8 +55,10 @@ function Handoff() {
 
   if (isPending) return null;
   if (!user) {
-    const next = `/handoff${plan ? `?plan=${encodeURIComponent(plan)}` : ""}`;
-    return <RedirectToSignIn to={`/login?next=${encodeURIComponent(next)}`} />;
+    // /handoff isn't itself allow-listed as a post-auth destination, so this
+    // resolves to /app after sign-in -- the plan param is carried anyway in
+    // case that list ever widens.
+    return <RedirectToSignIn next={`/handoff${plan ? `?plan=${encodeURIComponent(plan)}` : ""}`} />;
   }
 
   // No auto-redirect. This screen now carries the price, the non-renewal

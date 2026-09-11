@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { createChild, listChildren } from "@/lib/server/children";
+import { getAdminStatus } from "@/lib/server/admin";
 import { writeActiveChildId } from "@/lib/active-child";
 import { writeStoredActiveGrade } from "@/lib/active-grade";
 import { AppShell } from "@/components/app-shell";
@@ -58,13 +59,34 @@ function Onboard() {
     enabled: Boolean(user),
   });
   const hasChildren = Boolean(childrenQ.data && childrenQ.data.length > 0);
+  const childless = Boolean(childrenQ.data && childrenQ.data.length === 0);
+
+  // Every post-login destination hops through here (see login.tsx), and this
+  // form is what a childless account gets. That is right for a parent and
+  // wrong for an admin, who has no child and never will -- without this they
+  // are asked to register one before they can reach anything. Only asked
+  // when we are about to show the form, so a normal family never pays for
+  // the query.
+  const adminQ = useQuery({
+    queryKey: ["admin-status"],
+    queryFn: () => getAdminStatus(),
+    enabled: Boolean(user) && childless,
+    retry: false,
+  });
+  const isAdmin = adminQ.data?.isAdmin === true;
+  const adminUndecided = childless && adminQ.isLoading;
+
   useEffect(() => {
+    if (isAdmin) {
+      void navigate({ to: "/app/admin" });
+      return;
+    }
     if (!hasChildren) return;
     if (dest === "/app") void navigate({ to: "/app" });
     else window.location.href = dest;
-  }, [hasChildren, dest, navigate]);
+  }, [isAdmin, hasChildren, dest, navigate]);
 
-  if (isPending || (user && childrenQ.isLoading) || hasChildren) {
+  if (isPending || (user && childrenQ.isLoading) || hasChildren || adminUndecided || isAdmin) {
     return (
       <AppShell>
         <div className="mx-auto max-w-md px-5 py-16">

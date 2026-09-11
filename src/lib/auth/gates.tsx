@@ -40,8 +40,19 @@ export function SignedOut({ children }: { children: ReactNode }) {
  * Guard routes by waiting out `isPending` first (see `use-current-user`), then
  * render this.
  */
-export function RedirectToSignIn({ to = SIGN_IN_PATH }: { to?: string }) {
-  return <Navigate to={to} />;
+export function RedirectToSignIn({ to = SIGN_IN_PATH, next }: { to?: string; next?: string }) {
+  // `next` is a separate prop, NOT a query string baked into `to`: <Navigate>
+  // treats `to` as a route path and drops anything after the "?", so
+  // `to="/login?next=/app/admin"` landed on /login with no search at all.
+  //
+  // Frozen on first render, because <Navigate> re-fires on every props
+  // change and the caller is still mounted while the navigation settles: the
+  // guard above would re-run with the location already changed to /login,
+  // compute `next: undefined` for it, and navigate a second time -- wiping
+  // the search params it had just set. Both failures are silent, and both
+  // were only visible in a real browser.
+  const [frozen] = useState({ to, next });
+  return <Navigate to={frozen.to} search={frozen.next ? { next: frozen.next } : undefined} replace />;
 }
 
 /**

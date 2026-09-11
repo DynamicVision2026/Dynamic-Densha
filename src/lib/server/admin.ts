@@ -64,31 +64,72 @@ export type AdminHouseholdRow = {
   shopifyOrderId: string | null;
 };
 
+/** A recent Shopify webhook delivery, as the admin needs to read it: what came in, for whom, and against which order. */
+export type AdminWebhookEvent = {
+  receivedAt: string;
+  type: string;
+  householdId: string;
+  ownerEmail: string | null;
+  orderName: string | null;
+  shopifyOrderId: string | null;
+  plan: string | null;
+};
+
 export type AdminOverview = {
   summary: AdminSummary;
   households: AdminHouseholdRow[];
+  webhookEvents: AdminWebhookEvent[];
 };
 
 function toIso(v: string | Date): string {
   return v instanceof Date ? v.toISOString() : v;
 }
 
+type Sql = Awaited<ReturnType<typeof getSql>>;
+
+/**
+ * The one place the admin decision is made from a session. Both the status
+ * probe and the data query go through it, so there is no way for the cheap
+ * check the routes use and the real gate on the data to drift apart.
+ */
+async function isCallerAdmin(sql: Sql, userId: string): Promise<boolean> {
+  const rows = await sql<{ email: string | null }>`
+    select email from "user" where id = ${userId}
+  `;
+  return isAdminEmail(rows[0]?.email ?? null, process.env.ADMIN_EMAILS);
+}
+
+/**
+ * "Is the caller an admin" and nothing else — a boolean, never an email,
+ * never a household.
+ *
+ * Exists because several consumer routes now have to answer one question
+ * before they gate someone: /onboard and /app both funnel a childless
+ * account into the register-a-child form, which is correct for a parent and
+ * wrong for an admin, who has no child and never will. Those routes only
+ * ask this when they are ABOUT to redirect into onboarding, so a normal
+ * family never pays for the query.
+ */
+export const getAdminStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<{ isAdmin: boolean }> => {
+    const sql = await getSql();
+    return { isAdmin: await isCallerAdmin(sql, context.userId) };
+  });
+
 /**
  * Every household, owner, and child, plus live-derived status/plan/valid-
- * until — sorted by registration date, newest first. Throws (client redirects
- * to /app on any error, unauthenticated included — see routes/app/admin.tsx)
- * unless the caller's own account email matches the admin allow-list.
+ * until — sorted by registration date, newest first — and the recent webhook
+ * log. Throws unless the caller's own account email matches the admin
+ * allow-list; the route renders a 403 in that case (routes/app/admin.tsx)
+ * rather than redirecting, since bouncing a refused caller to /app put a
+ * childless account straight into the register-a-child form.
  */
 export const getAdminOverview = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<AdminOverview> => {
     const sql = await getSql();
-    const requester = await sql<{ email: string | null }>`
-      select email from "user" where id = ${context.userId}
-    `;
-    if (!isAdminEmail(requester[0]?.email ?? null, process.env.ADMIN_EMAILS)) {
-      throw new Error("Not authorized");
-    }
+    if (!(await isCallerAdmin(sql, context.userId))) throw new Error("Not authorized");
 
     const nowIso = new Date().toISOString();
 
@@ -198,5 +239,42 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       });
     }
 
-    return { summary, households: rows };
+    // Webhook log. billing_event is the append-only record of what Shopify
+    // actually delivered, so this is the one place to see a payment that
+    // landed against no household, or a refund that arrived before its own
+    // order. payload->'raw'->>'name' is the Shopify order name (#1001);
+    // shopifyOrderId is the numeric id the refund path matches on.
+    const events = await sql<{
+      received_at: string | Date;
+      type: string;
+      household_id: string;
+      email: string | null;
+      order_name: string | null;
+      shopify_order_id: string | null;
+      plan: string | null;
+    }>`
+      select be.received_at, be.type, be.household_id, u.email,
+             be.payload->'raw'->>'name' as order_name,
+             be.payload->>'shopifyOrderId' as shopify_order_id,
+             be.payload->>'plan' as plan
+      from billing_event be
+      left join household_member hm on hm.household_id = be.household_id and hm.role = 'owner'
+      left join "user" u on u.id = hm.user_id
+      order by be.received_at desc
+      limit 50
+    `;
+
+    return {
+      summary,
+      households: rows,
+      webhookEvents: events.map((e) => ({
+        receivedAt: toIso(e.received_at),
+        type: e.type,
+        householdId: e.household_id,
+        ownerEmail: e.email,
+        orderName: e.order_name,
+        shopifyOrderId: e.shopify_order_id,
+        plan: e.plan,
+      })),
+    };
   });
