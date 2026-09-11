@@ -134,98 +134,6 @@ ok(page.url().includes(childA), "a stale/guessed child id is redirected, not 404
       `\nPRECONDITION: this household already has ${existing.length} children. ` +
         `Restart the dev server (its PGLite database is in memory) and re-run.`,
     );
-    // ── 12. buy an ANNUAL pass, and watch coverage decide who rides ──────────
-// The token is the household's own checkout_token, round-tripped through the
-// cart permalink -- exactly how a real order carries it back. Read off the
-// real CTA rather than invented, so a wrong token fails loudly here instead
-// of silently "working".
-await page.goto(`${BASE}/handoff?plan=annual`);
-await page.waitForSelector("[data-checkout-cta]", { timeout: 20000 });
-const checkoutHref = await page.getAttribute("[data-checkout-cta]", "href");
-const token = new URL(checkoutHref).searchParams.get("attributes[kd_token]");
-ok(Boolean(token), "the checkout link carries the household's own token");
-
-const paid = await shopifyWebhook(
-  page,
-  "orders/paid",
-  {
-    id: 90001,
-    name: "#1001",
-    line_items: [{ variant_id: 222 }],
-    note_attributes: [{ name: "kd_token", value: token }],
-  },
-  `wh-annual-${Date.now()}`,
-);
-ok(paid.status === 200, `a signed orders/paid for the annual variant is accepted (${paid.status})`);
-
-// ── 13. an unassigned annual pass blocks on the parent surface ───────────
-await page.goto(`${BASE}/app/parent`);
-await page.waitForSelector("[data-pass-assignment]", { timeout: 20000 });
-ok(Boolean(await page.$("[data-pass-unassigned]")), "an unassigned annual pass shows the blocking chooser");
-const parentText = await page.textContent("[data-pass-assignment]");
-ok(parentText.includes("1年パスをご利用になるお子さまを選んでください"), "with the approved copy");
-ok(parentText.includes("ご家庭ライセンス"), "and the buyout as the way to cover everyone");
-ok(Boolean(await page.$("[data-pass-upgrade]")), "with a live route to it -- on the PARENT surface");
-
-// ── 14. assign it, then check both boards ───────────────────────────────
-await page.click(`[data-pass-choose="${childA}"]`);
-await page.waitForSelector("[data-pass-assignment]:not([data-pass-unassigned])", { timeout: 20000 });
-ok(!(await page.$("[data-pass-unassigned]")), "assigning the pass clears the blocking state");
-
-await page.goto(`${BASE}/app/child/${childA}`);
-await page.waitForSelector("[data-child-switcher]", { timeout: 20000 });
-const coveredTicket = await page.getAttribute("[data-ticket-empty], button[data-ticket-empty]", "data-ticket-disabled").catch(() => null);
-const coveredHtml = await page.content();
-ok(coveredTicket === null, "the covered child's boarding pass is live");
-ok(!coveredHtml.includes("いまは のれません"), "and does not say they cannot board");
-
-await page.goto(`${BASE}/app/child/${childB}`);
-await page.waitForSelector("[data-child-switcher]", { timeout: 20000 });
-const lockedHtml = await page.content();
-ok(lockedHtml.includes("いまは のれません"), "the uncovered sibling's board says 「いまは のれません」");
-ok(!/¥|アップグレード|9,800|3,800/.test(lockedHtml), "and carries no price, tier, or upgrade");
-ok(!lockedHtml.includes("/subscribe"), "and no route into commerce");
-ok(!lockedHtml.includes("保護者の方へ"), "and does not send the child to fetch a parent about money");
-// The train itself is still there -- canView is never false.
-ok((await page.$$("[data-strip-car]")).length > 0, "the train, line strip and stamps are all still visible");
-const ticketDisabled = await page.getAttribute("[data-ticket-disabled]", "aria-disabled").catch(() => null);
-ok(ticketDisabled === "true", "the boarding pass is genuinely disabled, not just styled");
-
-// ── 15. the cooldown ─────────────────────────────────────────────────────
-// Inside 30 days the pass cannot be moved, and the card says so rather than
-// letting a parent tap and be refused. (The server refuses it too --
-// COOLDOWN_ACTIVE -- but that path is belt-and-braces behind this state; the
-// arithmetic itself is covered in scripts/multi-child.test.ts.)
-await page.goto(`${BASE}/app/parent`);
-await page.waitForSelector("[data-pass-cooldown]", { timeout: 20000 });
-const cooldownText = (await page.textContent("[data-pass-cooldown]")) ?? "";
-ok(/次に変更できるのは/.test(cooldownText) && /以降です/.test(cooldownText),
-   `the cooldown names the date it ends: ${cooldownText.trim()}`);
-const siblingDisabled = await page.getAttribute(`[data-pass-choose="${childB}"]`, "disabled");
-ok(siblingDisabled !== null, "and the sibling cannot be chosen while it runs");
-
-// The pass did NOT move.
-await page.goto(`${BASE}/app/child/${childA}`);
-await page.waitForSelector("[data-child-switcher]", { timeout: 20000 });
-ok(!(await page.content()).includes("いまは のれません"), "the pass stayed with the child who had it");
-
-// ── 16. upgrade to a buyout: coverage is cleared, everyone rides ─────────
-const buyout = await shopifyWebhook(
-  page,
-  "orders/paid",
-  { id: 90002, name: "#1002", line_items: [{ variant_id: 111 }], note_attributes: [{ name: "kd_token", value: token }] },
-  `wh-buyout-${Date.now()}`,
-);
-ok(buyout.status === 200, `a signed orders/paid for the buyout variant is accepted (${buyout.status})`);
-
-await page.goto(`${BASE}/app/child/${childB}`);
-await page.waitForSelector("[data-child-switcher]", { timeout: 20000 });
-ok(!(await page.content()).includes("いまは のれません"), "after the buyout the previously-locked sibling rides");
-await page.goto(`${BASE}/app/parent`);
-await page.waitForSelector("[data-add-child]", { timeout: 20000 });
-ok(!(await page.$("[data-pass-assignment]")), "and the assignment card is gone -- a buyout has nothing to assign");
-
-await browser.close();
     process.exit(2);
   }
 }
@@ -358,16 +266,22 @@ const ticketDisabled = await page.getAttribute("[data-ticket-disabled]", "aria-d
 ok(ticketDisabled === "true", "the boarding pass is genuinely disabled, not just styled");
 
 // ── 15. the cooldown ─────────────────────────────────────────────────────
+// Inside 30 days the pass cannot be moved, and the card SAYS so rather than
+// letting a parent tap and be refused. (assignAnnualPass refuses it too, with
+// COOLDOWN_ACTIVE, but that is belt-and-braces behind this state; the
+// arithmetic itself is covered in scripts/multi-child.test.ts.)
 await page.goto(`${BASE}/app/parent`);
-await page.waitForSelector("[data-pass-assignment]", { timeout: 20000 });
-await page.click(`[data-pass-choose="${childB}"]`);
-await page.waitForSelector("[data-pass-assign-error], [data-pass-cooldown]", { timeout: 20000 });
-const cooldownText = (await page.textContent("[data-pass-assignment]")) ?? "";
-ok(/次に変更できるのは/.test(cooldownText), "reassigning inside 30 days is refused with the date it becomes possible");
-// And the pass did NOT move.
+await page.waitForSelector("[data-pass-cooldown]", { timeout: 20000 });
+const cooldownText = (await page.textContent("[data-pass-cooldown]")) ?? "";
+ok(/次に変更できるのは/.test(cooldownText) && /以降です/.test(cooldownText),
+   `the cooldown names the date it ends: ${cooldownText.trim()}`);
+ok((await page.getAttribute(`[data-pass-choose="${childB}"]`, "disabled")) !== null,
+   "and the sibling cannot be chosen while it runs");
+
+// The pass did NOT move.
 await page.goto(`${BASE}/app/child/${childA}`);
 await page.waitForSelector("[data-child-switcher]", { timeout: 20000 });
-ok(!(await page.content()).includes("いまは のれません"), "and the pass stayed with the child who had it");
+ok(!(await page.content()).includes("いまは のれません"), "the pass stayed with the child who had it");
 
 // ── 16. upgrade to a buyout: coverage is cleared, everyone rides ─────────
 const buyout = await shopifyWebhook(
