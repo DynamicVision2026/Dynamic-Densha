@@ -28,6 +28,8 @@ type ChildDbRow = {
   grade: number;
   created_at: string | Date;
   start_band: string | null;
+  /** Only selected where the orphan repair needs it; absent elsewhere. */
+  household_id?: string | null;
 };
 
 function toChildRow(r: ChildDbRow): ChildRow {
@@ -45,16 +47,50 @@ export const listChildren = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     const householdId = await resolveHouseholdId(sql, context.userId);
-    // Household, not user: a second parent in the same household (see
-    // joinHousehold) must see the same children, and a child whose
-    // household_id somehow never got backfilled must be visible to nobody
-    // rather than to whoever shares its user_id.
+
+    // Household first, so a second parent in the same household (see
+    // joinHousehold) sees the same children.
+    //
+    // The second clause is the repair for a real outage. An earlier version
+    // of this query scoped by household_id ALONE, with a comment arguing that
+    // a child whose household_id never got backfilled "must be visible to
+    // nobody rather than to whoever shares its user_id". That reasoning was
+    // wrong twice over. The leak it guarded against cannot happen -- user_id
+    // is the child's creator, and a creator belongs to exactly one household,
+    // so a row matched this way can only ever be this family's own. And the
+    // failure it chose instead is far worse than the one it avoided: a parent
+    // with two children saw zero, and /app/parent sent them to onboarding.
+    //
+    // That is not hypothetical. The deploy pipeline applies migrations before
+    // the new revision takes traffic, so between 0014 landing and the new
+    // createChild going live there was a window where children were written
+    // with a NULL household_id. Every future migration that adds a column the
+    // new code populates has the same window; this clause is what makes it
+    // survivable rather than an outage.
     const rows = await sql<ChildDbRow>`
-      select id, name, grade, created_at, start_band
+      select id, name, grade, created_at, start_band, household_id
       from children
-      where household_id = ${householdId} and archived_at is null
+      where archived_at is null
+        and (household_id = ${householdId}
+             or (household_id is null and user_id = ${context.userId}))
       order by created_at asc
     `;
+
+    // Heal what we just had to reach for, so the fallback stops firing and
+    // the row is visible to a co-parent too. Best-effort on purpose: a failure
+    // here must not cost the parent the list they asked for.
+    const orphaned = rows.filter((r) => r.household_id == null).map((r) => r.id);
+    if (orphaned.length > 0) {
+      try {
+        await sql`
+          update children set household_id = ${householdId}
+          where user_id = ${context.userId} and household_id is null
+        `;
+      } catch {
+        /* the read already succeeded; the next visit will try again */
+      }
+    }
+
     return rows.map(toChildRow) satisfies ChildRow[];
   });
 
@@ -414,7 +450,7 @@ export const setChildGrade = createServerFn({ method: "POST" })
 
     // Ownership before anything else, and 404-shaped: a childId from another
     // household must be indistinguishable from one that does not exist.
-    const owned = await findOwnedChild(sql, householdId, data.childId);
+    const owned = await findOwnedChild(sql, householdId, data.childId, context.userId);
     if (!owned) return { error: { code: "CHILD_NOT_FOUND" } };
     if (owned.grade === grade) return { error: { code: "SAME_GRADE", grade } };
 

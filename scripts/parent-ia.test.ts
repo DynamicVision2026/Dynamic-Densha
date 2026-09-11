@@ -153,7 +153,7 @@ test("grade validation rejects out-of-range before it writes anything", () => {
   assert.match(body, /code: "CHILD_NOT_FOUND"/);
   // 404 semantics, never 403: findOwnedChild answers both "no such child" and
   // "someone else's child" the same way.
-  assert.match(body, /findOwnedChild\(sql, householdId, data\.childId\)/);
+  assert.match(body, /findOwnedChild\(sql, householdId, data\.childId, context\.userId\)/);
 });
 
 // ── metrics ───────────────────────────────────────────────────────────────
@@ -368,4 +368,147 @@ test("nothing the parent hub adds can reach a child surface", () => {
       assert.equal(src.includes(mod), false, `${f} imports ${mod}`);
     }
   }
+});
+
+// ── the orphaned-household outage ─────────────────────────────────────────
+
+/**
+ * A household with two children read as zero, and /app/parent sent the parent
+ * to /onboard.
+ *
+ * Cause: the deploy pipeline applies migrations BEFORE the new revision takes
+ * traffic (deliberately -- the old revision has to keep working against the
+ * new schema). In run 17 that gap was 3m42s: 0014 added children.household_id
+ * at 05:13:26 and the revision whose createChild populates it went live at
+ * 05:17:08. Children created in between were written by the old createChild
+ * and landed with household_id NULL -- and listChildren scoped by
+ * household_id alone, so they belonged to nobody.
+ *
+ * These tests reproduce that row and prove both halves of the repair: the
+ * migration heals existing rows, and the query no longer needs it to.
+ */
+
+test("a child written during a deploy window is still their own family's", async () => {
+  const pg = await freshDb();
+  await seed(pg);
+  // Exactly what the old revision's createChild wrote: no household_id.
+  await pg.query(
+    "insert into children (id, user_id, name, grade) values ('orphan','u1','はなこ',1)",
+  );
+
+  // The query as it was: scoped by household_id alone.
+  const oldWay = await pg.query(
+    "select id from children where household_id = 'hh1' and archived_at is null",
+  );
+  assert.equal(oldWay.rows.length, 1, "the pre-fix query saw only the non-orphaned child");
+
+  // The query as it is now.
+  const newWay = await pg.query(
+    `select id from children
+     where archived_at is null
+       and (household_id = 'hh1' or (household_id is null and user_id = 'u1'))
+     order by created_at asc`,
+  );
+  assert.equal(newWay.rows.length, 2, "both children are visible to their own parent again");
+});
+
+test("the widened match cannot reach another household's child", async () => {
+  const pg = await freshDb();
+  await seed(pg);
+  // Another family, and an orphaned row of THEIRS.
+  await pg.query("insert into household (id) values ('hh2')");
+  await pg.query("insert into household_member (household_id, user_id, role) values ('hh2','u2','owner')");
+  await pg.query("insert into children (id, user_id, name, grade) values ('theirs','u2','よその子',1)");
+
+  const mine = await pg.query(
+    `select id from children
+     where archived_at is null
+       and (household_id = 'hh1' or (household_id is null and user_id = 'u1'))`,
+  );
+  assert.deepEqual(
+    mine.rows.map((r) => (r as { id: string }).id),
+    ["c1"],
+    "an orphaned row belonging to another creator is never matched",
+  );
+});
+
+test("0015 heals the orphaned rows permanently", async () => {
+  const pg = await freshDb();
+  await seed(pg);
+  await pg.query("insert into children (id, user_id, name, grade) values ('orphan','u1','はなこ',1)");
+
+  const sql = await readFile("migrations/0015_reheal_child_household.sql", "utf8");
+  const stripped = sql.replace(/--.*$/gm, "").trim();
+  await pg.exec(stripped);
+
+  const healed = await pg.query<{ household_id: string | null }>(
+    "select household_id from children where id = 'orphan'",
+  );
+  assert.equal(healed.rows[0]!.household_id, "hh1");
+
+  // Idempotent: running it again changes nothing.
+  await pg.exec(stripped);
+  const again = await pg.query<{ household_id: string | null }>(
+    "select household_id from children where id = 'orphan'",
+  );
+  assert.equal(again.rows[0]!.household_id, "hh1");
+});
+
+test("a user who lost their membership row adopts their own household back", async () => {
+  const pg = await freshDb();
+  await seed(pg);
+  // The other half of the same outage: the child kept its household, the user
+  // lost the row that says they belong to it. Minting a fresh household here
+  // would hide their children AND their subscription behind a new id.
+  await pg.query("delete from household_member where user_id = 'u1'");
+
+  const owned = await pg.query<{ household_id: string }>(
+    "select household_id from children where user_id = 'u1' and household_id is not null order by created_at asc limit 1",
+  );
+  assert.equal(owned.rows[0]!.household_id, "hh1", "their household is discoverable from their own children");
+
+  await pg.query(
+    "insert into household_member (household_id, user_id, role) values ($1,'u1','owner') on conflict (user_id) do nothing",
+    [owned.rows[0]!.household_id],
+  );
+  const restored = await pg.query<{ household_id: string }>(
+    "select household_id from household_member where user_id = 'u1'",
+  );
+  assert.equal(restored.rows[0]!.household_id, "hh1", "and it is restored rather than replaced");
+});
+
+test("every ownership path carries the orphan fallback, not just the list", () => {
+  // A child visible in the list but refused by the gate would be a worse bug
+  // than the one being fixed.
+  const coverage = readFileSync("src/lib/server/coverage.ts", "utf8");
+  assert.match(coverage, /household_id is null and user_id = \$\{userId \?\? null\}/);
+  const progress = readFileSync("src/lib/server/progress.ts", "utf8");
+  assert.match(progress, /household_id is null and user_id = \$\{userId\}/);
+  const children = readFileSync("src/lib/server/children.ts", "utf8");
+  assert.match(children, /household_id is null and user_id = \$\{context\.userId\}/);
+  // And every call site passes the creator through, or the fallback is dead code.
+  for (const call of children.match(/findOwnedChild\([^)]*\)/g) ?? []) {
+    assert.match(call, /context\.userId/, `findOwnedChild call missing userId: ${call}`);
+  }
+});
+
+test("listChildren heals what it had to reach for", () => {
+  const src = readFileSync("src/lib/server/children.ts", "utf8");
+  assert.match(src, /update children set household_id = \$\{householdId\}/);
+  // Best-effort: the read already succeeded, and a failed repair must not
+  // cost the parent the list.
+  const start = src.indexOf("const orphaned = rows.filter");
+  const body = src.slice(start, start + 600);
+  assert.match(body, /try \{/);
+  assert.match(body, /\} catch \{/);
+});
+
+test("/onboard cannot hang on a failing children query, and emits no add=false", () => {
+  const src = readFileSync("src/routes/onboard.tsx", "utf8");
+  // React Query retries with backoff; keeping the skeleton up through that is
+  // what made a failed listChildren look like an indefinite hang.
+  assert.match(src, /childrenQ\.isLoading && !childrenQ\.isError/);
+  // `add` is undefined when absent, so it never appears in the URL.
+  assert.match(src, /\? true : undefined/);
+  assert.match(src, /type Search = \{ next\?: string; add\?: true \}/);
 });

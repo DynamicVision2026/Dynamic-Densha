@@ -478,10 +478,26 @@ test("all four progress mutations check ownership before entitlement", () => {
   assert.match(coverage, /new ChildAccessError\(403/);
 });
 
-test("ownership is a household question, not a user_id one", () => {
+test("ownership is a household question, with user_id only as the orphan fallback", () => {
   const coverage = readFileSync("src/lib/server/coverage.ts", "utf8");
   assert.match(coverage, /household_id = \$\{householdId\}/);
-  assert.equal(/user_id = \$\{/.test(coverage), false);
+
+  // This test used to assert that user_id appeared NOWHERE here, and that
+  // assertion was the bug: scoping by household_id alone made children whose
+  // household_id was null during a deploy window belong to nobody, and a
+  // parent with two children was shown zero. user_id is allowed now, but
+  // ONLY guarded by `household_id is null` -- a bare user_id match would
+  // bring back the co-parent blindness the household scoping exists to fix.
+  const userIdUses = coverage.match(/user_id = \$\{[^}]*\}/g) ?? [];
+  for (const use of userIdUses) {
+    const at = coverage.indexOf(use);
+    const context = coverage.slice(Math.max(0, at - 120), at + use.length);
+    assert.match(
+      context,
+      /household_id is null and /,
+      `user_id matched outside the orphan fallback: ${use}`,
+    );
+  }
 });
 
 test("every household mutation runs under the lock, inside a transaction", () => {

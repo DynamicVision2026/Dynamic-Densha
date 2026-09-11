@@ -71,20 +71,30 @@ export type OwnedChild = { id: string; name: string; grade: number };
 /**
  * The child, if it belongs to this household and is not archived.
  *
- * `household_id = <caller's household>` and nothing else -- not user_id.
- * A null household_id (a row that escaped 0014's backfill) never equals a
- * real household id, so such a row is simply invisible rather than
- * accessible to whoever asks first.
+ * Matched by household_id, OR by creator when the row's household_id is null.
+ * That second clause exists because a null household_id is not evidence of a
+ * stranger's child -- it is evidence of a row written during a deploy window,
+ * between a migration adding the column and the revision that populates it
+ * going live. Treating those rows as nobody's made a family's own children
+ * invisible to them (see listChildren's note).
+ *
+ * It cannot widen access beyond the family: user_id is the child's creator,
+ * and a creator belongs to exactly one household, so a row reached this way
+ * is always the caller's own. `userId` is required rather than optional so
+ * every call site has to think about it.
  */
 export async function findOwnedChild(
   sql: Sql,
   householdId: string,
   childId: string,
+  userId?: string,
 ): Promise<OwnedChild | null> {
   if (!childId) return null;
   const rows = await sql<{ id: string; name: string; grade: number }>`
     select id, name, grade from children
-    where id = ${childId} and household_id = ${householdId} and archived_at is null
+    where id = ${childId} and archived_at is null
+      and (household_id = ${householdId}
+           or (household_id is null and user_id = ${userId ?? null}))
   `;
   return rows[0] ?? null;
 }
@@ -94,8 +104,9 @@ export async function assertOwnedChild(
   sql: Sql,
   householdId: string,
   childId: string,
+  userId?: string,
 ): Promise<OwnedChild> {
-  const child = await findOwnedChild(sql, householdId, childId);
+  const child = await findOwnedChild(sql, householdId, childId, userId);
   if (!child) throw new ChildAccessError(404, "こどもが見つかりません");
   return child;
 }
@@ -135,8 +146,9 @@ export async function assertChildCanRide(
   householdId: string,
   childId: string,
   nowIso: string = new Date().toISOString(),
+  userId?: string,
 ): Promise<OwnedChild> {
-  const child = await assertOwnedChild(sql, householdId, childId);
+  const child = await assertOwnedChild(sql, householdId, childId, userId);
   const gate = await getChildEntitlement(sql, householdId, childId, nowIso);
   if (!gate.canRide) throw new ChildAccessError(403, "この列車は いま のれません");
   return child;

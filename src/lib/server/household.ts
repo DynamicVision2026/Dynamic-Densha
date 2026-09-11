@@ -105,6 +105,34 @@ export async function resolveHouseholdId(
   `;
   if (existing[0]) return existing[0].household_id;
 
+  // Before minting a new one: does this user already OWN children that carry
+  // a household? If so, that household is theirs and the membership row is
+  // what went missing -- restore it rather than starting them over with an
+  // empty household, which would hide their own children and their own
+  // subscription behind a brand-new id.
+  //
+  // This is the second half of the same outage the orphan fallback in
+  // server/children.ts addresses: there the row lost its household, here the
+  // user lost their membership. Both end with a family staring at onboarding.
+  const owned = await sql<{ household_id: string }>`
+    select household_id from children
+    where user_id = ${userId} and household_id is not null
+    order by created_at asc
+    limit 1
+  `;
+  const adopted = owned[0]?.household_id;
+  if (adopted) {
+    await sql`
+      insert into household_member (household_id, user_id, role)
+      values (${adopted}, ${userId}, 'owner')
+      on conflict (user_id) do nothing
+    `;
+    const restored = await sql<{ household_id: string }>`
+      select household_id from household_member where user_id = ${userId}
+    `;
+    if (restored[0]) return restored[0].household_id;
+  }
+
   const householdId = `hh_${randomUUID()}`;
   // checkout_token: an opaque, per-household id safe to hand to a browser
   // (unlike household_id itself) -- see getOrCreateCheckoutToken below for

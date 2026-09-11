@@ -139,7 +139,7 @@ function rowToState(r: Record<string, unknown>): ProgressState {
 async function assertChildCanRideForCaller(userId: string, childId: string): Promise<void> {
   const sql = await getSql();
   const householdId = await resolveHouseholdId(sql, userId);
-  await assertChildCanRide(sql, householdId, childId);
+  await assertChildCanRide(sql, householdId, childId, new Date().toISOString(), userId);
 }
 
 export async function loadProgress(userId: string, childId: string, sqlClient?: Sql) {
@@ -150,9 +150,13 @@ export async function loadProgress(userId: string, childId: string, sqlClient?: 
   // co-parent's children from them. A cross-household id finds nothing and
   // raises the 404-shaped ChildAccessError, never a 403: see coverage.ts.
   const householdId = await resolveHouseholdId(sql, userId);
+  // Same orphan fallback as listChildren: a null household_id is a row from a
+  // deploy window, not a stranger's child. See server/children.ts's note.
   const owned = await sql<{ id: string; grade: number; name: string }>`
     select id, grade, name from children
-    where id = ${childId} and household_id = ${householdId} and archived_at is null
+    where id = ${childId} and archived_at is null
+      and (household_id = ${householdId}
+           or (household_id is null and user_id = ${userId}))
   `;
   const child = owned[0];
   if (!child) throw new ChildAccessError(404, "こどもが見つかりません");
@@ -550,7 +554,7 @@ export const listMistakes = createServerFn({ method: "GET" })
     // also hide a co-parent's children from them once a second parent joins
     // a household. 404 either way -- never a 403.
     const householdId = await resolveHouseholdId(sql, context.userId);
-    await assertOwnedChild(sql, householdId, childId);
+    await assertOwnedChild(sql, householdId, childId, context.userId);
     const rows = await sql<{
       kanji: string;
       kind: string;

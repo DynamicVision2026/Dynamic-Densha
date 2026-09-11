@@ -17,7 +17,7 @@ import { StartBandPicker } from "@/components/start-band-picker";
 import type { StartBand } from "@/lib/grade-route";
 import { resolvePostAuthNext } from "@/lib/post-auth-redirect";
 
-type Search = { next?: string; add?: boolean };
+type Search = { next?: string; add?: true };
 
 export const Route = createFileRoute("/onboard")({
   component: Onboard,
@@ -31,7 +31,10 @@ export const Route = createFileRoute("/onboard")({
     // Parsed loosely on purpose: TanStack hands this through as a string
     // from a typed <Link search={{ add: true }}> and as a number from a
     // hand-typed ?add=1, and the difference is not worth a bug.
-    add: s.add === 1 || s.add === "1" || s.add === true || s.add === "true",
+    // undefined, not false, when absent: a literal `add=false` in the URL is
+    // noise a parent sees, and it made a plain post-login hop look like a
+    // deliberate add-a-child request in bug reports.
+    add: s.add === 1 || s.add === "1" || s.add === true || s.add === "true" ? true : undefined,
   }),
 });
 
@@ -104,7 +107,12 @@ function Onboard() {
     else window.location.href = dest;
   }, [isAdmin, hasChildren, dest, navigate]);
 
-  if (isPending || (user && childrenQ.isLoading) || hasChildren || adminUndecided || isAdmin) {
+  // `childrenQ.isFetching` rather than `isLoading` would keep this spinning
+  // through React Query's retry backoff, which is what turned a failing
+  // listChildren into a page that never resolved. An ERRORED query falls
+  // through to the form below: a parent who can still register a child is
+  // better served than one watching a skeleton.
+  if (isPending || (user && childrenQ.isLoading && !childrenQ.isError) || hasChildren || adminUndecided || isAdmin) {
     return (
       <AppShell>
         <div className="mx-auto max-w-md px-5 py-16">

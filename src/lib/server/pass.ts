@@ -80,7 +80,7 @@ export const assignAnnualPass = createServerFn({ method: "POST" })
         // no pass to move.
         if (derived.plan !== "annual") return { error: { code: "NOT_ANNUAL" } as const };
 
-        const child = await findOwnedChild(tx, householdId, data.childId);
+        const child = await findOwnedChild(tx, householdId, data.childId, context.userId);
         if (!child) return { error: { code: "CHILD_NOT_FOUND" } as const };
 
         const coverage = await readCoverage(tx, householdId);
