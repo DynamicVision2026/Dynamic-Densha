@@ -10,6 +10,7 @@ import { InstallGuide } from "@/components/install-guide";
 import { PlanCards, CurrentPlanNotice } from "@/components/plan-cards";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { childLabels, formatChildLabel } from "@/lib/child-labels";
 import { readActiveChildId } from "@/lib/active-child";
 import { resolveInitialChildId } from "@/lib/child-route-resolve";
 import { archiveChild, listChildren, renameChild, setChildGrade, updateStartBand } from "@/lib/server/children";
@@ -57,6 +58,11 @@ function ParentSettings() {
   // The report tab needs somewhere to point; the last-viewed child is the
   // least surprising answer.
   const reportChildId = resolveInitialChildId(children, readActiveChildId());
+  const labels = childLabels(
+    children,
+    (g) => t("gradeN", { n: g }),
+    (n) => t("childOrdinal", { n }),
+  );
 
   return (
     <ParentHub tab="settings" childId={reportChildId}>
@@ -77,10 +83,12 @@ function ParentSettings() {
           <Skeleton className="mt-4 h-24 w-full rounded-lg" />
         ) : (
           <ul className="mt-3 divide-y divide-border">
-            {children.map((c) => (
+            {children.map((c, i) => (
               <ChildProfileRow
                 key={c.id}
                 child={{ id: c.id, name: c.name, grade: c.grade, startBand: c.startBand }}
+                ambiguous={labels[i]?.qualifier != null}
+                displayLabel={labels[i] ? formatChildLabel(labels[i]!) : c.name}
                 onRename={async (name) => {
                   await renameChild({ data: { childId: c.id, name } });
                   await Promise.all([
@@ -174,15 +182,24 @@ function ParentSettings() {
       {passQ.data ? (
         <PassAssignmentCard
           assignment={passQ.data}
-          children={children.map((c) => ({ id: c.id, name: c.name }))}
+          children={children.map((c) => ({ id: c.id, name: c.name, grade: c.grade, createdAt: c.createdAt }))}
           onAssign={async (id) => {
             const result = await assignAnnualPass({ data: { childId: id } });
-            // Coverage changes what every child's board may do, so the
-            // board's own cached entitlement has to go too.
+            // Coverage changes what EVERY child's surface may do -- the one
+            // gaining the pass and the one losing it -- so every cache keyed
+            // by child goes, not just the board's. `study` matters most: a
+            // child sitting on /app/child/<id>/kanji/<char> when the pass
+            // moves away holds a payload the server would now refuse.
+            //
+            // Verified in both directions, in-app with no reload, by
+            // scripts/pass-cache-walkthrough.mjs.
             await Promise.all([
               passQ.refetch(),
               qc.invalidateQueries({ queryKey: ["overview"] }),
               qc.invalidateQueries({ queryKey: ["home"] }),
+              qc.invalidateQueries({ queryKey: ["map"] }),
+              qc.invalidateQueries({ queryKey: ["study"] }),
+              qc.invalidateQueries({ queryKey: ["pass-state"] }),
             ]);
             return result;
           }}

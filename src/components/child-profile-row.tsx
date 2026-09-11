@@ -30,14 +30,25 @@ export function ChildProfileRow({
   onRename,
   onSetGrade,
   onSetStartBand,
+  ambiguous = false,
+  displayLabel,
 }: {
   child: { id: string; name: string; grade: number; startBand: StartBand };
+  /**
+   * Set when another living sibling shares this name. The rename field then
+   * opens on its own and says why -- a parent who cannot tell two children
+   * apart should not have to discover that a disclosure triangle is where
+   * the fix lives.
+   */
+  ambiguous?: boolean;
+  /** The disambiguated label, used wherever this child is named. */
+  displayLabel?: string;
   onRename: (name: string) => Promise<void>;
   onSetGrade: (grade: number) => Promise<{ ok: boolean; message?: string }>;
   onSetStartBand: (band: StartBand) => Promise<void>;
 }) {
   const { t } = useI18n();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(ambiguous);
   const [name, setName] = useState(child.name);
   const [grade, setGrade] = useState(child.grade);
   const [confirming, setConfirming] = useState(false);
@@ -49,7 +60,8 @@ export function ChildProfileRow({
     setGrade(child.grade);
     setConfirming(false);
     setError(null);
-  }, [child.id, child.name, child.grade]);
+    if (ambiguous) setEditing(true);
+  }, [child.id, child.name, child.grade, ambiguous]);
 
   const nameChanged = name.trim() !== "" && name.trim() !== child.name;
   const gradeChanged = grade !== child.grade;
@@ -83,7 +95,7 @@ export function ChildProfileRow({
   return (
     <li data-child-row={child.id} className="py-4 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="font-display text-base">{child.name}</span>
+        <span className="font-display text-base">{displayLabel ?? child.name}</span>
         <span className="text-sm text-fg-muted">{t("gradeN", { n: child.grade })}</span>
         <button
           type="button"
@@ -98,6 +110,11 @@ export function ChildProfileRow({
 
       {editing ? (
         <div className="mt-3 rounded-lg border border-border bg-bg-warm p-4">
+          {ambiguous ? (
+            <p className="mb-3 text-sm leading-6 text-fg-muted" data-duplicate-name-hint>
+              {t("duplicateNameHint")}
+            </p>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor={`name-${child.id}`}>{t("renameChildLabel")}</Label>
             <div className="flex flex-wrap items-center gap-2">

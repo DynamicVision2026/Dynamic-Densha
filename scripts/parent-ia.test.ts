@@ -512,3 +512,118 @@ test("/onboard cannot hang on a failing children query, and emits no add=false",
   assert.match(src, /\? true : undefined/);
   assert.match(src, /type Search = \{ next\?: string; add\?: true \}/);
 });
+
+// ── siblings who share a name ─────────────────────────────────────────────
+
+/**
+ * A household reached production with two children both called "Brian2023".
+ * Every chooser rendered two identical buttons; the parent assigned the pass
+ * to one, opened the other's board, saw 「いまは のれません」 and reported a
+ * caching bug. The cache was correct. The labels were not.
+ */
+
+test("a unique name is shown bare; a shared one is qualified", async () => {
+  const { childLabels, formatChildLabel } = await import("../src/lib/child-labels.ts");
+  const g = (n: number) => `${n}年`;
+  const o = (n: number) => `${n}人目`;
+
+  const mixed = childLabels(
+    [
+      { id: "a", name: "たろう", grade: 4 },
+      { id: "b", name: "はなこ", grade: 1 },
+    ],
+    g,
+    o,
+  );
+  assert.deepEqual(mixed.map((l) => l.qualifier), [null, null], "distinct names need no qualifier");
+  assert.equal(formatChildLabel(mixed[0]!), "たろう");
+});
+
+test("same name, different years: the year separates them", async () => {
+  const { childLabels, formatChildLabel } = await import("../src/lib/child-labels.ts");
+  const labels = childLabels(
+    [
+      { id: "a", name: "Brian2023", grade: 4 },
+      { id: "b", name: "Brian2023", grade: 1 },
+    ],
+    (n) => `${n}年`,
+    (n) => `${n}人目`,
+  );
+  assert.deepEqual(labels.map(formatChildLabel), ["Brian2023（4年）", "Brian2023（1年）"]);
+});
+
+test("same name AND same year: birth order is the last resort", async () => {
+  const { childLabels, formatChildLabel } = await import("../src/lib/child-labels.ts");
+  const labels = childLabels(
+    [
+      { id: "a", name: "Brian2023", grade: 1, createdAt: "2026-01-02T00:00:00Z" },
+      { id: "b", name: "Brian2023", grade: 1, createdAt: "2026-01-01T00:00:00Z" },
+    ],
+    (n) => `${n}年`,
+    (n) => `${n}人目`,
+  );
+  // Ordered by creation, not by the order passed in: 'b' was added first.
+  assert.equal(formatChildLabel(labels.find((l) => l.id === "b")!), "Brian2023（1人目）");
+  assert.equal(formatChildLabel(labels.find((l) => l.id === "a")!), "Brian2023（2人目）");
+});
+
+test("the clash is detected the same way the duplicate prompt detects it", async () => {
+  const { childLabels } = await import("../src/lib/child-labels.ts");
+  // Width and case fold, so ﾀﾛｳ and タロウ are one name and get qualified.
+  const labels = childLabels(
+    [
+      { id: "a", name: "ﾀﾛｳ", grade: 1 },
+      { id: "b", name: "タロウ", grade: 2 },
+    ],
+    (n) => `${n}年`,
+    (n) => `${n}人目`,
+  );
+  assert.ok(labels.every((l) => l.qualifier != null), "a width variant is still the same name");
+});
+
+test("every chooser that names a child disambiguates it", () => {
+  for (const f of [
+    "src/components/parent-shell.tsx",
+    "src/components/pass-assignment-card.tsx",
+    "src/components/child-switcher.tsx",
+    "src/routes/app/parent.settings.tsx",
+  ]) {
+    assert.match(readFileSync(f, "utf8"), /childLabels\(/, `${f} renders a bare name`);
+  }
+  // The pass chooser is the one that did the damage: its buttons, its holder
+  // line and its confirm must all use the label, never the raw name.
+  const card = readFileSync("src/components/pass-assignment-card.tsx", "utf8");
+  assert.match(card, /labelOf\(holder\.id\)/);
+  assert.match(card, /labelOf\(child\.id\)/);
+  assert.equal(/\{child\.name\}/.test(card), false, "a raw child.name is still rendered somewhere");
+});
+
+test("an ambiguous name opens its own rename field and says why", () => {
+  const row = readFileSync("src/components/child-profile-row.tsx", "utf8");
+  assert.match(row, /useState\(ambiguous\)/);
+  assert.match(row, /data-duplicate-name-hint/);
+  const settings = readFileSync("src/routes/app/parent.settings.tsx", "utf8");
+  assert.match(settings, /ambiguous=\{labels\[i\]\?\.qualifier != null\}/);
+});
+
+test("the child-surface switcher disambiguates without leaking entitlement", () => {
+  const src = readFileSync("src/components/child-switcher.tsx", "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  assert.match(src, /childLabels\(/);
+  // Year and birth order only. Nothing about passes, plans or money.
+  assert.equal(/covered|canRide|pass|¥|plan/i.test(src), false);
+});
+
+// ── the cache claim, checked rather than assumed ──────────────────────────
+
+test("assigning the pass drops every cache keyed by child, in both directions", () => {
+  const src = readFileSync("src/routes/app/parent.settings.tsx", "utf8");
+  const start = src.indexOf("const result = await assignAnnualPass");
+  const body = src.slice(start, start + 1200);
+  for (const key of ["overview", "home", "map", "study", "pass-state"]) {
+    assert.ok(body.includes(`["${key}"]`), `assignment does not invalidate ["${key}"]`);
+  }
+  // `study` is the one that matters most and was missing: a child mid-ride
+  // when the pass moves away holds a payload the server would now refuse.
+});

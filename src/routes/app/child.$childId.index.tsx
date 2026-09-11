@@ -86,7 +86,7 @@ function ChildBoard() {
     <ChildHome
       hrefBase="/app/child/$childId"
       childId={childId}
-      siblings={(childrenQ.data ?? []).map((c) => ({ id: c.id, name: c.name }))}
+      siblings={(childrenQ.data ?? []).map((c) => ({ id: c.id, name: c.name, grade: c.grade }))}
       grade={viewGrade}
       profileGrade={childGrade}
       cars={cars}

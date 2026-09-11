@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
+import { childLabels, formatChildLabel } from "@/lib/child-labels";
 import { useI18n } from "@/lib/i18n/i18n";
 import { cn } from "@/lib/utils";
 
@@ -113,13 +114,21 @@ export function SiblingRail({
 }) {
   const { t } = useI18n();
   if (childrenList.length === 0) return null;
+  // Two siblings called the same thing must not render as two identical
+  // chips -- see child-labels.ts for the household this actually happened to.
+  const labels = childLabels(
+    childrenList,
+    (g) => t("gradeN", { n: g }),
+    (n) => t("childOrdinal", { n }),
+  );
   return (
     <div
       data-sibling-rail
       className="-mx-4 mt-5 flex gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden"
     >
-      {childrenList.map((c) => {
+      {childrenList.map((c, i) => {
         const current = c.id === currentId;
+        const label = labels[i]!;
         return (
           <Link
             key={c.id}
@@ -133,10 +142,12 @@ export function SiblingRail({
               current ? "border-fg bg-fg text-bg" : "border-border bg-surface text-fg",
             )}
           >
-            {c.name}
-            <span className={cn("ml-1.5 text-xs", current ? "text-bg/70" : "text-fg-muted")}>
-              {t("gradeN", { n: c.grade })}
-            </span>
+            {label.qualifier ? formatChildLabel(label) : c.name}
+            {label.qualifier ? null : (
+              <span className={cn("ml-1.5 text-xs", current ? "text-bg/70" : "text-fg-muted")}>
+                {t("gradeN", { n: c.grade })}
+              </span>
+            )}
           </Link>
         );
       })}

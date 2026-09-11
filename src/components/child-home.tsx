@@ -53,7 +53,7 @@ export function ChildHome({
    * locomotive switcher above the board. Empty on /demo, which has exactly
    * one pretend child and nothing to switch between.
    */
-  siblings?: { id: string; name: string }[];
+  siblings?: { id: string; name: string; grade: number }[];
   grade: Grade;
   profileGrade: Grade;
   cars: StripCar[];

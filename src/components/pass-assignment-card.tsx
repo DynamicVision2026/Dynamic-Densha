@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { childLabels, formatChildLabel } from "@/lib/child-labels";
 import type { AssignResult, PassAssignment } from "@/lib/server/pass";
 import { dateWithYearLabel } from "@/lib/trial-clock";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -37,7 +38,7 @@ export function PassAssignmentCard({
   onAssign,
 }: {
   assignment: PassAssignment;
-  children: { id: string; name: string }[];
+  children: { id: string; name: string; grade: number; createdAt?: string }[];
   onAssign: (childId: string) => Promise<AssignResult>;
 }) {
   const { t, locale } = useI18n();
@@ -49,6 +50,18 @@ export function PassAssignmentCard({
   // restriction the family does not have.
   if (assignment.plan !== "annual") return null;
 
+  // The pass chooser is where indistinguishable siblings did real damage: a
+  // parent assigned the pass to one of two children both named "Brian2023",
+  // then opened the other one's board and read the lock-out as a bug.
+  const labels = childLabels(
+    children,
+    (g) => t("gradeN", { n: g }),
+    (n) => t("childOrdinal", { n }),
+  );
+  const labelOf = (id: string) => {
+    const found = labels.find((l) => l.id === id);
+    return found ? formatChildLabel(found) : "";
+  };
   const holder = children.find((c) => c.id === assignment.coveredChildId);
   const cooldownLabel = assignment.cooldownUntil
     ? t("passCooldownUntil", { date: dateWithYearLabel(assignment.cooldownUntil, locale) })
@@ -90,7 +103,7 @@ export function PassAssignmentCard({
       <h2 className="font-display text-lg">{holder ? t("passHolderTitle") : t("passAssignTitle")}</h2>
       {holder ? (
         <p className="mt-1 text-sm text-fg-muted">
-          <span className="font-display text-base text-fg">{holder.name}</span>
+          <span className="font-display text-base text-fg">{labelOf(holder.id)}</span>
         </p>
       ) : (
         <p className="mt-2 text-sm leading-6 text-fg-muted">{t("passAssignBody")}</p>
@@ -105,12 +118,12 @@ export function PassAssignmentCard({
               type="button"
               data-pass-choose={child.id}
               disabled={current || pending !== null || Boolean(cooldownLabel && holder)}
-              onClick={() => void choose(child.id, child.name)}
+              onClick={() => void choose(child.id, labelOf(child.id))}
               className={`h-11 rounded-full border px-4 text-sm disabled:opacity-60 ${
                 current ? "border-fg bg-fg text-bg" : "border-border bg-bg"
               }`}
             >
-              {pending === child.id ? "…" : child.name}
+              {pending === child.id ? "…" : labelOf(child.id)}
             </button>
           );
         })}

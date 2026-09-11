@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { childLabels, formatChildLabel } from "@/lib/child-labels";
 import { useI18n } from "@/lib/i18n/i18n";
 import { cn } from "@/lib/utils";
 
@@ -30,11 +31,19 @@ export function ChildSwitcher({
   siblings,
   currentId,
 }: {
-  siblings: { id: string; name: string }[];
+  siblings: { id: string; name: string; grade: number }[];
   currentId?: string;
 }) {
   const { t } = useI18n();
   if (siblings.length < 2) return null;
+  // Same-named siblings need telling apart here too -- a child tapping the
+  // wrong locomotive lands on their sibling's board. Year and birth order
+  // only; nothing here reveals who holds a pass.
+  const labels = childLabels(
+    siblings,
+    (g) => t("gradeN", { n: g }),
+    (n) => t("childOrdinal", { n }),
+  );
 
   return (
     <nav
@@ -42,8 +51,9 @@ export function ChildSwitcher({
       data-child-switcher
       className="flex shrink-0 gap-2 overflow-x-auto px-3 pb-1"
     >
-      {siblings.map((child) => {
+      {siblings.map((child, i) => {
         const current = child.id === currentId;
+        const label = labels[i]!;
         return (
           <Link
             key={child.id}
@@ -64,7 +74,7 @@ export function ChildSwitcher({
                 current ? "text-primary" : "text-fg-muted",
               )}
             >
-              {child.name}
+              {formatChildLabel(label)}
             </span>
           </Link>
         );
