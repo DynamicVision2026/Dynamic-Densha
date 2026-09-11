@@ -30,7 +30,7 @@ import { buildDepartureBoard } from "@/lib/departure-board";
 import { buildForwardMetrics } from "@/lib/parent-forward";
 import { buildProjectedArrival } from "@/lib/projected-arrival";
 import { canAdvanceGrade, shouldShowAprilPrompt } from "@/lib/grade-rollover";
-import { buildWeeklyPlan } from "@/lib/weekly-plan";
+import { buildWeeklyPlan, tokyoWeekStart } from "@/lib/weekly-plan";
 import { buildGradeRings } from "@/lib/train-overview";
 import {
   ensureChildPlan,
@@ -616,7 +616,45 @@ export const getParentOverview = createServerFn({ method: "GET" })
       session_id: String(ev.session_id ?? ""),
       answer: String(ev.answer ?? ""),
     }));
+    const nowIsoForWeek = new Date().toISOString();
     const stamps = await listStamps(context.userId, childId);
+
+    // 今週の乗車記録. Aggregated in SQL rather than derived from the 200-event
+    // window above: "days ridden" and "first met this week" are both questions
+    // about the whole history, and a window that a busy week can overflow
+    // would quietly under-report exactly the families who used the app most.
+    //
+    // Tokyo dates, not UTC: a session at 08:00 JST is Monday to the family and
+    // Sunday to the database, and a parent counting their child's week must
+    // get the family's answer.
+    const weekStartDate = tokyoWeekStart(nowIsoForWeek);
+    const rhythmRows = await sql<{ days: number; new_met: number }>`
+      with in_week as (
+        select kanji, created_at
+        from practice_events
+        where child_id = ${childId}
+          and (created_at at time zone 'Asia/Tokyo')::date >= ${weekStartDate}::date
+      ),
+      first_seen as (
+        select kanji, min(created_at) as first_at
+        from practice_events
+        where child_id = ${childId}
+        group by kanji
+      )
+      select
+        (select count(distinct (created_at at time zone 'Asia/Tokyo')::date) from in_week)::int as days,
+        (select count(*) from first_seen
+          where (first_at at time zone 'Asia/Tokyo')::date >= ${weekStartDate}::date)::int as new_met
+    `;
+    const weekRhythm = {
+      daysRidden: rhythmRows[0]?.days ?? 0,
+      newMet: rhythmRows[0]?.new_met ?? 0,
+      // まよい and なおし together: from a parent's side they are one thing
+      // ("needs another go"), and splitting them invites reading one of the
+      // two as failure.
+      reviewDue: counts.lost + counts.fix,
+    };
+
     const report = buildParentReport({
       grade: child.grade,
       progress: map,
@@ -670,7 +708,12 @@ export const getParentOverview = createServerFn({ method: "GET" })
       started: map.size,
       recent: events.slice(0, 12),
       stamps,
+      // Cumulative 「これまでのかんぺき」. child_stamps is append-only and
+      // written only on justReachedPerfect, so this is every car that has
+      // EVER turned green -- it survives a grade change and an echo the child
+      // later fails, which is exactly what the hero metric promises.
       stampCount: stamps.length,
+      weekRhythm,
       lines: report.lines.map((line) => ({
         id: line.id,
         label: line.label,

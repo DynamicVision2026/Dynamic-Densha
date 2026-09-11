@@ -176,11 +176,21 @@ test("parent document is sticky + 900px; sitemap order progress → week → att
   const shell = readFileSync("src/components/app-shell.tsx", "utf8");
   const report = readFileSync("src/components/parent-report.tsx", "utf8");
   const demo = readFileSync("src/routes/demo/parent.tsx", "utf8");
-  const app = readFileSync("src/routes/app/parent.tsx", "utf8");
+  // The app's parent surface is three routes now (resolver, report,
+  // settings), and the 900px document cap moved with them into the one shell
+  // they share -- so it is asserted once, where it is now declared once.
+  const app = readFileSync("src/components/parent-shell.tsx", "utf8");
   assert.match(shell, /sticky/);
   assert.match(shell, /backChild/);
   assert.match(demo, /max-w-\[900px\]/);
   assert.match(app, /max-w-\[900px\]/);
+  for (const route of [
+    "src/routes/app/parent.index.tsx",
+    "src/routes/app/parent.report.$childId.tsx",
+    "src/routes/app/parent.settings.tsx",
+  ]) {
+    assert.ok(readFileSync(route, "utf8").length > 0, `${route} should exist`);
+  }
   assert.match(demo, /WatchDemoButton/);
   assert.equal(/WatchDemoButton/.test(readFileSync("src/components/child-home.tsx", "utf8")), false);
   const progressAt = report.indexOf("data-parent-progress");

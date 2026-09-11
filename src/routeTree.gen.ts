@@ -23,7 +23,6 @@ import { Route as AppAdminRouteImport } from './routes/app/admin'
 import { Route as AppCatalogRouteImport } from './routes/app/catalog'
 import { Route as AppMapRouteImport } from './routes/app/map'
 import { Route as AppMistakesRouteImport } from './routes/app/mistakes'
-import { Route as AppParentRouteImport } from './routes/app/parent'
 import { Route as AppStampsRouteImport } from './routes/app/stamps'
 import { Route as AppWorkshopRouteImport } from './routes/app/workshop'
 import { Route as DemoIndexRouteImport } from './routes/demo/index'
@@ -38,6 +37,8 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiWebhooksShopifyRouteImport } from './routes/api/webhooks/shopify'
 import { Route as AppChildChildIdRouteImport } from './routes/app/child.$childId'
 import { Route as AppKanjiCharRouteImport } from './routes/app/kanji.$char'
+import { Route as AppParentIndexRouteImport } from './routes/app/parent.index'
+import { Route as AppParentSettingsRouteImport } from './routes/app/parent.settings'
 import { Route as DemoKanjiCharRouteImport } from './routes/demo/kanji.$char'
 import { Route as AppChildChildIdIndexRouteImport } from './routes/app/child.$childId.index'
 import { Route as AppChildChildIdCatalogRouteImport } from './routes/app/child.$childId.catalog'
@@ -45,6 +46,7 @@ import { Route as AppChildChildIdMapRouteImport } from './routes/app/child.$chil
 import { Route as AppChildChildIdMistakesRouteImport } from './routes/app/child.$childId.mistakes'
 import { Route as AppChildChildIdStampsRouteImport } from './routes/app/child.$childId.stamps'
 import { Route as AppChildChildIdWorkshopRouteImport } from './routes/app/child.$childId.workshop'
+import { Route as AppParentReportChildIdRouteImport } from './routes/app/parent.report.$childId'
 import { Route as AppChildChildIdKanjiCharRouteImport } from './routes/app/child.$childId.kanji.$char'
 
 const IndexRoute = IndexRouteImport.update({
@@ -117,11 +119,6 @@ const AppMistakesRoute = AppMistakesRouteImport.update({
   path: '/mistakes',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppParentRoute = AppParentRouteImport.update({
-  id: '/parent',
-  path: '/parent',
-  getParentRoute: () => AppRouteRoute,
-} as any)
 const AppStampsRoute = AppStampsRouteImport.update({
   id: '/stamps',
   path: '/stamps',
@@ -192,6 +189,16 @@ const AppKanjiCharRoute = AppKanjiCharRouteImport.update({
   path: '/kanji/$char',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppParentIndexRoute = AppParentIndexRouteImport.update({
+  id: '/parent/',
+  path: '/parent/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppParentSettingsRoute = AppParentSettingsRouteImport.update({
+  id: '/parent/settings',
+  path: '/parent/settings',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const DemoKanjiCharRoute = DemoKanjiCharRouteImport.update({
   id: '/demo/kanji/$char',
   path: '/demo/kanji/$char',
@@ -227,6 +234,11 @@ const AppChildChildIdWorkshopRoute = AppChildChildIdWorkshopRouteImport.update({
   path: '/workshop',
   getParentRoute: () => AppChildChildIdRoute,
 } as any)
+const AppParentReportChildIdRoute = AppParentReportChildIdRouteImport.update({
+  id: '/parent/report/$childId',
+  path: '/parent/report/$childId',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppChildChildIdKanjiCharRoute =
   AppChildChildIdKanjiCharRouteImport.update({
     id: '/kanji/$char',
@@ -248,7 +260,6 @@ export interface FileRoutesByFullPath {
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
-  '/app/parent': typeof AppParentRoute
   '/app/stamps': typeof AppStampsRoute
   '/app/workshop': typeof AppWorkshopRoute
   '/demo/catalog': typeof DemoCatalogRoute
@@ -264,12 +275,15 @@ export interface FileRoutesByFullPath {
   '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
   '/app/child/$childId': typeof AppChildChildIdRouteWithChildren
   '/app/kanji/$char': typeof AppKanjiCharRoute
+  '/app/parent/settings': typeof AppParentSettingsRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
+  '/app/parent/': typeof AppParentIndexRoute
   '/app/child/$childId/catalog': typeof AppChildChildIdCatalogRoute
   '/app/child/$childId/map': typeof AppChildChildIdMapRoute
   '/app/child/$childId/mistakes': typeof AppChildChildIdMistakesRoute
   '/app/child/$childId/stamps': typeof AppChildChildIdStampsRoute
   '/app/child/$childId/workshop': typeof AppChildChildIdWorkshopRoute
+  '/app/parent/report/$childId': typeof AppParentReportChildIdRoute
   '/app/child/$childId/': typeof AppChildChildIdIndexRoute
   '/app/child/$childId/kanji/$char': typeof AppChildChildIdKanjiCharRoute
 }
@@ -286,7 +300,6 @@ export interface FileRoutesByTo {
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
-  '/app/parent': typeof AppParentRoute
   '/app/stamps': typeof AppStampsRoute
   '/app/workshop': typeof AppWorkshopRoute
   '/demo/catalog': typeof DemoCatalogRoute
@@ -301,12 +314,15 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
   '/app/kanji/$char': typeof AppKanjiCharRoute
+  '/app/parent/settings': typeof AppParentSettingsRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
+  '/app/parent': typeof AppParentIndexRoute
   '/app/child/$childId/catalog': typeof AppChildChildIdCatalogRoute
   '/app/child/$childId/map': typeof AppChildChildIdMapRoute
   '/app/child/$childId/mistakes': typeof AppChildChildIdMistakesRoute
   '/app/child/$childId/stamps': typeof AppChildChildIdStampsRoute
   '/app/child/$childId/workshop': typeof AppChildChildIdWorkshopRoute
+  '/app/parent/report/$childId': typeof AppParentReportChildIdRoute
   '/app/child/$childId': typeof AppChildChildIdIndexRoute
   '/app/child/$childId/kanji/$char': typeof AppChildChildIdKanjiCharRoute
 }
@@ -325,7 +341,6 @@ export interface FileRoutesById {
   '/app/catalog': typeof AppCatalogRoute
   '/app/map': typeof AppMapRoute
   '/app/mistakes': typeof AppMistakesRoute
-  '/app/parent': typeof AppParentRoute
   '/app/stamps': typeof AppStampsRoute
   '/app/workshop': typeof AppWorkshopRoute
   '/demo/catalog': typeof DemoCatalogRoute
@@ -341,12 +356,15 @@ export interface FileRoutesById {
   '/api/webhooks/shopify': typeof ApiWebhooksShopifyRoute
   '/app/child/$childId': typeof AppChildChildIdRouteWithChildren
   '/app/kanji/$char': typeof AppKanjiCharRoute
+  '/app/parent/settings': typeof AppParentSettingsRoute
   '/demo/kanji/$char': typeof DemoKanjiCharRoute
+  '/app/parent/': typeof AppParentIndexRoute
   '/app/child/$childId/catalog': typeof AppChildChildIdCatalogRoute
   '/app/child/$childId/map': typeof AppChildChildIdMapRoute
   '/app/child/$childId/mistakes': typeof AppChildChildIdMistakesRoute
   '/app/child/$childId/stamps': typeof AppChildChildIdStampsRoute
   '/app/child/$childId/workshop': typeof AppChildChildIdWorkshopRoute
+  '/app/parent/report/$childId': typeof AppParentReportChildIdRoute
   '/app/child/$childId/': typeof AppChildChildIdIndexRoute
   '/app/child/$childId/kanji/$char': typeof AppChildChildIdKanjiCharRoute
 }
@@ -366,7 +384,6 @@ export interface FileRouteTypes {
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
-    | '/app/parent'
     | '/app/stamps'
     | '/app/workshop'
     | '/demo/catalog'
@@ -382,12 +399,15 @@ export interface FileRouteTypes {
     | '/api/webhooks/shopify'
     | '/app/child/$childId'
     | '/app/kanji/$char'
+    | '/app/parent/settings'
     | '/demo/kanji/$char'
+    | '/app/parent/'
     | '/app/child/$childId/catalog'
     | '/app/child/$childId/map'
     | '/app/child/$childId/mistakes'
     | '/app/child/$childId/stamps'
     | '/app/child/$childId/workshop'
+    | '/app/parent/report/$childId'
     | '/app/child/$childId/'
     | '/app/child/$childId/kanji/$char'
   fileRoutesByTo: FileRoutesByTo
@@ -404,7 +424,6 @@ export interface FileRouteTypes {
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
-    | '/app/parent'
     | '/app/stamps'
     | '/app/workshop'
     | '/demo/catalog'
@@ -419,12 +438,15 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/webhooks/shopify'
     | '/app/kanji/$char'
+    | '/app/parent/settings'
     | '/demo/kanji/$char'
+    | '/app/parent'
     | '/app/child/$childId/catalog'
     | '/app/child/$childId/map'
     | '/app/child/$childId/mistakes'
     | '/app/child/$childId/stamps'
     | '/app/child/$childId/workshop'
+    | '/app/parent/report/$childId'
     | '/app/child/$childId'
     | '/app/child/$childId/kanji/$char'
   id:
@@ -442,7 +464,6 @@ export interface FileRouteTypes {
     | '/app/catalog'
     | '/app/map'
     | '/app/mistakes'
-    | '/app/parent'
     | '/app/stamps'
     | '/app/workshop'
     | '/demo/catalog'
@@ -458,12 +479,15 @@ export interface FileRouteTypes {
     | '/api/webhooks/shopify'
     | '/app/child/$childId'
     | '/app/kanji/$char'
+    | '/app/parent/settings'
     | '/demo/kanji/$char'
+    | '/app/parent/'
     | '/app/child/$childId/catalog'
     | '/app/child/$childId/map'
     | '/app/child/$childId/mistakes'
     | '/app/child/$childId/stamps'
     | '/app/child/$childId/workshop'
+    | '/app/parent/report/$childId'
     | '/app/child/$childId/'
     | '/app/child/$childId/kanji/$char'
   fileRoutesById: FileRoutesById
@@ -590,13 +614,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMistakesRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/app/parent': {
-      id: '/app/parent'
-      path: '/parent'
-      fullPath: '/app/parent'
-      preLoaderRoute: typeof AppParentRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
     '/app/stamps': {
       id: '/app/stamps'
       path: '/stamps'
@@ -695,6 +712,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppKanjiCharRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/app/parent/': {
+      id: '/app/parent/'
+      path: '/parent'
+      fullPath: '/app/parent/'
+      preLoaderRoute: typeof AppParentIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/app/parent/settings': {
+      id: '/app/parent/settings'
+      path: '/parent/settings'
+      fullPath: '/app/parent/settings'
+      preLoaderRoute: typeof AppParentSettingsRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/demo/kanji/$char': {
       id: '/demo/kanji/$char'
       path: '/demo/kanji/$char'
@@ -744,6 +775,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppChildChildIdWorkshopRouteImport
       parentRoute: typeof AppChildChildIdRoute
     }
+    '/app/parent/report/$childId': {
+      id: '/app/parent/report/$childId'
+      path: '/parent/report/$childId'
+      fullPath: '/app/parent/report/$childId'
+      preLoaderRoute: typeof AppParentReportChildIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/app/child/$childId/kanji/$char': {
       id: '/app/child/$childId/kanji/$char'
       path: '/kanji/$char'
@@ -783,12 +821,14 @@ interface AppRouteRouteChildren {
   AppCatalogRoute: typeof AppCatalogRoute
   AppMapRoute: typeof AppMapRoute
   AppMistakesRoute: typeof AppMistakesRoute
-  AppParentRoute: typeof AppParentRoute
   AppStampsRoute: typeof AppStampsRoute
   AppWorkshopRoute: typeof AppWorkshopRoute
   AppIndexRoute: typeof AppIndexRoute
   AppChildChildIdRoute: typeof AppChildChildIdRouteWithChildren
   AppKanjiCharRoute: typeof AppKanjiCharRoute
+  AppParentSettingsRoute: typeof AppParentSettingsRoute
+  AppParentIndexRoute: typeof AppParentIndexRoute
+  AppParentReportChildIdRoute: typeof AppParentReportChildIdRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
@@ -796,12 +836,14 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppCatalogRoute: AppCatalogRoute,
   AppMapRoute: AppMapRoute,
   AppMistakesRoute: AppMistakesRoute,
-  AppParentRoute: AppParentRoute,
   AppStampsRoute: AppStampsRoute,
   AppWorkshopRoute: AppWorkshopRoute,
   AppIndexRoute: AppIndexRoute,
   AppChildChildIdRoute: AppChildChildIdRouteWithChildren,
   AppKanjiCharRoute: AppKanjiCharRoute,
+  AppParentSettingsRoute: AppParentSettingsRoute,
+  AppParentIndexRoute: AppParentIndexRoute,
+  AppParentReportChildIdRoute: AppParentReportChildIdRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(

@@ -5,7 +5,7 @@ import { childQuota } from "@/lib/entitlement";
 import { normalizeChildName } from "@/lib/child-name";
 import { resolveHouseholdId } from "@/lib/server/household";
 import { withHouseholdLock } from "@/lib/server/household-lock";
-import { readCoverage } from "@/lib/server/coverage";
+import { findOwnedChild, readCoverage } from "@/lib/server/coverage";
 import { recomputeSubscription } from "@/lib/server/subscription";
 import type { Grade } from "@/data/kyoiku";
 import { DEFAULT_WEEKLY_NEW, orderedKanjiForGrade, parseStartBand, startIndexFor, type StartBand } from "@/lib/grade-route";
@@ -353,6 +353,119 @@ export const updateStartBand = createServerFn({ method: "POST" })
     `;
     await savePlan(context.userId, data.childId, { weekStart, cursor, newKanji });
     return { ok: true as const, startBand: data.startBand };
+  });
+
+export type ChildGradeError =
+  | { code: "CHILD_NOT_FOUND" }
+  | { code: "INVALID_GRADE"; grade: number }
+  | { code: "SAME_GRADE"; grade: Grade };
+
+export type ChildGradeResult = { ok: true; grade: Grade } | { error: ChildGradeError };
+
+/**
+ * Move a child to a different school year.
+ *
+ * This is the CORRECTION path -- a parent who picked 小4 at signup meaning
+ * 小1 -- and it is deliberately not confirmGradeRollover below. That one is
+ * the April +1 advance and keeps its canAdvanceGrade cap; this one goes in
+ * either direction and to any year, because the mistake it exists to fix can
+ * be in either direction.
+ *
+ * WHAT IT TOUCHES, exhaustively: it archives the child's current grade_routes
+ * row, inserts a new one for the target year, and rewrites the three plan_*
+ * columns on `children` (the week's new-character list has to come from the
+ * new year's curriculum or the child is handed characters from a year they
+ * are no longer on).
+ *
+ * WHAT IT MUST NOT TOUCH, and does not:
+ *   - kanji_progress. Not a row, not a column. Mastery is a property of the
+ *     CHARACTER and the child, never of the year they were filed under when
+ *     they learned it, so no status is recomputed and no green car turns any
+ *     other colour.
+ *   - echo scheduling. echo_due_at, echo_success_count and last_success_by_kind
+ *     all live in kanji_progress; a review that was due on Thursday is still
+ *     due on Thursday afterwards.
+ *   - child_stamps. The cumulative 「これまでのかんぺき」 count is append-only
+ *     and survives every grade change, which is exactly what the confirmation
+ *     promises the parent: 「学年を変更しても、これまでのかんぺきな記録は
+ *     消えません」.
+ *
+ * The progress map is READ (pickWeeklyNew consults it so the new week does
+ * not hand back characters this child already mastered) and never written.
+ *
+ * Under the household lock inside one transaction: `children` and
+ * `grade_routes` are written together, and a half-applied change leaves a
+ * child pointing at an archived route.
+ */
+export const setChildGrade = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { childId: string; grade: number }) => {
+    if (!input?.childId) throw new Error("こどもが見つかりません");
+    return { childId: input.childId, grade: Number(input.grade) };
+  })
+  .handler(async ({ context, data }): Promise<ChildGradeResult> => {
+    if (!Number.isInteger(data.grade) || data.grade < 1 || data.grade > 6) {
+      return { error: { code: "INVALID_GRADE", grade: data.grade } };
+    }
+    const grade = data.grade as Grade;
+    const nowIso = new Date().toISOString();
+    const sql = await getSql();
+    const householdId = await resolveHouseholdId(sql, context.userId, nowIso);
+
+    // Ownership before anything else, and 404-shaped: a childId from another
+    // household must be indistinguishable from one that does not exist.
+    const owned = await findOwnedChild(sql, householdId, data.childId);
+    if (!owned) return { error: { code: "CHILD_NOT_FOUND" } };
+    if (owned.grade === grade) return { error: { code: "SAME_GRADE", grade } };
+
+    // Read outside the transaction: it is a large per-child map and only
+    // informs which characters this week offers, so holding the household
+    // lock across it would serialise every other household mutation behind a
+    // read that changes nothing.
+    const { map } = await loadProgress(context.userId, data.childId);
+    const ordered = orderedKanjiForGrade(grade);
+    const cursor = startIndexFor("beginning", ordered.length);
+    const weekStart = tokyoWeekStart(nowIso);
+    const newKanji = pickWeeklyNew(ordered, cursor, DEFAULT_WEEKLY_NEW, map);
+
+    await withTransaction(async (tx) => {
+      await withHouseholdLock(tx, householdId, async () => {
+        const current = await tx<{ active_grade_route_id: string | null }>`
+          select active_grade_route_id from children
+          where id = ${data.childId} and household_id = ${householdId}
+        `;
+        const routeId = crypto.randomUUID();
+        await tx`
+          insert into grade_routes (id, user_id, child_id, grade, ordered_kanji, start_index, start_band, created_at)
+          values (
+            ${routeId}, ${context.userId}, ${data.childId}, ${grade},
+            ${JSON.stringify(ordered)}, ${cursor}, ${"beginning"}, ${nowIso}
+          )
+        `;
+        const previousRouteId = current[0]?.active_grade_route_id ?? null;
+        if (previousRouteId) {
+          // Archived, never deleted -- the Day-one snapshot of what the child
+          // was working through is the only record of it.
+          await tx`
+            update grade_routes
+            set archived_at = ${nowIso}, superseded_by = ${routeId}
+            where id = ${previousRouteId} and user_id = ${context.userId}
+          `;
+        }
+        await tx`
+          update children
+          set grade = ${grade},
+              start_band = 'beginning',
+              active_grade_route_id = ${routeId},
+              plan_week_start = ${weekStart},
+              plan_cursor = ${cursor},
+              plan_new_kanji = ${JSON.stringify(newKanji)}
+          where id = ${data.childId} and household_id = ${householdId}
+        `;
+      });
+    });
+
+    return { ok: true, grade };
   });
 
 export const confirmGradeRollover = createServerFn({ method: "POST" })
