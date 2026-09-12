@@ -164,6 +164,7 @@ const ja = {
   startRegister: "登録してはじめる",
   pleaseWait: "少々お待ちください",
   loginFailed: "ログインできませんでした",
+  loginTryGoogle: "最初に「Google で続ける」でご登録された場合、メールとパスワードではログインできません。上の「Google で続ける」をお試しください。",
   oauthSignInFailed: "サインインを完了できませんでした。もう一度お試しいただくか、メールでログインしてください。",
   cookieBanner:
     "横のプレビューでは Cookie が止まることがあります。列車はそのまま乗れます。記録を残すときは Google、またはプレビューを新しいタブで開いてください。",
@@ -705,6 +706,7 @@ const en: Record<MessageKey, string> = {
   startRegister: "Register and start",
   pleaseWait: "Please wait…",
   loginFailed: "Could not sign in",
+  loginTryGoogle: "If you first registered with \"Continue with Google\", an email and password will not sign you in. Try the Google button above.",
   oauthSignInFailed: "Sign-in couldn't be completed. Please try again, or sign in with email instead.",
   cookieBanner:
     "This side preview may block cookies. You can still ride the trains here. To save a child’s record, use Google, or open the preview in a new tab.",
@@ -1244,6 +1246,7 @@ const zhHans: Record<MessageKey, string> = {
   startRegister: "注册并开始",
   pleaseWait: "请稍候…",
   loginFailed: "登录失败",
+  loginTryGoogle: "若您最初是用「使用 Google 继续」注册的，邮箱和密码无法登录。请改用上方的 Google 按钮。",
   oauthSignInFailed: "无法完成登录。请重试，或改用邮箱登录。",
   cookieBanner:
     "旁边的预览可能会拦截 Cookie。列车仍可直接坐。要真正保存孩子的记录，请用 Google，或把预览在新标签打开。",
@@ -1782,6 +1785,7 @@ const zhHant: Record<MessageKey, string> = {
   startRegister: "註冊並開始",
   pleaseWait: "請稍候…",
   loginFailed: "登入失敗",
+  loginTryGoogle: "若您最初是用「使用 Google 繼續」註冊的，電子郵件和密碼無法登入。請改用上方的 Google 按鈕。",
   oauthSignInFailed: "無法完成登入。請重試，或改用電子郵件登入。",
   cookieBanner:
     "旁邊的預覽可能會攔截 Cookie。列車仍可直接坐。要真正保存孩子的紀錄，請用 Google，或把預覽在新分頁打開。",

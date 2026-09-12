@@ -9,6 +9,7 @@
  * from running; the final summary names every stage and its status.
  */
 import { spawnSync } from "node:child_process";
+import { readdirSync } from "node:fs";
 
 const TS_TESTS = [
   "scripts/progress-eval.test.ts",
@@ -74,7 +75,23 @@ const TS_TESTS = [
   "scripts/admin-access.test.ts",
   "scripts/multi-child.test.ts",
   "scripts/parent-ia.test.ts",
+  "scripts/back-nav.test.ts",
 ];
+
+// The list above is explicit (node --experimental-strip-types takes paths,
+// not globs), which means a new *.test.ts file is silently NOT RUN until
+// someone remembers to add it -- a test that never executes is worse than no
+// test, because the suite reports green on its behalf. So the list has to
+// account for every file, and this stage says so out loud.
+function unregisteredTsTests() {
+  const registered = new Set(TS_TESTS);
+  return readdirSync("scripts")
+    .filter((f) => f.endsWith(".test.ts"))
+    .map((f) => `scripts/${f}`)
+    .filter((f) => !registered.has(f));
+}
+
+const orphans = unregisteredTsTests();
 
 const stages = [
   { name: "ticket path guard", cmd: process.execPath, args: ["scripts/check-ticket-path-guard.mjs"] },
@@ -85,6 +102,18 @@ const stages = [
   { name: "additive migrations", cmd: process.execPath, args: ["scripts/check-migrations-additive.mjs"] },
   { name: "*.test.mjs (node:test)", cmd: process.execPath, args: ["--test", "scripts/**/*.test.mjs"] },
   { name: "*.test.ts (node:test)", cmd: process.execPath, args: ["--experimental-strip-types", "--test", ...TS_TESTS] },
+  {
+    name: "every *.test.ts is registered above",
+    cmd: process.execPath,
+    args: [
+      "-e",
+      orphans.length
+        ? `console.error(${JSON.stringify(
+            `Unregistered test files (add them to TS_TESTS in scripts/run-tests.mjs):\n  ${orphans.join("\n  ")}`,
+          )}); process.exit(1)`
+        : "0",
+    ],
+  },
 ];
 
 const results = [];

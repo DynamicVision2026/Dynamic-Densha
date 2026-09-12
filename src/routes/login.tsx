@@ -186,7 +186,19 @@ function Login() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {/* The likeliest reason an email attempt fails on this app is that
+              the household was created with Google -- there is no password on
+              that account to check, and signing up again is refused because
+              the address is taken. Said without a lookup, so it reveals
+              nothing about whether the address exists. */}
+          {error ? (
+            <div data-login-error>
+              <p className="text-sm text-destructive">{error}</p>
+              <p className="mt-1.5 text-xs leading-5 text-fg-muted" data-login-try-google>
+                {t("loginTryGoogle")}
+              </p>
+            </div>
+          ) : null}
           <Button type="submit" className="w-full" disabled={busy || !authEnabled}>
             {busy ? t("pleaseWait") : mode === "up" ? t("startRegister") : t("logIn")}
           </Button>

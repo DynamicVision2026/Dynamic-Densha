@@ -12,19 +12,41 @@
  * fresh account per run is the honest default anyway: it means no check can
  * quietly depend on state a previous script wrote.
  */
-export async function signInWithNewAccount(page, BASE, { childName = "たろう" } = {}) {
+/**
+ * Sign up a fresh parent and hand back the credentials, so a caller can sign
+ * out and sign back IN as the same person -- the only way to test that a
+ * returning parent reaches the household they already have.
+ */
+export async function signUpFresh(page, BASE) {
+  const email = `walkthrough-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
+  const password = "walkthrough-pass";
   await page.goto(`${BASE}/app`);
   await page.waitForLoadState("networkidle");
-
   if (page.url().includes("/login")) {
     await page.click("text=新規登録");
     await page.fill("#name", "テスト保護者");
-    await page.fill("#email", `walkthrough-${Date.now()}@example.test`);
-    await page.fill("#password", "walkthrough-pass");
+    await page.fill("#email", email);
+    await page.fill("#password", password);
     await page.click('form button[type="submit"]');
     await page.waitForFunction(() => !location.pathname.startsWith("/login"), { timeout: 30000 });
     await page.waitForLoadState("networkidle");
   }
+  return { email, password };
+}
+
+/** Sign in with credentials that already exist. */
+export async function signInExisting(page, BASE, { email, password }) {
+  await page.goto(`${BASE}/login`);
+  await page.waitForSelector("#email", { timeout: 20000 });
+  await page.fill("#email", email);
+  await page.fill("#password", password);
+  await page.click('form button[type="submit"]');
+  await page.waitForFunction(() => !location.pathname.startsWith("/login"), { timeout: 30000 });
+  await page.waitForLoadState("networkidle");
+}
+
+export async function signInWithNewAccount(page, BASE, { childName = "たろう" } = {}) {
+  await signUpFresh(page, BASE);
 
   if (page.url().includes("/onboard")) {
     await page.fill("#child-name", childName);
