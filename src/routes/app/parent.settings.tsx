@@ -89,33 +89,41 @@ function ParentSettings() {
                 child={{ id: c.id, name: c.name, grade: c.grade, startBand: c.startBand }}
                 ambiguous={labels[i]?.qualifier != null}
                 displayLabel={labels[i] ? formatChildLabel(labels[i]!) : c.name}
-                onRename={async (name) => {
-                  await renameChild({ data: { childId: c.id, name } });
-                  await Promise.all([
-                    childrenQ.refetch(),
-                    qc.invalidateQueries({ queryKey: ["overview"] }),
-                  ]);
-                }}
-                onSetGrade={async (grade) => {
-                  const result = await setChildGrade({ data: { childId: c.id, grade } });
-                  if ("error" in result) {
-                    return { ok: false, message: t("gradeChangeFailed") };
+                onSave={async ({ name, grade, startBand }) => {
+                  let failure: string | undefined;
+                  try {
+                    if (name !== undefined) {
+                      await renameChild({ data: { childId: c.id, name } });
+                    }
+                    // Order is load-bearing: setChildGrade re-cuts the week
+                    // from the beginning of the NEW year, start_band
+                    // included, so a 乗りはじめ picked in the same save has
+                    // to be written after it or the grade write would
+                    // overwrite the parent's choice. Left untouched, the
+                    // reset stands -- a corrected school year starting from
+                    // its beginning is the intended behaviour.
+                    if (grade !== undefined) {
+                      const result = await setChildGrade({ data: { childId: c.id, grade } });
+                      if ("error" in result) failure = t("gradeChangeFailed");
+                    }
+                    if (startBand !== undefined && failure === undefined) {
+                      await updateStartBand({ data: { childId: c.id, startBand } });
+                    }
+                  } finally {
+                    // One pass, after everything, and it runs even when a
+                    // write threw: a partial save must still be shown as it
+                    // actually landed. The board, the report and an open
+                    // character sheet all key off the year and the week's
+                    // cut, so none of them may outlive this.
+                    await Promise.all([
+                      childrenQ.refetch(),
+                      qc.invalidateQueries({ queryKey: ["overview"] }),
+                      qc.invalidateQueries({ queryKey: ["home"] }),
+                      qc.invalidateQueries({ queryKey: ["map"] }),
+                      qc.invalidateQueries({ queryKey: ["study"] }),
+                    ]);
                   }
-                  await Promise.all([
-                    childrenQ.refetch(),
-                    // The board and the report both key off the child's grade.
-                    qc.invalidateQueries({ queryKey: ["overview"] }),
-                    qc.invalidateQueries({ queryKey: ["home"] }),
-                    qc.invalidateQueries({ queryKey: ["map"] }),
-                  ]);
-                  return { ok: true };
-                }}
-                onSetStartBand={async (startBand) => {
-                  await updateStartBand({ data: { childId: c.id, startBand } });
-                  await Promise.all([
-                    childrenQ.refetch(),
-                    qc.invalidateQueries({ queryKey: ["overview"] }),
-                  ]);
+                  return failure === undefined ? { ok: true } : { ok: false, message: failure };
                 }}
               />
             ))}

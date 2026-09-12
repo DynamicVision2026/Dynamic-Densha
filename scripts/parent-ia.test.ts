@@ -139,11 +139,134 @@ test("the grade change is confirmable and leads with what does not change", () =
   assert.match(src, /gradeChangeSafe/);
   const ja = readFileSync("src/lib/i18n/messages.ts", "utf8");
   assert.match(ja, /学年を変更しても、これまでのかんぺきな記録は消えません/);
-  // A rename must NOT be gated behind that confirm -- it is a column write.
-  const codeBody = codeOf("src/components/child-profile-row.tsx");
-  const renameAt = codeBody.indexOf("async function saveName");
-  const renameEnd = codeBody.indexOf("async function applyGrade");
-  assert.equal(/confirm/i.test(codeBody.slice(renameAt, renameEnd)), false);
+  // And it is reached ONLY by a year change. A parent fixing a typo in a
+  // nickname is not asked to think about their child's records.
+  const code = codeOf("src/components/child-profile-row.tsx");
+  assert.match(code, /gradeChanged && confirming/);
+  assert.match(code, /if \(gradeChanged && !confirming\)/);
+});
+
+// ── one form, one save ────────────────────────────────────────────────────
+
+test("the edit panel has exactly one control that writes", () => {
+  const code = codeOf("src/components/child-profile-row.tsx");
+  // The reported bug: 保存 saved the nickname, closed the panel, and the
+  // staged year was re-read from the server and lost. A per-field commit is
+  // what made that reachable, so there must not be one.
+  assert.equal(/data-rename-save/.test(code), false);
+  assert.equal(/onRename|onSetGrade|onSetStartBand/.test(code), false);
+  assert.match(code, /data-child-save/);
+  // One save call site in the component, reached by 保存 and by the year
+  // confirm -- never two writers for one form.
+  assert.equal((code.match(/void save\(\)/g) ?? []).length, 2);
+  assert.equal((code.match(/await onSave\(/g) ?? []).length, 1);
+});
+
+test("every edited field is sent, and an untouched one is not", () => {
+  const code = codeOf("src/components/child-profile-row.tsx");
+  assert.match(code, /\.\.\.\(nameChanged \? \{ name: trimmed \} : \{\}\)/);
+  assert.match(code, /\.\.\.\(gradeChanged \? \{ grade \} : \{\}\)/);
+  assert.match(code, /\.\.\.\(bandChanged \? \{ startBand \} : \{\}\)/);
+  // 乗りはじめ is staged like the other two, not written on tap.
+  assert.match(code, /<StartBandPicker value=\{startBand\} onChange=\{setStartBand\}/);
+});
+
+test("a save in flight cannot be clobbered by its own refetch", () => {
+  const code = codeOf("src/components/child-profile-row.tsx");
+  // Each mutation refetches the children, so the props change WHILE the save
+  // is still reading them. Without this guard the sync effect would reset the
+  // staged fields mid-save -- the same class of bug as the original report.
+  assert.match(code, /if \(saving\.current\) return;/);
+  assert.match(code, /saving\.current = true;/);
+  assert.match(code, /saving\.current = false;/);
+  // And after a successful save the panel re-reads the server rather than
+  // trusting what was typed: a year change legitimately resets 乗りはじめ.
+  assert.match(code, /setSyncKey\(\(k\) => k \+ 1\)/);
+});
+
+test("the settings route saves in an order the grade write cannot undo", () => {
+  const code = codeOf("src/routes/app/parent.settings.tsx");
+  const start = code.indexOf("onSave={async");
+  assert.ok(start > -1);
+  const body = code.slice(start, code.indexOf("/>", start));
+  const rename = body.indexOf("renameChild(");
+  const gradeAt = body.indexOf("setChildGrade(");
+  const band = body.indexOf("updateStartBand(");
+  assert.ok(rename > -1 && gradeAt > -1 && band > -1);
+  // setChildGrade re-cuts the route from the beginning of the new year,
+  // start_band included, so the band must be written after it.
+  assert.ok(gradeAt < band, "the grade must be written before 乗りはじめ");
+  assert.ok(rename < gradeAt, "the cheap column write goes first");
+  // One invalidation pass, in a finally, so a partial save is still shown as
+  // it actually landed.
+  assert.match(body, /finally \{/);
+  for (const key of ["overview", "home", "map", "study"]) {
+    assert.ok(body.includes(`["${key}"]`), `${key} must be invalidated after a profile save`);
+  }
+  assert.match(body, /childrenQ\.refetch\(\)/);
+});
+
+test("a nickname and a school year, changed together, both persist", async () => {
+  const pg = await freshDb();
+  await seed(pg);
+  await pg.query(
+    "update children set start_band = 'middle' where id = 'c1'",
+  );
+  await pg.query(`
+    insert into kanji_progress
+      (user_id, child_id, kanji, status, correct_streak, attempts, wrong_count, completed_kinds, updated_at)
+    values ('u1','c1','山','perfect',3,5,0,'reading,meaning,shape', now())
+  `);
+  const before = await pg.query<Record<string, unknown>>(
+    "select * from kanji_progress where child_id = 'c1' order by kanji",
+  );
+
+  // The reported edit, in the order the route sends it: rename, then the
+  // year, then 乗りはじめ.
+  const nowIso = new Date().toISOString();
+  await pg.query("update children set name = 'Brian1' where id = 'c1' and household_id = 'hh1'");
+  await pg.transaction(async (tx) => {
+    await tx.query("select pg_advisory_xact_lock($1, hashtext($2))", [4711, "hh1"]);
+    await tx.query(
+      `insert into grade_routes (id, user_id, child_id, grade, ordered_kanji, start_index, start_band, created_at)
+       values ('r2','u1','c1',3,'["丁"]',0,'beginning',$1)`,
+      [nowIso],
+    );
+    await tx.query("update grade_routes set archived_at = $1, superseded_by = 'r2' where id = 'r1'", [nowIso]);
+    await tx.query(
+      `update children set grade = 3, start_band = 'beginning', active_grade_route_id = 'r2',
+         plan_week_start = '2026-09-07', plan_cursor = 0, plan_new_kanji = '["丁"]'
+       where id = 'c1' and household_id = 'hh1'`,
+    );
+  });
+  await pg.query("update children set start_band = 'end' where id = 'c1'");
+
+  const row = await pg.query<{ name: string; grade: number; start_band: string }>(
+    "select name, grade, start_band from children where id = 'c1'",
+  );
+  assert.equal(row.rows[0]!.name, "Brian1", "the nickname must survive the year change");
+  assert.equal(row.rows[0]!.grade, 3, "the year must not revert to what it was");
+  assert.equal(row.rows[0]!.start_band, "end", "the chosen 乗りはじめ must outlive the route re-cut");
+
+  const after = await pg.query<Record<string, unknown>>(
+    "select * from kanji_progress where child_id = 'c1' order by kanji",
+  );
+  assert.deepEqual(after.rows, before.rows, "a combined save still touches no progress");
+});
+
+test("writing 乗りはじめ before the year would lose it — which is why it is written after", async () => {
+  const pg = await freshDb();
+  await seed(pg);
+
+  // The same two edits in the wrong order. This is not a hypothetical: the
+  // grade write sets start_band itself, so an earlier band write is erased.
+  await pg.query("update children set start_band = 'end' where id = 'c1'");
+  await pg.query(
+    `update children set grade = 3, start_band = 'beginning' where id = 'c1' and household_id = 'hh1'`,
+  );
+
+  const row = await pg.query<{ start_band: string }>("select start_band from children where id = 'c1'");
+  assert.equal(row.rows[0]!.start_band, "beginning");
 });
 
 test("grade validation rejects out-of-range before it writes anything", () => {

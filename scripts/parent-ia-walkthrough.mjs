@@ -9,6 +9,7 @@
  * Dev server on :8080 with VITE_AUTH_ENABLED=false.
  */
 import { chromium, devices } from "playwright";
+import { signInWithNewAccount } from "./walkthrough-session.mjs";
 
 const BASE = "http://localhost:8080";
 const fails = [];
@@ -42,13 +43,7 @@ async function noHorizontalOverflow() {
 }
 
 // ── 1. onboarding, then the legacy path ──────────────────────────────────
-await page.goto(`${BASE}/app`);
-await page.waitForLoadState("networkidle");
-if (page.url().includes("/onboard")) {
-  await page.fill("#child-name", "たろう");
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/app\/child\//, { timeout: 20000 });
-}
+await signInWithNewAccount(page, BASE, { childName: "たろう" });
 
 await page.goto(`${BASE}/app/parent`);
 await page.waitForURL(/\/app\/parent\/report\//, { timeout: 20000 });
@@ -136,7 +131,8 @@ ok(!(await page.$("[data-help-panel]")), "and closes on Escape");
 await page.click(`[data-child-edit="${childB}"]`);
 await page.waitForSelector(`#name-${childB}`, { timeout: 10000 });
 await page.fill(`#name-${childB}`, "はなこ２");
-await page.click(`[data-rename-save="${childB}"]`);
+await page.click(`[data-child-save="${childB}"]`);
+ok(!(await page.$("[data-grade-confirm]")), "a name-only save asks for no confirmation");
 await page.waitForFunction(
   () => [...document.querySelectorAll("[data-child-row]")].some((n) => n.textContent.includes("はなこ２")),
   { timeout: 20000 },
@@ -153,8 +149,7 @@ await page.waitForSelector(`[data-child-edit="${childB}"]`, { timeout: 20000 });
 await page.click(`[data-child-edit="${childB}"]`);
 await page.waitForSelector("[data-grade-pick]", { timeout: 10000 });
 await page.click('[data-grade-pick="3"]');
-await page.waitForSelector(`[data-grade-request="${childB}"]`, { timeout: 10000 });
-await page.click(`[data-grade-request="${childB}"]`);
+await page.click(`[data-child-save="${childB}"]`);
 await page.waitForSelector("[data-grade-confirm]", { timeout: 10000 });
 const safeNote = await page.textContent("[data-grade-safe-note]");
 ok(

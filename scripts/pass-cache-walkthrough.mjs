@@ -16,6 +16,7 @@
  * bypasses the query cache entirely and so never tested this at all.
  */
 import { chromium } from "playwright";
+import { signInWithNewAccount } from "./walkthrough-session.mjs";
 import { createHmac } from "node:crypto";
 const BASE = "http://localhost:8080", SECRET = "test-secret";
 const fails = [];
@@ -25,14 +26,7 @@ const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-119
 const page = await b.newPage();
 page.on("dialog", (d) => d.accept());
 
-await page.goto(`${BASE}/app`);
-await page.waitForLoadState("networkidle");
-if (page.url().includes("/onboard")) {
-  await page.fill("#child-name", "たろう");
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/app\/child\//, { timeout: 20000 });
-}
-const childA = new URL(page.url()).pathname.split("/")[3];
+const childA = await signInWithNewAccount(page, BASE, { childName: "たろう" });
 await page.goto(`${BASE}/onboard?add=1`);
 await page.waitForSelector("#child-name", { timeout: 20000 });
 await page.fill("#child-name", "はなこ");

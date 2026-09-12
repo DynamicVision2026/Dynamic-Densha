@@ -9,6 +9,7 @@
  * SHOPIFY_VARIANT_BUYOUT=111.
  */
 import { chromium } from "playwright";
+import { signInWithNewAccount } from "./walkthrough-session.mjs";
 import { createHmac } from "node:crypto";
 
 const BASE = "http://localhost:8080";
@@ -81,10 +82,13 @@ async function addChild(page, name, { confirmDuplicate = false } = {}) {
 
 /** The ids of this household's living children, straight off the parent surface. */
 async function childIds(page) {
-  await page.goto(`${BASE}/app/parent`);
+  await page.goto(`${BASE}/app/parent/settings`);
   await page.waitForSelector("[data-add-child]", { timeout: 15000 });
+  // The settings rows, not the report hub's sibling rail: the rail only
+  // appears once a household HAS siblings, so reading it here answered 0 for
+  // every one-child household and tripped the precondition below.
   return page.evaluate(() =>
-    [...document.querySelectorAll("[data-child-chip]")].map((el) => el.getAttribute("data-child-chip")),
+    [...document.querySelectorAll("[data-child-row]")].map((el) => el.getAttribute("data-child-row")),
   );
 }
 
@@ -95,13 +99,7 @@ const page = await browser.newPage();
 page.on("dialog", (d) => d.accept()); // the reassignment confirm
 
 // ── 1. onboarding creates the first child and lands on a scoped board ─────
-await page.goto(`${BASE}/app`);
-await page.waitForLoadState("networkidle");
-if (page.url().includes("/onboard")) {
-  await page.fill("#child-name", "たろう");
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/app\/child\//, { timeout: 15000 });
-}
+await signInWithNewAccount(page, BASE, { childName: "たろう" });
 await page.waitForURL(/\/app\/child\//, { timeout: 15000 });
 const firstUrl = new URL(page.url());
 const childA = firstUrl.pathname.split("/")[3];
@@ -204,7 +202,7 @@ ok(page.url().includes(childA) && page2.url().includes(childB), "and each keeps 
 await other.close();
 
 // ── 11. the parent surface, and the assignment card's absence on a trial ─
-await page.goto(`${BASE}/app/parent`);
+await page.goto(`${BASE}/app/parent/settings`);
 await page.waitForSelector("[data-add-child]", { timeout: 15000 });
 ok(!(await page.$("[data-pass-assignment]")), "a trial household is shown no pass assignment card -- there is no pass to assign");
 

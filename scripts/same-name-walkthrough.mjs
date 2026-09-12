@@ -1,4 +1,5 @@
 import { chromium, devices } from "playwright";
+import { signInWithNewAccount } from "./walkthrough-session.mjs";
 const BASE = "http://localhost:8080";
 const fails = [];
 const ok = (c, m) => { console.log(`${c ? "PASS" : "FAIL"}  ${m}`); if (!c) fails.push(m); };
@@ -8,13 +9,7 @@ const page = await ctx.newPage();
 page.on("dialog", (d) => d.accept());
 
 // The exact production shape: two children, same name, same year.
-await page.goto(`${BASE}/app`);
-await page.waitForLoadState("networkidle");
-if (page.url().includes("/onboard")) {
-  await page.fill("#child-name", "Brian2023");
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/app\/child\//, { timeout: 20000 });
-}
+await signInWithNewAccount(page, BASE, { childName: "Brian2023" });
 await page.goto(`${BASE}/onboard?add=1`);
 await page.waitForSelector("#child-name", { timeout: 20000 });
 await page.fill("#child-name", "Brian2023");
@@ -38,7 +33,7 @@ ok(nameInputs.length === 2, "both rename inputs are immediately usable, not behi
 // Rename one, inline, and watch the qualifier disappear.
 const firstId = await page.getAttribute("[data-child-row]", "data-child-row");
 await page.fill(`#name-${firstId}`, "たろう");
-await page.click(`[data-rename-save="${firstId}"]`);
+await page.click(`[data-child-save="${firstId}"]`);
 await page.waitForFunction(() => document.querySelector("[data-settings-children]").textContent.includes("たろう"), { timeout: 20000 });
 const afterText = await page.textContent("[data-settings-children]");
 ok(afterText.includes("たろう"), "the inline rename lands");
