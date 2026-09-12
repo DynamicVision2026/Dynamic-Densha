@@ -66,7 +66,7 @@ export async function loadChildRoute(userId: string, childId: string): Promise<C
     where id = ${childId} and user_id = ${userId}
   `;
   const r = rows[0];
-  if (!r) throw new Error("こどもが見つかりません");
+  if (!r) throw new Error("お子さまの情報が見つかりません");
   const created =
     r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at);
   return {

@@ -141,9 +141,9 @@ export const createChild = createServerFn({ method: "POST" })
     }) => {
       const name = input.name.trim().slice(0, 20);
       const grade = Number(input.grade);
-      if (!name) throw new Error("なまえを入れてください");
+      if (!name) throw new Error("お名前を入力してください");
       if (!Number.isInteger(grade) || grade < 1 || grade > 6) {
-        throw new Error("学年が正しくありません");
+        throw new Error("学年の指定が正しくありません");
       }
       const idempotencyKey = input.idempotencyKey?.trim();
       if (!idempotencyKey) throw new Error("リクエストが正しくありません");
@@ -291,8 +291,8 @@ export const renameChild = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string; name: string }) => {
     const name = input.name.trim().slice(0, 20);
-    if (!name) throw new Error("なまえを入れてください");
-    if (!input.childId) throw new Error("こどもが見つかりません");
+    if (!name) throw new Error("お名前を入力してください");
+    if (!input.childId) throw new Error("お子さまの情報が見つかりません");
     return { childId: input.childId, name };
   })
   .handler(async ({ context, data }) => {
@@ -303,7 +303,7 @@ export const renameChild = createServerFn({ method: "POST" })
       where id = ${data.childId} and household_id = ${householdId} and archived_at is null
       returning id
     `;
-    if (!rows[0]) throw new Error("こどもが見つかりません");
+    if (!rows[0]) throw new Error("お子さまの情報が見つかりません");
     return { ok: true as const };
   });
 
@@ -319,7 +319,7 @@ export const renameChild = createServerFn({ method: "POST" })
 export const archiveChild = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string }) => {
-    if (!input.childId) throw new Error("こどもが見つかりません");
+    if (!input.childId) throw new Error("お子さまの情報が見つかりません");
     return { childId: input.childId };
   })
   .handler(async ({ context, data }) => {
@@ -331,14 +331,14 @@ export const archiveChild = createServerFn({ method: "POST" })
           select count(*)::int as c from children
           where household_id = ${householdId} and archived_at is null
         `;
-        if ((activeCount[0]?.c ?? 0) <= 1) throw new Error("最後の1人は非表示にできません");
+        if ((activeCount[0]?.c ?? 0) <= 1) throw new Error("最後のお一人は非表示にできません");
 
         const rows = await tx<{ id: string }>`
           update children set archived_at = now()
           where id = ${data.childId} and household_id = ${householdId} and archived_at is null
           returning id
         `;
-        if (!rows[0]) throw new Error("こどもが見つかりません");
+        if (!rows[0]) throw new Error("お子さまの情報が見つかりません");
 
         // If the archived child held the annual pass, the coverage is
         // CLEARED, not moved. Silently handing the pass to whichever sibling
@@ -374,7 +374,7 @@ export const updateStartBand = createServerFn({ method: "POST" })
       where id = ${data.childId} and user_id = ${context.userId}
     `;
     const child = rows[0];
-    if (!child) throw new Error("こどもが見つかりません");
+    if (!child) throw new Error("お子さまの情報が見つかりません");
     const grade = child.grade as Grade;
     const ordered = orderedKanjiForGrade(grade);
     const cursor = startIndexFor(data.startBand, ordered.length);
@@ -436,7 +436,7 @@ export type ChildGradeResult = { ok: true; grade: Grade } | { error: ChildGradeE
 export const setChildGrade = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string; grade: number }) => {
-    if (!input?.childId) throw new Error("こどもが見つかりません");
+    if (!input?.childId) throw new Error("お子さまの情報が見つかりません");
     return { childId: input.childId, grade: Number(input.grade) };
   })
   .handler(async ({ context, data }): Promise<ChildGradeResult> => {
@@ -507,7 +507,7 @@ export const setChildGrade = createServerFn({ method: "POST" })
 export const confirmGradeRollover = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string }) => {
-    if (!input.childId) throw new Error("こどもが見つかりません");
+    if (!input.childId) throw new Error("お子さまの情報が見つかりません");
     return { childId: input.childId };
   })
   .handler(async ({ context, data }) => {

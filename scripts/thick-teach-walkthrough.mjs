@@ -5,7 +5,13 @@ const base = process.argv[2] || "http://127.0.0.1:8080";
 const outDir = "/workspace/screenshots";
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  // Explicit: this repo's Playwright expects a browser build newer than
+  // the one installed, and its default headless-shell path does not
+  // exist here. Every newer walkthrough already pins this binary.
+  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+});
 const page = await browser.newPage({
   viewport: { width: 390, height: 844 },
   locale: "ja-JP",
@@ -70,7 +76,7 @@ else {
   const ack = page.getByRole("button", { name: /これでいい/ });
   if (await ack.count()) await ack.click();
 }
-await page.locator("button").filter({ hasText: /掛け軸に置く/ }).first().click();
+await page.locator("button").filter({ hasText: /かけじくに おく/ }).first().click();
 await understood.click({ timeout: 8_000 });
 await page.getByText("この字の よみは？").or(page.getByText("この字の いみは？")).first().waitFor({ timeout: 10_000 });
 await dump("thick-teach-wang-practice");

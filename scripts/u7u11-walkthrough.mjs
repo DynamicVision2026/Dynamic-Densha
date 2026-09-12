@@ -5,7 +5,13 @@ const base = process.argv[2] || "http://127.0.0.1:8080";
 const outDir = "/workspace/screenshots";
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  // Explicit: this repo's Playwright expects a browser build newer than
+  // the one installed, and its default headless-shell path does not
+  // exist here. Every newer walkthrough already pins this binary.
+  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+});
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, locale: "ja-JP" });
 page.setDefaultTimeout(20_000);
 await page.route("https://fonts.googleapis.com/**", (r) => r.abort());

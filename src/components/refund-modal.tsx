@@ -3,7 +3,7 @@ import { refundMailtoHref } from "@/lib/refund-contact";
 import { useI18n } from "@/lib/i18n/i18n";
 
 /**
- * 返金・ご解約について. PARENT SURFACE ONLY, and a real dialog rather than a
+ * 返金についてのご相談. PARENT SURFACE ONLY, and a real dialog rather than a
  * link straight to a mail client: a parent who has decided to ask for their
  * money back deserves to read the policy before their mail app opens, not
  * after.

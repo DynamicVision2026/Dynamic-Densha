@@ -5,7 +5,13 @@ const base = process.argv[2] || "http://127.0.0.1:8080";
 const outDir = "/workspace/screenshots";
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  // Explicit: this repo's Playwright expects a browser build newer than
+  // the one installed, and its default headless-shell path does not
+  // exist here. Every newer walkthrough already pins this binary.
+  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+});
 const page = await browser.newPage({
   viewport: { width: 1280, height: 800 },
   locale: "ja-JP",
@@ -38,9 +44,9 @@ const dump = async (name) => {
 };
 
 await page.goto(`${base}/demo`, { waitUntil: "domcontentloaded" });
-await page.getByText("きょうの残響").waitFor({ timeout: 15_000 });
+await page.getByText("きょうの ふりかえり").waitFor({ timeout: 15_000 });
 const homeText = await dump("loop-demo-home");
-if (!homeText.includes("きょうの残響")) {
+if (!homeText.includes("きょうの ふりかえり")) {
   throw new Error("demo home missing echo queue");
 }
 if (!homeText.includes("右")) throw new Error("echo queue missing 右");
@@ -63,7 +69,7 @@ await page.locator("button").filter({ hasText: /よみを見る|Show readings|�
   const listenBtn = page.getByRole("button", { name: /を聞く|Listen|听|聽/ });
   if (await listenBtn.count()) await listenBtn.first().click();
 }
-await page.locator("button").filter({ hasText: /掛け軸に置く|Place on the scroll|放到挂轴|放到掛軸/ }).first().click();
+await page.locator("button").filter({ hasText: /かけじくに おく|Place on the scroll|放到挂轴|放到掛軸/ }).first().click();
 await shot("loop-wang-understand.png");
 await page.getByRole("button", { name: /わかった|I see|明白了/ }).click();
 await page.waitForTimeout(500);
@@ -74,12 +80,12 @@ if (!/こたえ合わせ|Check|核对|核對/.test(practiceText)) {
 await shot("loop-wang-practice.png");
 
 await page.goto(`${base}/demo`, { waitUntil: "domcontentloaded" });
-await page.getByText("きょうの残響").waitFor({ timeout: 15_000 });
+await page.getByText("きょうの ふりかえり").waitFor({ timeout: 15_000 });
 await page.locator('a[href*="%E5%8F%B3"], a[href*="/kanji/右"]').first().click();
 await page.waitForURL(/kanji/);
 await page.waitForTimeout(400);
 const echoText = await dump("loop-migi-echo");
-if (!/残響|echo|回声|回聲/i.test(echoText)) {
+if (!/ふりかえり|echo|回声|回聲/i.test(echoText)) {
   throw new Error("右 did not open echo banner");
 }
 await shot("loop-migi-echo.png");

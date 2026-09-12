@@ -107,7 +107,7 @@ export async function assertOwnedChild(
   userId?: string,
 ): Promise<OwnedChild> {
   const child = await findOwnedChild(sql, householdId, childId, userId);
-  if (!child) throw new ChildAccessError(404, "こどもが見つかりません");
+  if (!child) throw new ChildAccessError(404, "お子さまの情報が見つかりません");
   return child;
 }
 

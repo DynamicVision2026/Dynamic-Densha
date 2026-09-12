@@ -66,7 +66,7 @@ export type AssignResult = { ok: true } | { error: AssignError };
 export const assignAnnualPass = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { childId: string }) => {
-    if (!input?.childId) throw new Error("こどもが見つかりません");
+    if (!input?.childId) throw new Error("お子さまの情報が見つかりません");
     return { childId: input.childId };
   })
   .handler(async ({ context, data }): Promise<AssignResult> => {

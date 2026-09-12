@@ -5,7 +5,13 @@ const base = process.argv[2] || "http://127.0.0.1:8080";
 const outDir = "/workspace/screenshots";
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  // Explicit: this repo's Playwright expects a browser build newer than
+  // the one installed, and its default headless-shell path does not
+  // exist here. Every newer walkthrough already pins this binary.
+  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+});
 const page = await browser.newPage({
   viewport: { width: 1280, height: 800 },
   locale: "ja-JP",
@@ -42,14 +48,14 @@ await page.goto(`${base}/demo`, { waitUntil: "domcontentloaded" });
 await page.getByText("かたちの試乗").waitFor({ timeout: 15_000 });
 const home = await dump("u1u4-home");
 if (!home.includes("林")) throw new Error("home missing 林 sample");
-if (!home.includes("きょうの残響")) throw new Error("home missing echo queue");
+if (!home.includes("きょうの ふりかえり")) throw new Error("home missing echo queue");
 await shot("u1u4-home.png");
 
 await page.goto(`${base}/demo/kanji/${encodeURIComponent("右")}`, {
   waitUntil: "domcontentloaded",
 });
 await page.getByText("時刻表へ").waitFor({ timeout: 15_000 });
-await page.getByText("きのうの字の、残響です").waitFor({ timeout: 10_000 });
+await page.getByText("きのうの字の、ふりかえりです").waitFor({ timeout: 10_000 });
 const echo = await dump("u1u4-migi-echo");
 if (!echo.includes("右手")) throw new Error(`echo did not show 右手:\n${echo}`);
 if (!/みぎ/.test(echo)) throw new Error(`echo missing みぎ:\n${echo}`);
@@ -66,7 +72,7 @@ await page.locator("button").filter({ hasText: /よみを見る/ }).first().clic
   const listenBtn = page.getByRole("button", { name: /を聞く/ });
   if (await listenBtn.count()) await listenBtn.first().click();
 }
-await page.locator("button").filter({ hasText: /掛け軸に置く/ }).first().click();
+await page.locator("button").filter({ hasText: /かけじくに おく/ }).first().click();
 await page.getByRole("button", { name: /わかった/ }).click();
 
 const untilShape = Date.now() + 40_000;
@@ -109,7 +115,7 @@ for (let i = 0; i < 4; i++) {
 await page.waitForTimeout(800);
 const after = await dump("u1u4-hayashi-placed");
 await shot("u1u4-hayashi-placed.png");
-if (!/つぎへ|到着/.test(after)) {
+if (!/つぎへ|とうちゃく/.test(after)) {
   throw new Error(`placing 林 parts did not complete:\n${after}`);
 }
 
@@ -123,7 +129,7 @@ await page.locator("button").filter({ hasText: /よみを見る/ }).first().clic
   const listenBtn = page.getByRole("button", { name: /を聞く/ });
   if (await listenBtn.count()) await listenBtn.first().click();
 }
-await page.locator("button").filter({ hasText: /掛け軸に置く/ }).first().click();
+await page.locator("button").filter({ hasText: /かけじくに おく/ }).first().click();
 await page.getByRole("button", { name: /わかった/ }).click();
 const untilStroke = Date.now() + 40_000;
 let sawStroke = false;

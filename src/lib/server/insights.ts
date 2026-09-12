@@ -19,7 +19,7 @@ export const requestInsight = createServerFn({ method: "POST" })
       where id = ${childId} and user_id = ${context.userId}
     `;
     const child = childRows[0];
-    if (!child) throw new Error("こどもが見つかりません");
+    if (!child) throw new Error("お子さまの情報が見つかりません");
 
     const rows = await sql<{ kanji: string; status: string }>`
       select kanji, status from kanji_progress

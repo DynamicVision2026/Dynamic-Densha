@@ -159,7 +159,7 @@ export async function loadProgress(userId: string, childId: string, sqlClient?: 
            or (household_id is null and user_id = ${userId}))
   `;
   const child = owned[0];
-  if (!child) throw new ChildAccessError(404, "こどもが見つかりません");
+  if (!child) throw new ChildAccessError(404, "お子さまの情報が見つかりません");
   await backfillSurfaceSeenFromProgress(sql, userId, childId);
   const seenByKanji = await loadSurfaceSeenByKanji(sql, userId, childId);
   const rows = await sql.query<Record<string, unknown>>(

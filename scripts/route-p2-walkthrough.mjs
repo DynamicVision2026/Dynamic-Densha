@@ -5,7 +5,13 @@ const base = process.argv[2] || "http://127.0.0.1:8080";
 const outDir = "/workspace/screenshots";
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  // Explicit: this repo's Playwright expects a browser build newer than
+  // the one installed, and its default headless-shell path does not
+  // exist here. Every newer walkthrough already pins this binary.
+  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+});
 const page = await browser.newPage({
   viewport: { width: 390, height: 844 },
   locale: "ja-JP",
@@ -81,7 +87,7 @@ if (snap["一"] !== "perfect") throw new Error("rollover wiped 一");
 await go("/demo");
 await page.locator("[data-departure-board]").waitFor({ timeout: 12_000 });
 const home = await dump("route-p2-home");
-if (!home.includes("発車標")) throw new Error(`board missing after rollover:\n${home}`);
+if (!home.includes("はっしゃひょう")) throw new Error(`board missing after rollover:\n${home}`);
 if (/遅れ|behind|追いつき/i.test(home)) throw new Error(`child behind copy:\n${home}`);
 if (/あたらしい えき[\s\S]{0,80}一/.test(home)) {
   throw new Error(`G1 leftover dumped as new this week:\n${home}`);

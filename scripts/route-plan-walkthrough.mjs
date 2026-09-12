@@ -5,7 +5,13 @@ const base = process.argv[2] || "http://127.0.0.1:8080";
 const outDir = "/workspace/screenshots";
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  // Explicit: this repo's Playwright expects a browser build newer than
+  // the one installed, and its default headless-shell path does not
+  // exist here. Every newer walkthrough already pins this binary.
+  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+});
 const page = await browser.newPage({
   viewport: { width: 390, height: 844 },
   locale: "ja-JP",
@@ -47,9 +53,9 @@ await page.getByText("時刻表").first().waitFor({ timeout: 15_000 });
 await page.waitForURL(/grade=/, { timeout: 8_000 });
 await page.locator("[data-departure-board]").waitFor({ timeout: 10_000 });
 const home = await dump("route-plan-home");
-if (!home.includes("発車標")) throw new Error(`P1 board missing:\n${home}`);
+if (!home.includes("はっしゃひょう")) throw new Error(`P1 board missing:\n${home}`);
 if (!home.includes("あたらしい えき")) throw new Error(`P1 new stations missing:\n${home}`);
-if (!home.includes("きょうの残響")) throw new Error("S1 echo queue missing on timetable");
+if (!home.includes("きょうの ふりかえり")) throw new Error("S1 echo queue missing on timetable");
 if (/遅れ|behind|追いつき/i.test(home)) throw new Error(`child UI used deficit copy:\n${home}`);
 
 await go("/demo/parent");
@@ -86,7 +92,7 @@ if (after["一"] !== "perfect") throw new Error("一 must stay かんぺき afte
 await go("/demo");
 await page.locator("[data-departure-board]").waitFor({ timeout: 10_000 });
 const homeMid = await dump("route-plan-home-mid");
-if (homeMid.includes("発車標") && /あたらしい えき[\s\S]{0,80}一/.test(homeMid)) {
+if (homeMid.includes("はっしゃひょう") && /あたらしい えき[\s\S]{0,80}一/.test(homeMid)) {
   throw new Error(`なか first week still forced 一 as new:\n${homeMid}`);
 }
 

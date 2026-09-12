@@ -5,7 +5,13 @@ const base = process.argv[2] || "http://127.0.0.1:8080";
 const outDir = "/workspace/screenshots";
 mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  // Explicit: this repo's Playwright expects a browser build newer than
+  // the one installed, and its default headless-shell path does not
+  // exist here. Every newer walkthrough already pins this binary.
+  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+});
 const page = await browser.newPage({
   viewport: { width: 390, height: 844 },
   locale: "en-US",
@@ -36,7 +42,7 @@ const shot = async (name) => {
 await page.goto(`${base}/demo`, { waitUntil: "domcontentloaded" });
 await page.getByText("時刻表").first().waitFor({ timeout: 15_000 });
 const home = await dump("qa-kd-home");
-if (!home.includes("時刻表") || !home.includes("きょうの残響")) {
+if (!home.includes("時刻表") || !home.includes("きょうの ふりかえり")) {
   throw new Error(`KD-008 default not JA:\n${home}`);
 }
 if (/\bTimetable\b/.test(home) && !home.includes("時刻表")) {
@@ -67,7 +73,7 @@ await page.locator("button").filter({ hasText: /よみを見る/ }).first().clic
   const listenBtn = page.getByRole("button", { name: /を聞く/ });
   if (await listenBtn.count()) await listenBtn.first().click();
 }
-await page.locator("button").filter({ hasText: /掛け軸に置く/ }).first().click();
+await page.locator("button").filter({ hasText: /かけじくに おく/ }).first().click();
 await page.getByRole("button", { name: /わかった/ }).click();
 const choice = page.locator('[data-tour="choice-correct"]');
 await choice.waitFor({ timeout: 20_000 });
@@ -157,7 +163,7 @@ await page.locator("button").filter({ hasText: /よみを見る/ }).first().clic
   const listenBtn = page.getByRole("button", { name: /を聞く/ });
   if (await listenBtn.count()) await listenBtn.first().click();
 }
-await page.locator("button").filter({ hasText: /掛け軸に置く/ }).first().click();
+await page.locator("button").filter({ hasText: /かけじくに おく/ }).first().click();
 await page.getByRole("button", { name: /わかった/ }).click();
 const untilShape = Date.now() + 25_000;
 let sawComponent = false;
