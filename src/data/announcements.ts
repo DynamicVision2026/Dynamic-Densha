@@ -41,7 +41,7 @@ export const ANNOUNCEMENTS_G1: Announcement[] = [
   { id: "karada", kanji: "体", text: "次は、体の「体」です。", reading: "からだ" },
   { id: "yamamichi", kanji: "山", text: "次は、山道の「山」です。", reading: "やまみち" },
   { id: "iwa", kanji: "岩", text: "次は、大きな岩の「岩」です。", reading: "おおきないわ" },
-  { id: "shima", kanji: "島", text: "次は、小さな島の「島」です。", reading: "ちいさないしま" },
+  { id: "shima", kanji: "島", text: "次は、小さな島の「島」です。", reading: "ちいさなしま" },
   { id: "hoshizora", kanji: "星", text: "次は、星空の「星」です。", reading: "ほしぞら" },
   { id: "shimizu", kanji: "清", text: "次は、清水の「清」です。", reading: "しみず" },
   { id: "oto", kanji: "音", text: "次は、音の「音」です。", reading: "おと" },
