@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/lib/i18n/i18n";
+import { resolveServerErrorMessage } from "@/lib/server-error-messages";
 import { StartBandPicker } from "@/components/start-band-picker";
 import type { StartBand } from "@/lib/grade-route";
 import { resolvePostAuthNext } from "@/lib/post-auth-redirect";
@@ -171,7 +172,7 @@ function Onboard() {
       else if (dest === "/app") await navigate({ to: "/app/child/$childId", params: { childId: child.id }, search: { grade: child.grade } });
       else window.location.href = dest;
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("saveFailed"));
+      setError(resolveServerErrorMessage(err, t));
       submittingRef.current = false;
       setBusy(false);
     }

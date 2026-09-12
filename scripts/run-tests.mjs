@@ -76,6 +76,7 @@ const TS_TESTS = [
   "scripts/multi-child.test.ts",
   "scripts/parent-ia.test.ts",
   "scripts/back-nav.test.ts",
+  "scripts/server-error-messages.test.ts",
 ];
 
 // The list above is explicit (node --experimental-strip-types takes paths,

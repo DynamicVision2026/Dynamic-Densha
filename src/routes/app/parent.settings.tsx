@@ -17,6 +17,7 @@ import { archiveChild, listChildren, renameChild, setChildGrade, updateStartBand
 import { assignAnnualPass, getPassAssignment } from "@/lib/server/pass";
 import { getAccountSummary } from "@/lib/server/account";
 import { useI18n } from "@/lib/i18n/i18n";
+import { resolveServerErrorMessage } from "@/lib/server-error-messages";
 
 export const Route = createFileRoute("/app/parent/settings")({
   component: ParentSettings,
@@ -153,7 +154,7 @@ function ParentSettings() {
 
         {archiveMut.isError ? (
           <p className="mt-3 text-sm text-destructive" data-archive-error>
-            {archiveMut.error instanceof Error ? archiveMut.error.message : t("saveFailed")}
+            {resolveServerErrorMessage(archiveMut.error, t)}
           </p>
         ) : null}
         {children.length > 1 ? (

@@ -6,6 +6,7 @@ import { StartBandPicker } from "@/components/start-band-picker";
 import { GRADES } from "@/lib/grade-nav";
 import type { StartBand } from "@/lib/grade-route";
 import { useI18n } from "@/lib/i18n/i18n";
+import { resolveServerErrorMessage } from "@/lib/server-error-messages";
 import { cn } from "@/lib/utils";
 
 /** What one 保存 asks the server to change. An absent field was not edited. */
@@ -128,7 +129,7 @@ export function ChildProfileRow({
       setError(result.message ?? t("saveFailed"));
     } catch (err) {
       setConfirming(false);
-      setError(err instanceof Error ? err.message : t("saveFailed"));
+      setError(resolveServerErrorMessage(err, t));
     } finally {
       saving.current = false;
       setBusy(false);
