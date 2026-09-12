@@ -30,18 +30,45 @@ export function parsePlanParam(planParam: string | null): Plan | undefined {
 }
 
 /**
- * `hasSession`/`isActive` are the caller's own DB/session lookups, passed in
- * already resolved -- this function makes no calls of its own, so it can't
- * accidentally skip or reorder one of them.
+ * `hasSession`/`isActive`/`currentPlan` are the caller's own DB/session
+ * lookups, passed in already resolved -- this function makes no calls of its
+ * own, so it can't accidentally skip or reorder one of them.
+ *
+ * `currentPlan` is what an active household already holds, and it is what
+ * separates "never double-charge" from "refusing the upgrade we advertise".
+ * An annual pass covers ONE child at a time; the pass card, the (?) help and
+ * the family hint all tell an annual household that ご家庭ライセンス is how
+ * every child rides. Treating every active household as done meant that CTA
+ * resolved to /app/parent?already=active -- the one upgrade the product asks
+ * families to make was the one purchase it would not accept.
+ *
+ * So the guard is now about what they hold rather than merely that they hold
+ * something:
+ *   - buyout already          -> nothing to upgrade to; it covers every child
+ *   - the same plan again     -> a renewal/re-purchase, still refused
+ *   - active but plan unknown -> refuse, deliberately: the rare unmatched
+ *     variant (see subscription-derive.ts) means we cannot say what they paid
+ *     for, and a wrong guess here charges a family twice
+ *   - annual -> buyout        -> the advertised upgrade, allowed
+ *
+ * It buys coverage, not time: no proration and no automatic refund of the
+ * annual remainder (返金・ご解約 stays the manual route), which is why this
+ * decision is narrow rather than "active households may buy anything".
  */
 export function decideSubscribeAction(input: {
   planParam: string | null;
   hasSession: boolean;
   isActive: boolean;
+  currentPlan?: Plan | null;
 }): SubscribeDecision {
   const plan = parsePlanParam(input.planParam);
   if (!plan) return { kind: "invalid-plan" };
   if (!input.hasSession) return { kind: "no-session", planParam: input.planParam as string };
-  if (input.isActive) return { kind: "already-active" };
+  if (input.isActive && !isUpgrade(input.currentPlan ?? null, plan)) return { kind: "already-active" };
   return { kind: "checkout", plan };
+}
+
+/** The only purchase an already-active household may make: annual -> buyout. */
+export function isUpgrade(currentPlan: Plan | null, wanted: Plan): boolean {
+  return currentPlan === "annual" && wanted === "buyout";
 }

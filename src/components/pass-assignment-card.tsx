@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { childLabels, formatChildLabel } from "@/lib/child-labels";
 import type { AssignResult, PassAssignment } from "@/lib/server/pass";
 import { dateWithYearLabel } from "@/lib/trial-clock";
@@ -146,14 +145,20 @@ export function PassAssignmentCard({
       <p className="mt-5 border-t border-border pt-4 text-sm leading-6 text-fg-muted">
         {t("passAssignFamilyHint")}
       </p>
-      <Link
-        to="/subscribe"
-        search={{ plan: "buyout" }}
+      {/* A plain <a>, never a TanStack <Link>: /subscribe is a server-only
+          `server: { handlers }` route that renders nothing, so a client-side
+          navigation to it has no component to mount and leaves the parent
+          sitting on this page with no way forward but a manual reload. The
+          browser has to make a real GET so the handler can resolve the
+          household, attach its checkout_token and 302 on to /handoff.
+          Same reasoning as plan-cards.tsx and login.tsx's post-auth hops. */}
+      <a
+        href="/subscribe?plan=buyout"
         data-pass-upgrade
         className="mt-3 inline-flex h-11 items-center justify-center rounded-lg border border-border bg-bg px-4 text-sm"
       >
         {t("passAssignFamilyCta")}
-      </Link>
+      </a>
     </section>
   );
 }

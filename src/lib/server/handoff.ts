@@ -11,7 +11,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { resolveHouseholdId, getOrCreateCheckoutToken } from "@/lib/server/household";
-import { isHouseholdActive } from "@/lib/server/subscription";
+import { getPassStateForHousehold } from "@/lib/server/subscription";
 import { decideSubscribeAction } from "@/lib/subscribe-resolve";
 import { buildCheckoutUrl, shopifyStoreDomain } from "@/lib/shopify-checkout";
 import type { Plan } from "@/lib/subscription-derive";
@@ -28,8 +28,17 @@ export const resolveHandoff = createServerFn({ method: "GET" })
   .handler(async ({ context, data }): Promise<HandoffResult> => {
     const sql = await getSql();
     const householdId = await resolveHouseholdId(sql, context.userId);
-    const isActive = await isHouseholdActive(sql, householdId);
-    const decision = decideSubscribeAction({ planParam: data.planParam, hasSession: true, isActive });
+    // Same two facts /subscribe resolves, from the same single recompute:
+    // /handoff is reachable directly, so it has to allow the annual -> buyout
+    // upgrade on exactly the same terms rather than refusing what /subscribe
+    // just forwarded here.
+    const pass = await getPassStateForHousehold(sql, householdId);
+    const decision = decideSubscribeAction({
+      planParam: data.planParam,
+      hasSession: true,
+      isActive: pass.active,
+      currentPlan: pass.plan,
+    });
 
     if (decision.kind !== "checkout") return { kind: decision.kind === "no-session" ? "invalid-plan" : decision.kind };
 

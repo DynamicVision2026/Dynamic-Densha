@@ -445,3 +445,33 @@ says 「いまは のれません」, which is the honest amount for a child to 
 the explanation lives on the parent surface, in front of the person who can
 act on it. Raising this rather than quietly diverging: it is a product call,
 and reverting it is a two-line change in `src/components/child-switcher.tsx`.
+
+## Annual → ご家庭ライセンス: what support needs to know
+
+An annual household CAN buy the family licence, and this is the only purchase
+an already-active household is allowed to make (`isUpgrade` in
+`src/lib/subscribe-resolve.ts`). It was previously refused as `already-active`,
+which meant the upgrade the pass card, the (?) help and the family hint all
+invite was the one purchase the funnel would not accept.
+
+**It buys coverage, not time.** ¥9,800 is a separate one-time charge; the
+remaining period on the annual pass is NOT prorated and NOT refunded
+automatically. A family who asks for that remainder back is a manual 返金
+decision through the 返金・ご解約 route on the settings hub — there is no code
+path that credits it, by design, because a partial refund is a judgement about
+one family's circumstances.
+
+Still refused, and tested as such:
+
+- buyout → buyout (it already covers every child)
+- buyout → annual (never walk a family backwards into a narrower plan)
+- annual → annual (a renewal before expiry)
+- active with an **unknown** plan (the rare unmatched-variant case) — refused
+  deliberately rather than guessed at, because a wrong guess charges twice.
+
+### /handoff is not a 302, on purpose
+
+It mints the cart URL and then RENDERS it: the store domain and the 特商法
+link are shown before the family leaves the origin. Anything that turns it
+into a straight redirect to Shopify removes the disclosure a Japanese
+purchaser is entitled to see first.

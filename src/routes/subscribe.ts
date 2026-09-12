@@ -31,7 +31,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getSql } from "@/lib/db";
 import { resolveUserIdFromHeaders } from "@/lib/auth/verify.server";
 import { resolveHouseholdId } from "@/lib/server/household";
-import { isHouseholdActive } from "@/lib/server/subscription";
+import { getPassStateForHousehold } from "@/lib/server/subscription";
 import { decideSubscribeAction, parsePlanParam } from "@/lib/subscribe-resolve";
 
 function redirectTo(location: string): Response {
@@ -55,9 +55,18 @@ export const Route = createFileRoute("/subscribe")({
         // session is confirmed) IS that branch, without a separate
         // existence check first.
         const householdId = userId ? await resolveHouseholdId(await getSql(), userId) : null;
-        const isActive = householdId ? await isHouseholdActive(await getSql(), householdId) : false;
+        // getPassStateForHousehold, not isHouseholdActive: the decision needs
+        // WHICH plan an active household holds (an annual one may still buy
+        // the family licence), and this returns both from the one recompute
+        // the active check was already paying for.
+        const pass = householdId ? await getPassStateForHousehold(await getSql(), householdId) : null;
 
-        const decision = decideSubscribeAction({ planParam, hasSession: userId != null, isActive });
+        const decision = decideSubscribeAction({
+          planParam,
+          hasSession: userId != null,
+          isActive: pass?.active ?? false,
+          currentPlan: pass?.plan ?? null,
+        });
 
         switch (decision.kind) {
           // Unreachable here (planParam already validated above); kept so
