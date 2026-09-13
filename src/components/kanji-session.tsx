@@ -24,6 +24,7 @@ import {
 import { markEchoTaughtToday, wasEchoTaughtToday } from "@/lib/echo-teach";
 import { echoArrivalWhen } from "@/lib/echo-arrival";
 import { justReachedAlmost, justReachedPerfect } from "@/lib/stamps";
+import { stationLines, stationSituation } from "@/lib/station-state";
 import { useNow } from "@/lib/use-now";
 import {
   earliestArrival,
@@ -785,22 +786,27 @@ export function KanjiSession({
       <section className="flex min-h-0 flex-1 flex-col items-center justify-center space-y-4 text-center" data-tour="feedback">
         <h1 className="font-display text-7xl leading-none">{kanji.char}</h1>
         <MasteryLights lights={progress.lights} ui={params.lights_ui} />
-        <p className="text-sm leading-7 text-fg-muted">
-          {status === "perfect"
-            ? t("feedbackPerfect")
-            : status === "almost" && progress.echoSuccessCount >= 1
-              ? t("feedbackAlmostEcho")
-              : status === "almost"
-                ? t("feedbackAlmost")
-                : status === "lost"
-                  ? t("feedbackLost")
-                  : t("feedbackFix")}
-        </p>
-        {status === "almost" && arrivalWhen ? (
-          <p className="text-xs text-fg-subtle" data-echo-arrival={kanji.char}>
-            {t("echoArrival", { when: arrivalWhen })}
-          </p>
-        ) : null}
+        {(() => {
+          // 到着: names a day, never an interval -- see station-state.ts.
+          // `arrivalWhen` is the real, midnight-safe day label (already
+          // recomputed on liveNow ticks); the still-blue situation ignores
+          // it on purpose and always reads "なのかごろ".
+          const situation = stationSituation(progress, liveNow);
+          if (!situation) return null;
+          const lines = stationLines(situation, arrivalWhen);
+          return (
+            <div data-station-state={situation}>
+              {lines.line1 ? (
+                <p className="text-sm leading-7 text-fg-muted" data-station-line1>
+                  {t(lines.line1)}
+                </p>
+              ) : null}
+              <p className="text-sm leading-7 text-fg-muted" data-station-line2>
+                {t(lines.line2, lines.line2Vars)}
+              </p>
+            </div>
+          );
+        })()}
       </section>
     );
     action = (

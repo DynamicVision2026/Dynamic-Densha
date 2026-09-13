@@ -79,6 +79,7 @@ const TS_TESTS = [
   "scripts/server-error-messages.test.ts",
   "scripts/clock.test.ts",
   "scripts/echo-clock-sequence.test.ts",
+  "scripts/station-state.test.ts",
 ];
 
 // The list above is explicit (node --experimental-strip-types takes paths,

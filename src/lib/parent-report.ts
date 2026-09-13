@@ -1,5 +1,6 @@
 import { trainsForGrade, type Grade } from "../data/kyoiku.ts";
 import { pairFor } from "./confusable.ts";
+import { echoArrival } from "./echo-arrival.ts";
 import { exampleWordSurfaces } from "./echo-surfaces.ts";
 import { mapLinesFor } from "./lines.ts";
 import { STATUSES, type MasteryStatus, type PracticeKind } from "./mastery.ts";
@@ -55,6 +56,13 @@ export type ParentReport = {
   lines: ParentLineRow[];
   summary: { echo: number; fix: number };
   taught: TaughtItem[];
+  /**
+   * Cars whose next echo falls on Tokyo-calendar tomorrow -- the one
+   * forward-looking, day-named, non-cumulative number the parent surface
+   * shows (see the engineering ticket's §B.4). Never a deficit or a total;
+   * a day with nothing due tomorrow is simply not mentioned.
+   */
+  arrivingTomorrow: number;
 };
 
 const WEEK_MS = 7 * 24 * 3600_000;
@@ -161,6 +169,11 @@ export function buildParentReport(input: {
     if (!paper.includes(r.kanji)) paper.push(r.kanji);
   }
 
+  const arrivingTomorrow = cars.filter((c) => {
+    const row = map.get(c);
+    return row?.status === "almost" && row.echoDueAt && echoArrival(row.echoDueAt, nowIso).kind === "tomorrow";
+  }).length;
+
   const lines = mapLinesFor(input.grade).map((view) => ({
     id: view.line.id,
     label: view.line.label_ja,
@@ -191,6 +204,7 @@ export function buildParentReport(input: {
     lines,
     summary: { echo: echoSessions.size, fix: counts.fix },
     taught: taughtThisWeek(input.events, nowIso),
+    arrivingTomorrow,
   };
 }
 

@@ -3,6 +3,7 @@ import { STATUS_META, type MasteryStatus } from "@/lib/mastery";
 import { STATUS_KEYS } from "@/lib/i18n/messages";
 import { echoArrivalWhen } from "@/lib/echo-arrival";
 import { useI18n } from "@/lib/i18n/i18n";
+import { useNow } from "@/lib/use-now";
 import type { ParentReport } from "@/lib/parent-report";
 
 const STATUS_BAR: MasteryStatus[] = ["new", "lost", "fix", "almost", "perfect"];
@@ -15,6 +16,10 @@ export function ParentReportView({
 }) {
   const { t } = useI18n();
   const total = Math.max(1, report.timetableTotal);
+  // Recomputed on visibilitychange/focus/local midnight, same as every other
+  // day-named label in the product -- a report left open overnight must not
+  // still say "tomorrow" once tomorrow has arrived.
+  const liveNow = useNow();
 
   return (
     <>
@@ -62,6 +67,13 @@ export function ParentReportView({
         <p className="mt-2 text-sm leading-7 text-fg">
           {t("parentSummary", { echo: report.summary.echo, fix: report.summary.fix })}
         </p>
+        {/* Forward-looking, day-named, and silent when there is nothing to
+            say -- never a total-overdue or backlog figure. See §B.4. */}
+        {report.arrivingTomorrow > 0 ? (
+          <p className="mt-2 text-sm leading-7 text-fg" data-parent-arrival-tomorrow>
+            {t("parentArrivalTomorrow", { n: report.arrivingTomorrow })}
+          </p>
+        ) : null}
         <ul className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <li className="rounded-lg bg-bg px-3 py-3">
             <p className="text-[11px] text-fg-subtle">{t("parentWeekSessions")}</p>
@@ -120,9 +132,16 @@ export function ParentReportView({
         ) : (
           <ul className="mt-3 divide-y divide-border">
             {report.attention.map((row) => {
+              // waiting_second (the ~168h/7-day window) never shows the
+              // exact day count -- parentAttentionWaiting's own "おおよそ"
+              // already carries the approximation on purpose, the same
+              // reason a child's second echo reads "なのかごろ" rather than
+              // a sharp day. Any other reason still gets the real, exact
+              // day name: that window is short enough (~20-36h) that naming
+              // it costs nothing. See station-state.ts.
               const when =
-                row.status === "almost" && row.echoDueAt
-                  ? echoArrivalWhen(row.echoDueAt, new Date().toISOString(), t)
+                row.reason !== "waiting_second" && row.status === "almost" && row.echoDueAt
+                  ? echoArrivalWhen(row.echoDueAt, liveNow, t)
                   : null;
               return (
               <li key={row.kanji} className="flex items-baseline justify-between gap-3 py-2.5">
@@ -134,9 +153,7 @@ export function ParentReportView({
                 </span>
                 <span className="text-xs text-fg-subtle" data-echo-arrival={when ? row.kanji : undefined}>
                   {row.reason === "waiting_second"
-                    ? when
-                      ? `${t("parentAttentionWaiting")} · ${when}`
-                      : t("parentAttentionWaiting")
+                    ? t("parentAttentionWaiting")
                     : when
                       ? `${t(STATUS_KEYS[row.status])} · ${when}`
                       : t(STATUS_KEYS[row.status])}
