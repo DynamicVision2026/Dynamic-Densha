@@ -605,7 +605,8 @@ test("every ownership path carries the orphan fallback, not just the list", () =
   // than the one being fixed.
   const coverage = readFileSync("src/lib/server/coverage.ts", "utf8");
   assert.match(coverage, /household_id is null and user_id = \$\{userId \?\? null\}/);
-  const progress = readFileSync("src/lib/server/progress.ts", "utf8");
+  // loadProgress moved to progress-store.ts under Phase A's clock injection.
+  const progress = readFileSync("src/lib/server/progress-store.ts", "utf8");
   assert.match(progress, /household_id is null and user_id = \$\{userId\}/);
   const children = readFileSync("src/lib/server/children.ts", "utf8");
   assert.match(children, /household_id is null and user_id = \$\{context\.userId\}/);

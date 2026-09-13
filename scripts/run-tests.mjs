@@ -77,6 +77,8 @@ const TS_TESTS = [
   "scripts/parent-ia.test.ts",
   "scripts/back-nav.test.ts",
   "scripts/server-error-messages.test.ts",
+  "scripts/clock.test.ts",
+  "scripts/echo-clock-sequence.test.ts",
 ];
 
 // The list above is explicit (node --experimental-strip-types takes paths,
@@ -97,6 +99,7 @@ const orphans = unregisteredTsTests();
 const stages = [
   { name: "ticket path guard", cmd: process.execPath, args: ["scripts/check-ticket-path-guard.mjs"] },
   { name: "echo eligibility single source", cmd: process.execPath, args: ["scripts/check-echo-eligibility-single-source.mjs"] },
+  { name: "clock single source", cmd: process.execPath, args: ["scripts/check-clock-single-source.mjs"] },
   { name: "single entitlement", cmd: process.execPath, args: ["scripts/check-single-entitlement.mjs"] },
   { name: "derived subscription", cmd: process.execPath, args: ["scripts/check-derived-subscription.mjs"] },
   { name: "webhook-only entitlement", cmd: process.execPath, args: ["scripts/check-webhook-only-entitlement.mjs"] },

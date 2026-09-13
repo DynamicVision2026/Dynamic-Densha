@@ -72,7 +72,10 @@ test("demo applyEvent and nextArrivalFrom share the same label", () => {
   const due = "2026-08-25T01:00:00.000Z";
   const state = almost(due);
   const demoSrc = readFileSync("src/lib/demo-progress.ts", "utf8");
-  const serverSrc = readFileSync("src/lib/server/progress.ts", "utf8");
+  // completeEncounter/completeUnderstand/submitPractice's real bodies moved to
+  // progress-write.ts under Phase A's clock injection -- see
+  // check-clock-single-source.mjs.
+  const serverSrc = readFileSync("src/lib/server/progress-write.ts", "utf8");
   assert.match(demoSrc, /export function applyEvent/);
   assert.match(demoSrc, /nextArrivalFrom\(next, nowIso, t\)/);
   assert.match(serverSrc, /nextArrival: nextArrivalFrom\(next, now, jaArrivalT\)/);

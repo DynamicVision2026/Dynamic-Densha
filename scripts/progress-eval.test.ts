@@ -353,7 +353,9 @@ test("P0-1 non-echo practice never grants perfect", () => {
 });
 
 test("P0-1 server and demo derive echo from stored progress, ignore client flags", () => {
-  const server = readFileSync("src/lib/server/progress.ts", "utf8");
+  // submitPractice's real body moved to progress-write.ts under Phase A's
+  // clock injection -- see check-clock-single-source.mjs.
+  const server = readFileSync("src/lib/server/progress-write.ts", "utf8");
   const demo = readFileSync("src/lib/demo-progress.ts", "utf8");
   const evalSrc = readFileSync("src/lib/progress-eval.ts", "utf8");
   const children = readFileSync("src/lib/server/children.ts", "utf8");

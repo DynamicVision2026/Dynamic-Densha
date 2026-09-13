@@ -129,7 +129,10 @@ test("logged-in meaning success on S lands in surface_seen and JSON after reload
 });
 
 test("progress.ts keeps JSON, appends surface_seen, hydrates union; no guest store", async () => {
-  const src = await readFile("src/lib/server/progress.ts", "utf8");
+  // The load/save + surface-seen wiring moved to progress-store.ts when
+  // clock injection (Phase A) split progress.ts into a read-only file and a
+  // write/store pair -- see check-clock-single-source.mjs.
+  const src = await readFile("src/lib/server/progress-store.ts", "utf8");
   assert.match(src, /insertMissingSurfaceSeen/);
   assert.match(src, /unionSurfaceIds/);
   assert.match(src, /backfillSurfaceSeenFromProgress/);

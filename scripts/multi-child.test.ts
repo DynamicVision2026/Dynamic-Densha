@@ -466,11 +466,17 @@ test("the layout validates the path's child against the household's own list", (
 });
 
 test("all four progress mutations check ownership before entitlement", () => {
+  // getKanjiStudy stays in progress.ts (read-only); completeEncounter/
+  // completeUnderstand/submitPractice moved to progress-write.ts under
+  // Phase A's clock injection, each still gating through the same helper --
+  // just with plain (userId, childId) params instead of (context.userId,
+  // data.childId), since they're no longer createServerFn handler bodies.
   const src = readFileSync("src/lib/server/progress.ts", "utf8");
-  const gated = src.match(/assertChildCanRideForCaller\(context\.userId, data\.childId\)/g) ?? [];
+  const writeSrc = readFileSync("src/lib/server/progress-write.ts", "utf8");
+  const gated = (src + writeSrc).match(/assertChildCanRideForCaller\(/g) ?? [];
   assert.equal(gated.length, 4, "getKanjiStudy, completeEncounter, completeUnderstand, submitPractice");
   // The old household-level gate must be gone, not merely unused.
-  assert.equal(/assertCanRide\(await getSql\(\)/.test(src), false);
+  assert.equal(/assertCanRide\(await getSql\(\)/.test(src + writeSrc), false);
   const coverage = readFileSync("src/lib/server/coverage.ts", "utf8");
   const order = coverage.indexOf("assertOwnedChild") < coverage.indexOf("getChildEntitlement(sql, householdId, childId, nowIso)");
   assert.ok(order, "ownership is resolved before entitlement, so a foreign id 404s rather than 403s");
