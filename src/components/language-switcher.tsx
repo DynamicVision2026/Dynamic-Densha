@@ -26,7 +26,7 @@ export function LanguageSwitcher() {
   }, [open]);
 
   return (
-    <div ref={root} className="relative">
+    <div ref={root} className="relative shrink-0">
       <button
         type="button"
         aria-haspopup="listbox"

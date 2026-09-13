@@ -51,25 +51,27 @@ export function AppShell({
   return (
     <div className="paper-wash min-h-dvh">
       <header className="sticky top-0 z-20 border-b border-border/80 bg-bg/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[900px] items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-[900px] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
           {back ? (
             <Link
               to={back}
               search={homeSearch}
               data-shell-back={back}
-              className="inline-flex h-11 min-w-11 items-center rounded-md px-2 text-sm text-fg-muted"
+              className="inline-flex h-11 min-w-11 shrink-0 items-center whitespace-nowrap rounded-md px-2 text-sm text-fg-muted"
             >
               {t("backChild")}
             </Link>
           ) : null}
-          <span className="font-display text-base tracking-wide">{t("brand")}</span>
+          <span className="shrink-0 whitespace-nowrap font-display text-base tracking-wide">
+            {t("brand")}
+          </span>
           {childName ? (
-            <span className="hidden text-sm text-fg-muted sm:inline">
+            <span className="hidden truncate text-sm text-fg-muted sm:inline">
               {childName}
               {grade ? ` · ${t("gradeLabel", { n: grade })}` : ""}
             </span>
           ) : null}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <LanguageSwitcher />
             <AuthSlot />
           </div>

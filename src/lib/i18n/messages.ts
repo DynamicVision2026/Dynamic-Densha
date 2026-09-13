@@ -13,6 +13,8 @@ export const LOCALE_META: Record<
 
 const ja = {
   brand: "漢字でんしゃ",
+  signOut: "ログアウト",
+  signingOut: "ログアウト中…",
   language: "言語",
   loginParent: "保護者ログイン",
   continueWith: "{label} で続ける",
@@ -564,6 +566,8 @@ export type MessageKey = keyof typeof ja;
 
 const en: Record<MessageKey, string> = {
   brand: "Kanji Densha",
+  signOut: "Sign out",
+  signingOut: "Signing out…",
   language: "Language",
   loginParent: "Parent sign-in",
   continueWith: "Continue with {label}",
@@ -1113,6 +1117,8 @@ const en: Record<MessageKey, string> = {
 
 const zhHans: Record<MessageKey, string> = {
   brand: "汉字电车",
+  signOut: "退出登录",
+  signingOut: "正在退出…",
   language: "语言",
   loginParent: "家长登录",
   continueWith: "用 {label} 继续",
@@ -1661,6 +1667,8 @@ const zhHans: Record<MessageKey, string> = {
 
 const zhHant: Record<MessageKey, string> = {
   brand: "漢字電車",
+  signOut: "登出",
+  signingOut: "正在登出…",
   language: "語言",
   loginParent: "家長登入",
   continueWith: "以 {label} 繼續",

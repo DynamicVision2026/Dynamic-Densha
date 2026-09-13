@@ -3,6 +3,7 @@ import { Navigate, useRouterState } from "@tanstack/react-router";
 import { authEnabled, signOut } from "./client";
 import { signOutDestinationFor } from "../admin-routes";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
+import { useI18n } from "../i18n/i18n";
 
 /**
  * Auth state components — plain wrappers around `useCurrentUserState()`.
@@ -63,6 +64,7 @@ export function RedirectToSignIn({ to = SIGN_IN_PATH, next }: { to?: string; nex
  */
 export function UserButton() {
   const user = useCurrentUser();
+  const { t } = useI18n();
   // Sign-out can take a moment (and can fail when deployed), so the control
   // shows it is working and cannot be fired twice.
   const [signingOut, setSigningOut] = useState(false);
@@ -75,19 +77,25 @@ export function UserButton() {
   if (!user) return null;
   const label = user.displayName ?? user.primaryEmail ?? "Account";
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-2">
       {user.profileImageUrl ? (
         <img
           src={user.profileImageUrl}
           alt=""
-          className="h-8 w-8 rounded-full object-cover"
+          className="h-8 w-8 shrink-0 rounded-full object-cover"
         />
       ) : (
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-black/10 text-sm font-medium dark:bg-white/20">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-black/10 text-sm font-medium dark:bg-white/20">
           {label.charAt(0).toUpperCase()}
         </span>
       )}
-      <span className="text-sm font-medium">{label}</span>
+      {/* The display name/email has no length limit, unlike every other
+          label in this header -- hidden below `sm` (same convention as
+          AppShell's own childName) and capped+truncated above it, so a long
+          name never squeezes もどる/brand/sign-out into wrapping or clipping. */}
+      <span className="hidden max-w-[140px] truncate text-sm font-medium sm:inline-block">
+        {label}
+      </span>
       {authEnabled && (
         <button
           type="button"
@@ -97,9 +105,9 @@ export function UserButton() {
             // Success navigates away; on failure re-enable so it can be retried.
             void signOut(signOutDestinationFor(path)).catch(() => setSigningOut(false));
           }}
-          className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
+          className="shrink-0 cursor-pointer whitespace-nowrap text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
         >
-          {signingOut ? "Signing out…" : "Sign out"}
+          {signingOut ? t("signingOut") : t("signOut")}
         </button>
       )}
     </div>
