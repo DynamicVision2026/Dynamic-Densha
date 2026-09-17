@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { refundMailtoHref } from "@/lib/refund-contact";
+import { buildSupportMailto } from "@/lib/refund-contact";
 import { useI18n } from "@/lib/i18n/i18n";
 
 /**
@@ -63,7 +63,7 @@ export function RefundModal({
         <p className="mt-3 text-sm leading-7 text-fg-muted">{t("refundBody")}</p>
 
         <a
-          href={refundMailtoHref({ orderName, email })}
+          href={buildSupportMailto({ kind: "refund", context: { orderName, email } })}
           data-refund-mailto
           className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-5 text-sm text-primary-fg"
         >

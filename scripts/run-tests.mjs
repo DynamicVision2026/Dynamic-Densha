@@ -75,6 +75,7 @@ const TS_TESTS = [
   "scripts/admin-access.test.ts",
   "scripts/multi-child.test.ts",
   "scripts/parent-ia.test.ts",
+  "scripts/refund-contact.test.ts",
   "scripts/back-nav.test.ts",
   "scripts/server-error-messages.test.ts",
   "scripts/clock.test.ts",

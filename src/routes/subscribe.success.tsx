@@ -100,6 +100,13 @@ function SubscribeSuccess() {
             >
               {t("successSlowReload")}
             </Button>
+            <a
+              href="https://kanji-ai.jp/contact.html"
+              data-checkout-support-link
+              className="mt-4 inline-block text-sm text-fg-muted underline-offset-4 hover:underline"
+            >
+              {t("checkoutSupportLink")}
+            </a>
           </>
         )}
       </div>

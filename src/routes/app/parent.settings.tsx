@@ -5,6 +5,7 @@ import { ParentHub } from "@/components/parent-shell";
 import { ChildProfileRow } from "@/components/child-profile-row";
 import { HelpPopover } from "@/components/help-popover";
 import { RefundModal } from "@/components/refund-modal";
+import { ParentSupportCard } from "@/components/parent-support-card";
 import { PassAssignmentCard } from "@/components/pass-assignment-card";
 import { InstallGuide } from "@/components/install-guide";
 import { PlanCards, CurrentPlanNotice } from "@/components/plan-cards";
@@ -242,6 +243,9 @@ function ParentSettings() {
           {t("refundOpen")}
         </button>
       </section>
+
+      {/* ── お問い合わせ・サポート ──────────────────────────────── */}
+      <ParentSupportCard orderName={account?.orderName ?? null} email={account?.email ?? null} />
 
       {/* Below everything, and self-hiding once the app is already on the
           home screen -- /subscribe/success is seen exactly once, so this is

@@ -479,6 +479,7 @@ test("nothing the parent hub adds can reach a child surface", () => {
   const parentOnly = [
     "pass-assignment-card",
     "refund-modal",
+    "parent-support-card",
     "help-popover",
     "parent-shell",
     "child-profile-row",
