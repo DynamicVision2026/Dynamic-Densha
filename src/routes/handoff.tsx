@@ -36,22 +36,30 @@ function Handoff() {
   });
 
   const checkout = isCheckout(handoffQ.data) ? handoffQ.data : undefined;
+  // A config/lookup failure (missing Shopify env var on this revision, DB
+  // error, etc.) -- distinct from handoffQ.isError below, which only ever
+  // covers the network/transport layer. This is the server successfully
+  // responding "I could not build a checkout link", and it must render
+  // something a visitor can see and act on: bouncing this to /app/parent
+  // silently is indistinguishable, from the visitor's side, from a signup
+  // that just quietly ends -- which is the exact failure mode this route
+  // exists to prevent.
+  const configError = handoffQ.data?.kind === "error";
 
-  // Bounce non-checkout outcomes (bad plan, already active, no plan at all,
-  // or the lookup itself failing) straight to the dashboard -- /handoff has
-  // nothing useful to show for any of those, and stranding a visitor on a
-  // blank page is worse than a redirect they didn't explicitly ask for.
+  // Bounce the other non-checkout outcomes (bad plan, already active, no
+  // plan at all) straight to the dashboard -- those are real decisions with
+  // an obvious next destination. A transport-level failure (handoffQ.isError)
+  // or a server-reported config error is not: see the visible states below
+  // instead of a silent redirect for either.
   useEffect(() => {
     if (!plan) {
       window.location.href = "/app/parent";
       return;
     }
-    if (handoffQ.data && handoffQ.data.kind !== "checkout") {
+    if (handoffQ.data && handoffQ.data.kind !== "checkout" && handoffQ.data.kind !== "error") {
       window.location.href = handoffQ.data.kind === "already-active" ? "/app/parent?already=active" : "/app/parent";
-      return;
     }
-    if (handoffQ.isError) window.location.href = "/app/parent";
-  }, [plan, handoffQ.data, handoffQ.isError]);
+  }, [plan, handoffQ.data]);
 
   if (isPending) return null;
   if (!user) {
@@ -59,6 +67,24 @@ function Handoff() {
     // resolves to /app after sign-in -- the plan param is carried anyway in
     // case that list ever widens.
     return <RedirectToSignIn next={`/handoff${plan ? `?plan=${encodeURIComponent(plan)}` : ""}`} />;
+  }
+
+  if (configError || handoffQ.isError) {
+    return (
+      <main className="paper-wash grid min-h-dvh place-items-center px-5 py-10">
+        <div className="w-full max-w-md text-center">
+          <p className="font-display text-xl">{t("handoffErrorTitle")}</p>
+          <p className="mt-2 text-sm leading-6 text-fg-muted">{t("handoffErrorBody")}</p>
+          <a
+            href="https://kanji-ai.jp/contact.html"
+            data-checkout-support-link
+            className="mt-6 inline-block text-sm text-fg-muted underline-offset-4 hover:underline"
+          >
+            {t("checkoutSupportLink")}
+          </a>
+        </div>
+      </main>
+    );
   }
 
   // No auto-redirect. This screen now carries the price, the non-renewal

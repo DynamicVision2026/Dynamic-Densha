@@ -38,6 +38,11 @@ function redirectTo(location: string): Response {
   return new Response(null, { status: 302, headers: { Location: location } });
 }
 
+/** Server logs only. No email, no household/user id, no token value -- just enough to tell which of the five branches a given hit took. */
+function logSubscribeOutcome(reasonCode: string, planParam: string | null) {
+  console.log(`[subscribe] reason=${reasonCode} plan=${planParam ?? "(none)"}`);
+}
+
 export const Route = createFileRoute("/subscribe")({
   server: {
     handlers: {
@@ -72,14 +77,18 @@ export const Route = createFileRoute("/subscribe")({
           // Unreachable here (planParam already validated above); kept so
           // decideSubscribeAction's own branches stay exhaustively testable.
           case "invalid-plan":
+            logSubscribeOutcome("invalid-plan", planParam);
             return redirectTo("/app/parent");
           case "no-session": {
+            logSubscribeOutcome("no-session", planParam);
             const self = `/subscribe?plan=${decision.planParam}`;
             return redirectTo(`/login?next=${encodeURIComponent(self)}`);
           }
           case "already-active":
+            logSubscribeOutcome("already-active", planParam);
             return redirectTo("/app/parent?already=active");
           case "checkout":
+            logSubscribeOutcome("checkout", planParam);
             return redirectTo(`/handoff?plan=${decision.plan}`);
         }
       },
