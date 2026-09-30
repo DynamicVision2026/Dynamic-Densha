@@ -65,6 +65,17 @@ function Parents() {
         >
           {t("doorTry")}
         </Link>
+        {/* Pricing page, never /subscribe directly -- the resolver needs a
+            session to attach checkout_token, and a parent here should see
+            both plans, the trial terms, and the refund policy before
+            choosing any of that. */}
+        <a
+          href="https://kanji-ai.jp/pricing.html"
+          data-parents-pricing-cta
+          className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-xl border border-border bg-surface px-8 text-sm text-fg"
+        >
+          {t("parentsPricingCta")}
+        </a>
         <p className="mt-4 text-center">
           <Link to="/" className="text-xs text-fg-subtle underline-offset-4 hover:underline">
             {t("parentsBack")}
