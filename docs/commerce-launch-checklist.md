@@ -358,6 +358,63 @@ without a hand-run SQL step first.
 
 ---
 
+## Purchase welcome email (Resend) — one-time setup, founder-only
+
+Per the "漢字でんしゃ purchase welcome email" work order (2026-10-02): until this
+is configured, `orders/paid` grants entitlement exactly as before, but sends
+no welcome email -- it degrades to log-only (`[email] RESEND_API_KEY is not
+configured -- emails will only be logged, never actually sent.`), never a
+crash, never a blocked webhook response.
+
+**What the app side already does**, once the env var below is set: resolves
+the account email from `kd_token` (never `order.email`), sends via Resend
+from `漢字でんしゃ <info@kanji-ai.jp>` / reply-to `info@kanji-ai.jp`, only for a
+*new* `orders/paid` delivery whose variant matches the existing
+`SHOPIFY_VARIANT_BUYOUT`/`SHOPIFY_VARIANT_ANNUAL` allow-list (so another
+brand's order on the same shared store sends nothing), and alerts the same
+inbox (not just a log line) if the account can't be resolved or the send
+itself fails. See `src/routes/api/webhooks/shopify.ts` and
+`src/lib/email/`.
+
+**Three things only the founder can do** (no DNS-provider access, no ability
+to create a verified third-party account from this environment):
+
+1. **Create a Resend account owned by 漢字でんしゃ alone** -- not a second
+   sender inside ナゼホリ's existing Postmark account. Get an API key.
+
+2. **Add `kanji-ai.jp` as a sending domain in Resend**, and prefer whatever
+   option gives it its own sending subdomain (so DKIM/Return-Path live
+   there, not at the root). **Do not let Resend's setup modify the existing
+   root SPF TXT record on `kanji-ai.jp`** -- that record already authorizes
+   `info@kanji-ai.jp`'s current mail, and a domain may hold only one SPF
+   record; a second one is a permanent error that breaks all mail from the
+   domain. If Resend's instructions ask for a root SPF change, stop and
+   report back rather than applying it -- the records Resend's dashboard
+   actually generates can only be known once the domain is added there, so
+   there is nothing to paste into this checklist ahead of time.
+
+3. **Set `RESEND_API_KEY` on the `Dynamic-Densha` Cloud Run service**, the
+   same way as the four `SHOPIFY_*` vars above (`gcloud run services update
+   ... --update-env-vars RESEND_API_KEY=...` or the Console) -- not a GitHub
+   Actions secret, for the same reason: `deploy-production.yml` never passes
+   `--set-env-vars`, so this must persist on the service itself. **Verify it
+   survives a deploy**: after setting it, trigger a redeploy and confirm the
+   var is still present on the new revision (`gcloud run services describe
+   kanji-densha --format='value(spec.template.spec.containers[0].env)'` or
+   the Console) -- a missing key here means the email silently never sends,
+   exactly the failure mode that cost three days before this was caught.
+
+**Before the first real send**, confirm deliverability the same way the
+Shopify webhook secret above gets a real-order Pass 2: one real (or test)
+`orders/paid` delivery, then in Gmail → **Show original** on the resulting
+welcome email, confirm `SPF: PASS`, `DKIM: PASS`, `DMARC: PASS`, and that
+the signing domain is `kanji-ai.jp`. Separately, confirm mail from
+`info@kanji-ai.jp` still sends and receives normally after the domain
+change -- a Resend DNS change at `kanji-ai.jp` must not be the thing that
+breaks the one existing, monitored mailbox.
+
+---
+
 ## Post-purchase loop (v1.0) — what still needs a human
 
 The app side of the post-purchase spec is built and deployed: `/subscribe/success`

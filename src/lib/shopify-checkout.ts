@@ -34,13 +34,20 @@ function variantIdFor(plan: Plan): string | undefined {
 
 /**
  * Appends ?attributes[kd_token]=<token>&attributes[kd_plan]=<plan> to the
- * plan's cart permalink -- never a bare URL, and never household_id or a
- * parent's email in the cart attributes (spec invariant). Throws rather than
- * returning a broken link if the store domain or this plan's variant id
- * isn't configured -- /handoff's caller decides how to surface that instead
- * of silently sending a family to a 404.
+ * plan's cart permalink -- never a bare URL, and never household_id in the
+ * cart attributes (spec invariant). Throws rather than returning a broken
+ * link if the store domain or this plan's variant id isn't configured --
+ * /handoff's caller decides how to surface that instead of silently sending
+ * a family to a 404.
+ *
+ * `accountEmail`, when given, is added as `checkout[email]` -- Shopify's own
+ * checkout-prefill parameter, so the two addresses (the account that gets
+ * access, and whoever actually pays) stay aligned for the common case where
+ * they're the same person. The customer can still change it at checkout;
+ * this is a default, not a binding -- entitlement and the welcome email
+ * both resolve the account by `kd_token` regardless of what ends up here.
  */
-export function buildCheckoutUrl(plan: Plan, checkoutToken: string): string {
+export function buildCheckoutUrl(plan: Plan, checkoutToken: string, accountEmail?: string | null): string {
   const domain = shopifyStoreDomain();
   const variantId = variantIdFor(plan);
   if (!domain) throw new Error("shopify-checkout: SHOPIFY_STORE_DOMAIN is not configured");
@@ -52,5 +59,6 @@ export function buildCheckoutUrl(plan: Plan, checkoutToken: string): string {
   const url = new URL(`https://${domain}/cart/${variantId}:1`);
   url.searchParams.set("attributes[kd_token]", checkoutToken);
   url.searchParams.set("attributes[kd_plan]", plan);
+  if (accountEmail) url.searchParams.set("checkout[email]", accountEmail);
   return url.toString();
 }

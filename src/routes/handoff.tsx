@@ -102,6 +102,10 @@ function Handoff() {
         <div className="mt-6">{checkout ? <OutboundTicket plan={checkout.plan} /> : null}</div>
         <StatementNotice />
 
+        {checkout?.accountEmail ? (
+          <p className="mt-6 text-xs text-fg-muted">{t("handoffEmailNotice", { email: checkout.accountEmail })}</p>
+        ) : null}
+
         {checkout ? (
           <a
             href={checkout.checkoutUrl}

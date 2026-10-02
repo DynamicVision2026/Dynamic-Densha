@@ -28,6 +28,13 @@ export const STATEMENT_DESCRIPTOR = "SP BC-KANJIDENSHA";
 /** The legal entity behind the charge, as it appears on the ticket and in 特商法 copy. */
 export const CORPORATE_NAME = "Beyond Culture 獨歩文化株式会社";
 
+/**
+ * The welcome email's one CTA destination -- a constant here, never a
+ * literal inside src/lib/email/densha-welcome-email.ts itself, so a
+ * cross-brand or stale link can't creep into that file by accident.
+ */
+export const WELCOME_EMAIL_ACCESS_URL = "https://app.kanji-ai.jp/subscribe/success";
+
 /** Tax-inclusive price per plan, as displayed. One source, so a ticket and a plan card can never disagree. */
 export const PLAN_PRICE_JPY: Record<Plan, string> = {
   buyout: "¥9,800",

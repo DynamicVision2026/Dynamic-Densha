@@ -213,6 +213,26 @@ export async function getHouseholdIdByCheckoutToken(sql: Sql, token: string): Pr
   return rows[0]?.id ?? null;
 }
 
+/**
+ * The account email the welcome email goes to (work order §5: "the account
+ * email, resolved from kd_token... access belongs to the account", never
+ * `order.email`, which belongs to whoever paid and can differ -- a parent
+ * registers as mom@gmail.com and pays as dad@icloud.com via Apple Pay
+ * autofill or a family card). Same owner-lookup query admin.ts already uses
+ * for its own household listing.
+ */
+export async function getHouseholdOwnerEmail(sql: Sql, householdId: string): Promise<{ email: string; name: string | null } | null> {
+  const rows = await sql<{ email: string | null; name: string | null }>`
+    select u.email, u.name
+    from household_member hm
+    join "user" u on u.id = hm.user_id
+    where hm.household_id = ${householdId} and hm.role = 'owner'
+  `;
+  const email = rows[0]?.email;
+  if (!email) return null;
+  return { email, name: rows[0]?.name ?? null };
+}
+
 /** Every parent account (user_id) currently in this household. */
 export async function householdMembers(
   sql: Sql,

@@ -20,7 +20,7 @@ export type HandoffResult =
   | { kind: "invalid-plan" }
   | { kind: "already-active" }
   /** `plan` is the SERVER's resolution of the plan param, not the raw query string -- the ticket renders a price from it, so it must not be attacker-chosen. */
-  | { kind: "checkout"; checkoutUrl: string; domain: string; plan: Plan }
+  | { kind: "checkout"; checkoutUrl: string; domain: string; plan: Plan; accountEmail: string | null }
   /**
    * buildCheckoutUrl's own comment says its caller "decides how to surface
    * that instead of silently sending a family to a 404" -- this is that
@@ -63,10 +63,17 @@ export const resolveHandoff = createServerFn({ method: "GET" })
     }
 
     const token = await getOrCreateCheckoutToken(sql, householdId);
+    // The account email, for the checkout[email] prefill (work order §6.1)
+    // and the on-screen notice (§6.2) -- never used for household lookup,
+    // only ever a default Shopify lets the customer change.
+    const userRows = await sql<{ email: string | null }>`
+      select email from "user" where id = ${context.userId}
+    `;
+    const accountEmail = userRows[0]?.email ?? null;
     try {
-      const checkoutUrl = buildCheckoutUrl(decision.plan, token);
+      const checkoutUrl = buildCheckoutUrl(decision.plan, token, accountEmail);
       logHandoffOutcome("checkout", data.planParam, Boolean(token));
-      return { kind: "checkout", checkoutUrl, domain: shopifyStoreDomain(), plan: decision.plan };
+      return { kind: "checkout", checkoutUrl, domain: shopifyStoreDomain(), plan: decision.plan, accountEmail };
     } catch (err) {
       // Exactly the case this file's own module comment calls out: a missing
       // SHOPIFY_STORE_DOMAIN / SHOPIFY_VARIANT_* on the running revision.
